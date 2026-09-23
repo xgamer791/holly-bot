@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Holly Bot</title>
+  <meta name="description" content="Holly Bot — your desktop AI agent assistant." />
+  <style>
+    :root { color-scheme: dark light; --bg:#0b0d12; --fg:#f4f6fb; --muted:#9aa3b5; --accent:#7c9cff; --card:#141824; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #1a2450 0%, transparent 55%),
+                  radial-gradient(900px 500px at 100% 0%, #2a1848 0%, transparent 50%), var(--bg);
+      color: var(--fg); display: flex; align-items: center; justify-content: center; padding: 2rem;
+    }
+    main {
+      width: min(720px, 100%); background: color-mix(in srgb, var(--card) 88%, transparent);
+      border: 1px solid #2a3145; border-radius: 20px; padding: 2.5rem; backdrop-filter: blur(10px);
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--accent); border: 1px solid #3a4a7a; border-radius: 999px;
+      padding: .35rem .75rem; margin-bottom: 1.25rem;
+    }
+    h1 { font-size: clamp(2rem, 5vw, 2.75rem); line-height: 1.1; margin: 0 0 .75rem; }
+    p { color: var(--muted); font-size: 1.05rem; line-height: 1.6; margin: 0 0 1rem; }
+    .row { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+    a.btn {
+      display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+      border-radius: 12px; padding: .7rem 1.1rem; font-weight: 600; font-size: .95rem;
+    }
+    a.primary { background: var(--accent); color: #0b0d12; }
+    a.ghost { color: var(--fg); border: 1px solid #3a4258; }
+    footer { margin-top: 2rem; font-size: .85rem; color: #6b7388; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="badge">Holly Bot · live</div>
+    <h1>Your desktop AI agent.</h1>
+    <p>
+      Holly Bot is a Grok Bot–class assistant: multi-agent chat, a real computer,
+      connectors, routines, and cloud coding — built to act, not just answer.
+    </p>
+    <p>Site is on GitHub Pages from <code>main</code>. Product build starts when you say go.</p>
+    <div class="row">
+      <a class="btn primary" href="https://github.com/xgamer791/holly-bot">GitHub repo</a>
+      <a class="btn ghost" href="https://github.com/xgamer791/holly-bot#readme">README</a>
+    </div>
+    <footer>xgamer791/holly-bot · Pages · main</footer>
+  </main>
+</body>
+</html>
