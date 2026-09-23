@@ -1,8 +1,11 @@
 // Holly Bot service worker: offline app shell (stale-while-revalidate for this
-// site's own files) and notification clicks. API calls to AI providers are
-// never cached.
+// site's own files) and notification clicks. API calls are never cached.
 
-const CACHE = 'holly-v1';
+const CACHE = 'holly-v2';
+// Only the app's own files are cached. Everything else — notably Holly
+// Computer's /api and /v1 calls when the app is served by it — goes straight
+// to the network.
+const APP_FILE = /(\/|\/index\.html|\/styles\.css|\/manifest\.webmanifest|\/(src|vendor|icons)\/[^?#]+)$/;
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './src/main.js', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -21,7 +24,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.endsWith('/computer/holly-computer.mjs')) return;
+  if (req.mode !== 'navigate' && !APP_FILE.test(url.pathname)) return;
+  if (/\/(api|v1)\//.test(url.pathname)) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });

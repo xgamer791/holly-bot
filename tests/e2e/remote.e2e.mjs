@@ -137,6 +137,30 @@ test('the phone shows when the computer is unreachable and recovers after it res
   await shot('reconnected');
 });
 
+test('with the offline app cache on, live data still comes fresh from the computer', async () => {
+  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  const phone = await ctx.newPage();
+  const link = `http://localhost:${PORT}/#connect=${Buffer.from(JSON.stringify({ url: '', token: holly.token })).toString('base64url')}`;
+  await phone.goto(link);
+  await phone.waitForSelector('.pane-list');
+  await phone.evaluate(() => navigator.serviceWorker.ready);
+  await phone.reload();
+  await phone.waitForSelector('.pane-list');
+  assert.ok(await phone.evaluate(() => !!navigator.serviceWorker.controller), 'service worker controls the page');
+  await rpc('agents.create', { name: 'Nova', greet: false });
+  await phone.locator('.row-bot', { hasText: 'Nova' }).waitFor();
+  await phone.reload();
+  await phone.locator('.row-bot', { hasText: 'Nova' }).waitFor();
+  const cached = await phone.evaluate(async () => {
+    const keys = [];
+    for (const name of await caches.keys()) for (const r of await (await caches.open(name)).keys()) keys.push(new URL(r.url).pathname);
+    return keys;
+  });
+  assert.ok(cached.some((p) => p.endsWith('/src/main.js')), 'app files are cached for offline use');
+  assert.deepEqual(cached.filter((p) => /^\/(api|v1)\//.test(p)), [], 'API responses are never cached');
+  await ctx.close();
+});
+
 test('no page errors', () => {
   assert.deepEqual(errors, []);
 });
