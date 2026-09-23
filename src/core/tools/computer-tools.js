@@ -67,8 +67,9 @@ export const computerTools = [
     group: 'computer',
     available: (app) => connected(app) && caps(app).browser,
     label: (a) => `Browser: ${a.action.replace('_', ' ')}${a.url ? ` ${truncate(a.url, 40)}` : a.ref ? ` ${a.ref}` : ''}`,
-    description: 'Drive a real Chrome browser on the computer (its own profile, so logins persist). Pages come back as text with numbered element refs like [e12] — use them to click and type. '
-      + 'Actions: goto {url}; snapshot; click {ref | text | selector}; type {ref | selector, text, submit?}; type_text {text} (into the focused field); press {key: Enter, Tab, Escape, ArrowDown, Control+a…}; scroll {direction}; back; forward; reload; tabs; new_tab {url}; switch_tab {id}; close_tab {id}; screenshot; click_xy {x, y}. '
+    description: 'Drive a real Chrome browser on the computer (its own profile, so logins persist). You get your own tab. Pages come back as text with numbered element refs like [e12] — use them to click and type. '
+      + 'Actions: goto {url}; snapshot; click {ref | text | selector}; type {ref | selector, text, submit?} (also picks an option in a select); type_text {text} (into the focused field); press {key: Enter, Tab, Escape, ArrowDown, Control+a…}; scroll {direction}; back; forward; reload; tabs; new_tab {url}; switch_tab {id}; close_tab {id}; screenshot; click_xy {x, y} (pixels in the last screenshot). '
+      + 'Refs change when the page changes — use the ones from the latest result. Dialogs are accepted automatically and downloads go to the Downloads folder in the workspace. '
       + 'If a site needs the user to sign in or solve a CAPTCHA, tell them — they can do it from the Computer panel on their phone — then continue.',
     parameters: {
       type: 'object',
@@ -92,7 +93,8 @@ export const computerTools = [
     approval: () => 'Use the browser on your computer (click and type on websites) for this task',
     async run(args, ctx) {
       const { action, ...rest } = args;
-      const r = await ctx.app.computer.browser(action, rest, { signal: ctx.signal });
+      const extra = action === 'click_xy' ? { withScreenshot: true } : {};
+      const r = await ctx.app.computer.browser(action, { ...rest, ...extra, agentId: ctx.agent.id }, { signal: ctx.signal });
       ctx.app.logActivity(ctx.agent.id, { type: 'browser', title: `${action}${args.url ? ` ${args.url}` : ''}`, detail: truncate(r.text || r.title || '', 300) });
       const images = r.screenshot ? [{ mime: 'image/jpeg', data: r.screenshot }] : [];
       const tabs = r.tabs ? r.tabs.map((t) => `${t.active ? '* ' : '  '}${t.id}  ${t.title} — ${t.url}`).join('\n') : '';

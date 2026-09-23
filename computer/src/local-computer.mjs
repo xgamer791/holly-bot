@@ -28,7 +28,9 @@ export class LocalComputer {
     this.error = '';
     this.info = null;
     this.desktopPromise = null;
+    this.desktopQueue = Promise.resolve();
     this.browserInstance = null;
+    this.browserQueues = new Map();
     this.mcp = new McpHost({ configPath: join(dataDir, 'mcp.json'), log });
     mkdirSync(workspace, { recursive: true });
   }
@@ -53,7 +55,16 @@ export class LocalComputer {
     const { CdpBrowser, findChrome } = await import('./browser-cdp.mjs');
     const executablePath = findChrome();
     if (!executablePath) throw new Error('No Chrome, Edge, Chromium or Brave found. Install Chrome, or set HOLLY_BROWSER to the browser executable path.');
-    this.browserInstance = new CdpBrowser({ executablePath, userDataDir: join(this.dataDir, 'browser-profile'), headless: this.headlessBrowser, log: this.log });
+    // No screen to show a window on (a server): run the browser headless.
+    const noDisplay = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
+    this.browserInstance = new CdpBrowser({
+      executablePath,
+      userDataDir: join(this.dataDir, 'browser-profile'),
+      downloadDir: join(this.workspace, 'Downloads'),
+      headless: this.headlessBrowser || noDisplay,
+      extraArgs: String(process.env.HOLLY_BROWSER_ARGS || '').split(/\s+/).filter(Boolean),
+      log: this.log,
+    });
     return this.browserInstance;
   }
 
@@ -172,96 +183,144 @@ export class LocalComputer {
 
   // ----- desktop (screen, mouse, keyboard) ------------------------------------------
 
-  async screenshot({ maxWidth = 1280, quality = 70 } = {}) {
-    const d = await this.desktop();
-    const s = await d.screenshot({ maxWidth, quality, format: 'jpeg' });
-    return { base64: s.data, mime: s.mime, width: s.width, height: s.height, screenWidth: s.screenWidth, screenHeight: s.screenHeight };
+  /** Screen actions run one at a time so bots and the phone never interleave clicks. */
+  serialDesktop(fn) {
+    const run = this.desktopQueue.then(fn, fn);
+    this.desktopQueue = run.catch(() => {});
+    return run;
   }
 
-  /** One desktop action, then a fresh screenshot so the model sees the result. */
+  async screenshot({ maxWidth = 1280, quality = 70 } = {}) {
+    return this.serialDesktop(async () => {
+      const d = await this.desktop();
+      const s = await d.screenshot({ maxWidth, quality });
+      return { base64: s.data, mime: s.mime, width: s.width, height: s.height, screenWidth: s.screenWidth, screenHeight: s.screenHeight };
+    });
+  }
+
+  /**
+   * One desktop action, then a fresh screenshot so the model sees the result.
+   * x/y are pixels in a screenshot `imageWidth` wide (default: the standard
+   * 1280-wide screenshot), mapped onto the real screen here.
+   */
   async desktopAction(action, args = {}) {
-    const d = await this.desktop();
-    const num = (v) => Math.round(Number(v));
-    switch (action) {
-      case 'screenshot':
-        break;
-      case 'click':
-        await d.click(num(args.x), num(args.y), { button: args.button || 'left', double: !!args.double });
-        break;
-      case 'double_click':
-        await d.click(num(args.x), num(args.y), { button: 'left', double: true });
-        break;
-      case 'right_click':
-        await d.click(num(args.x), num(args.y), { button: 'right' });
-        break;
-      case 'move':
-        await d.move(num(args.x), num(args.y));
-        break;
-      case 'drag':
-        await d.drag(num(args.x), num(args.y), num(args.to_x ?? args.x2), num(args.to_y ?? args.y2));
-        break;
-      case 'type':
-        await d.type(String(args.text ?? ''));
-        break;
-      case 'key':
-        await d.key(String(args.keys || args.key || ''));
-        break;
-      case 'scroll':
-        await d.scroll(num(args.x ?? 640), num(args.y ?? 400), { direction: args.direction || 'down', amount: Number(args.amount) || 5 });
-        break;
-      case 'wait':
-        await new Promise((r) => setTimeout(r, Math.min(30, Number(args.seconds) || 1) * 1000));
-        break;
-      case 'cursor':
-        return { cursor: await d.cursor() };
-      default:
-        throw new Error(`Unknown desktop action "${action}"`);
-    }
-    if (action !== 'screenshot' && action !== 'wait') await new Promise((r) => setTimeout(r, Number(args.settleMs) || 700));
-    const shot = await d.screenshot({ maxWidth: Number(args.maxWidth) || 1280, quality: 65, format: 'jpeg' });
-    return { ok: true, action, screenshot: { data: shot.data, mime: shot.mime, width: shot.width, height: shot.height } };
+    if (action === 'wait') await new Promise((r) => setTimeout(r, Math.min(30, Math.max(0.2, Number(args.seconds) || 1)) * 1000));
+    return this.serialDesktop(async () => {
+      const d = await this.desktop();
+      const info = await d.info();
+      if (!info.screenshotAvailable && !info.inputAvailable) throw new Error(`Screen control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
+      const maxWidth = Number(args.maxWidth) || 1280;
+      const imageWidth = Number(args.imageWidth) || Math.min(maxWidth, info.width || maxWidth);
+      const scale = info.width ? info.width / imageWidth : 1;
+      const map = (v, size) => (v == null || v === '' || !Number.isFinite(Number(v)) ? undefined : Math.max(0, Math.min((size || 1e6) - 1, Math.round(Number(v) * scale))));
+      const X = (v) => map(v, info.width);
+      const Y = (v) => map(v, info.height);
+      const needsInput = !['screenshot', 'wait'].includes(action);
+      if (needsInput && !info.inputAvailable) throw new Error(`Mouse and keyboard control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
+      const center = { x: Math.round((info.width || 1280) / 2), y: Math.round((info.height || 800) / 2) };
+      switch (action) {
+        case 'screenshot':
+        case 'wait':
+          break;
+        case 'click':
+          await d.click(X(args.x), Y(args.y), { button: args.button || 'left', double: !!args.double });
+          break;
+        case 'double_click':
+          await d.click(X(args.x), Y(args.y), { button: 'left', double: true });
+          break;
+        case 'right_click':
+          await d.click(X(args.x), Y(args.y), { button: 'right' });
+          break;
+        case 'middle_click':
+          await d.click(X(args.x), Y(args.y), { button: 'middle' });
+          break;
+        case 'move':
+          await d.move(X(args.x) ?? center.x, Y(args.y) ?? center.y);
+          break;
+        case 'drag':
+          await d.drag(X(args.x), Y(args.y), X(args.to_x ?? args.x2), Y(args.to_y ?? args.y2));
+          break;
+        case 'type':
+          await d.type(String(args.text ?? ''));
+          break;
+        case 'key':
+          await d.key(String(args.keys || args.key || ''));
+          break;
+        case 'scroll':
+          await d.scroll(X(args.x) ?? center.x, Y(args.y) ?? center.y, { direction: args.direction || 'down', amount: Number(args.amount) || 5 });
+          break;
+        case 'cursor': {
+          const c = await d.cursor();
+          return { cursor: { x: Math.round(c.x / scale), y: Math.round(c.y / scale) } };
+        }
+        default:
+          throw new Error(`Unknown desktop action "${action}"`);
+      }
+      if (needsInput) await new Promise((r) => setTimeout(r, Number(args.settleMs) || 600));
+      const shot = await d.screenshot({ maxWidth, quality: Number(args.quality) || 65 });
+      return { ok: true, action, screenshot: { data: shot.data, mime: shot.mime, width: shot.width, height: shot.height }, screen: { width: info.width, height: info.height } };
+    });
   }
 
   // ----- browser (Chrome via DevTools Protocol) --------------------------------------
 
+  /** Each bot gets its own tab; actions for the same owner run one at a time. */
+  serialBrowser(owner, fn) {
+    const prev = this.browserQueues.get(owner) || Promise.resolve();
+    const run = prev.then(fn, fn);
+    const tail = run.catch(() => {});
+    this.browserQueues.set(owner, tail);
+    tail.then(() => {
+      if (this.browserQueues.get(owner) === tail) this.browserQueues.delete(owner);
+    });
+    return run;
+  }
+
   async browser(action, args = {}) {
+    if (action === 'screenshot' && args.ifRunning && !this.browserInstance?.running) return { running: false };
     const b = await this.browserApi();
-    await b.start();
-    const map = {
-      goto: () => b.goto(args.url),
-      snapshot: () => b.snapshot(),
-      click: () => b.click({ ref: args.ref, selector: args.selector, text: args.text }),
-      type: () => b.type({ ref: args.ref, selector: args.selector, text: args.text ?? '', submit: !!args.submit, clear: args.clear !== false }),
-      type_text: () => b.typeText(args.text ?? ''),
-      press: () => b.press(args.key || 'Enter'),
-      scroll: () => b.scroll({ direction: args.direction || 'down', amount: args.amount }),
-      back: () => b.back(),
-      forward: () => b.forward(),
-      reload: () => b.reload(),
-      tabs: async () => ({ tabs: await b.tabs() }),
-      new_tab: () => b.newTab(args.url || 'about:blank'),
-      switch_tab: () => b.switchTab(args.id),
-      close_tab: () => b.closeTab(args.id),
-      click_xy: () => b.clickXY(Number(args.x), Number(args.y)),
-      evaluate: async () => ({ result: await b.evaluate(args.expression || args.js || '') }),
-      close: async () => {
-        await b.close();
-        this.browserInstance = null;
-        return { note: 'Browser closed.' };
-      },
-    };
+    const o = { owner: args.agentId || args.owner || 'user', tab: args.tab || undefined };
     if (action === 'screenshot') {
-      const s = await b.screenshot({ quality: 70 });
-      return { url: s.url, title: s.title, screenshot: s.data, width: s.width, height: s.height };
+      const s = await b.screenshot({ quality: Number(args.quality) || 70, maxWidth: Number(args.maxWidth) || 1280 }, o);
+      return { running: true, url: s.url, title: s.title, tab: s.tab, screenshot: s.data, width: s.width, height: s.height };
     }
+    if (action === 'close') {
+      await b.close();
+      this.browserInstance = null;
+      return { note: 'Closed the browser.' };
+    }
+    const map = {
+      goto: () => b.goto(args.url, o),
+      snapshot: () => b.snapshot(o),
+      click: () => b.click({ ref: args.ref, selector: args.selector, text: args.text }, o),
+      type: () => b.type({ ref: args.ref, selector: args.selector, text: args.text ?? '', submit: !!args.submit, clear: args.clear !== false }, o),
+      type_text: () => b.typeText(args.text ?? '', o),
+      press: () => b.press(args.key || args.keys || 'Enter', o),
+      scroll: () => b.scroll({ direction: args.direction || 'down', amount: args.amount }, o),
+      back: () => b.back(o),
+      forward: () => b.forward(o),
+      reload: () => b.reload(o),
+      tabs: async () => ({ tabs: await b.listTabs(o) }),
+      new_tab: () => b.newTab(args.url || 'about:blank', o),
+      switch_tab: () => b.switchTab(args.id || args.tab, o),
+      close_tab: () => b.closeTab(args.id, o),
+      click_xy: () => b.clickXY(Number(args.x), Number(args.y), o),
+      evaluate: async () => ({ result: await b.evaluate(args.expression || args.js || '', o) }),
+    };
     const fn = map[action];
     if (!fn) throw new Error(`Unknown browser action "${action}"`);
-    const state = await fn();
-    if (args.withScreenshot) {
-      const s = await b.screenshot({ quality: 60 });
-      return { ...state, screenshot: s.data, width: s.width, height: s.height };
-    }
-    return state;
+    return this.serialBrowser(o.owner, async () => {
+      let state = await fn();
+      if (args.quick && state) {
+        const { text, ...rest } = state;
+        state = rest;
+      }
+      if (args.withScreenshot) {
+        const s = await b.screenshot({ quality: 60 }, { owner: o.owner, tab: state?.tab || o.tab });
+        return { ...state, screenshot: s.data, width: s.width, height: s.height, tab: s.tab };
+      }
+      return state;
+    });
   }
 
   // ----- MCP plugins -------------------------------------------------------

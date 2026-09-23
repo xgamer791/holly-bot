@@ -179,14 +179,17 @@ function Screen() {
   const [keys, setKeys] = useState('');
   const inflight = useRef(false);
 
+  const [closed, setClosed] = useState(false);
+
   const show = (r, desktop) => {
     if (desktop) {
       const s = r.screenshot || { data: r.base64, mime: r.mime, width: r.width, height: r.height };
       if (s?.data) setShot({ ...s, mime: s.mime || 'image/jpeg' });
-    } else {
-      if (r.screenshot) setShot({ data: r.screenshot, mime: 'image/jpeg', width: r.width, height: r.height, url: r.url, title: r.title });
-      if (r.url) setUrl(r.url);
+      return;
     }
+    setClosed(r.running === false);
+    if (r.screenshot) setShot({ data: r.screenshot, mime: 'image/jpeg', width: r.width, height: r.height, url: r.url, title: r.title, tab: r.tab });
+    if (r.url && document.activeElement?.name !== 'url') setUrl(r.url);
   };
 
   const refresh = async (quiet = false) => {
@@ -195,7 +198,7 @@ function Screen() {
     if (!quiet) setBusy(true);
     try {
       if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280 }), true);
-      else show(await app.computer.browser('screenshot'), false);
+      else show(await app.computer.browser('screenshot', { ifRunning: true }), false);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });
       setLive(false);
@@ -219,10 +222,11 @@ function Screen() {
   const act = async (action, args = {}) => {
     setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction(action, args), true);
+      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width }), true);
       else {
-        const r = await app.computer.browser(action, { ...args, withScreenshot: true });
-        show(r.screenshot ? r : await app.computer.browser('screenshot'), false);
+        // Act on the tab being shown; after that the view follows whichever tab the bots use.
+        const tab = action === 'goto' && closed ? undefined : shot?.tab;
+        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true }), false);
       }
     } catch (err) {
       ui.toast(err.message, { error: true });
@@ -247,17 +251,20 @@ function Screen() {
     setTyping('');
   };
   const press = (k) => (mode === 'desktop' ? act('key', { keys: k }) : act('press', { key: k }));
+  const scroll = (direction) => (mode === 'desktop'
+    ? act('scroll', { x: Math.round((shot?.width || 1280) / 2), y: Math.round((shot?.height || 800) / 2), direction, amount: 5 })
+    : act('scroll', { direction }));
 
   return html`
     ${caps.browser && caps.screenshot && html`<div class="segmented" style="margin-bottom:10px">
       <button class=${mode === 'desktop' ? 'on' : ''} onClick=${() => setMode('desktop')}>Desktop</button>
       <button class=${mode === 'browser' ? 'on' : ''} onClick=${() => setMode('browser')}>Bot browser</button></div>`}
     ${mode === 'browser' && html`<div style="display:flex;gap:8px;margin-bottom:10px">
-      <input class="input" placeholder="https://" value=${url} onInput=${(e) => setUrl(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && act('goto', { url })} autocapitalize="off" />
+      <input class="input" name="url" type="url" inputmode="url" placeholder="Website or search" value=${url} onInput=${(e) => setUrl(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && url && act('goto', { url })} autocapitalize="off" autocorrect="off" />
       <button class="btn" onClick=${() => act('goto', { url })}>Go</button></div>`}
     <div style="position:relative">
       ${shot?.data ? html`<img class="screen-img" alt="Computer screen — tap to click" src=${`data:${shot.mime};base64,${shot.data}`} onClick=${onTap} />`
-        : html`<div class="notice" style="padding:60px 0">${busy ? 'Connecting to the screen…' : 'No picture yet.'}</div>`}
+        : html`<div class="notice" style="padding:60px 0">${busy ? 'Connecting to the screen…' : mode === 'browser' && closed ? 'The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.' : 'No picture yet.'}</div>`}
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
     <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.'}</div>
@@ -266,9 +273,9 @@ function Screen() {
       <button class="btn" onClick=${typeNow}>Type</button>
     </div>
     <div class="btn-row" style="margin-top:8px">
-      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => press(k === 'Escape' && mode === 'desktop' ? 'escape' : k.toLowerCase() === k ? k : mode === 'desktop' ? k.toLowerCase() : k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
-      <button class="btn small" onClick=${() => (mode === 'desktop' ? act('scroll', { x: Math.round((shot?.width || 1280) / 2), y: Math.round((shot?.height || 800) / 2), direction: 'up', amount: 5 }) : act('scroll', { direction: 'up' }))}>↑ Scroll</button>
-      <button class="btn small" onClick=${() => (mode === 'desktop' ? act('scroll', { x: Math.round((shot?.width || 1280) / 2), y: Math.round((shot?.height || 800) / 2), direction: 'down', amount: 5 }) : act('scroll', { direction: 'down' }))}>↓ Scroll</button>
+      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => press(k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
+      <button class="btn small" onClick=${() => scroll('up')}>↑ Scroll</button>
+      <button class="btn small" onClick=${() => scroll('down')}>↓ Scroll</button>
       ${mode === 'browser' && html`<button class="btn small" onClick=${() => act('back')}>Back</button>`}
     </div>
     <div style="display:flex;gap:8px;margin-top:8px">

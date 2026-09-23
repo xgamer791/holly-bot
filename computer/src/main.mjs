@@ -5,6 +5,7 @@
 //
 //   node holly-computer.mjs [--port 8787] [--tunnel] [--lan] [--workspace ~/Holly]
 //                           [--data ~/.holly] [--no-open] [--headless-browser] [--new-token]
+//                           [--allow-sleep]
 
 import os from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -16,12 +17,13 @@ import { NodeDB } from './node-db.mjs';
 import { LocalComputer, VERSION, defaultWorkspace } from './local-computer.mjs';
 import { createHollyServer } from './server.mjs';
 import { startQuickTunnel, hasCloudflared, qrText } from './tunnel.mjs';
+import { keepAwake } from './awake.mjs';
 import { App } from '../../src/core/app.js';
 
 const PAGES_URL = 'https://xgamer791.github.io/holly-bot/';
 
 function parseArgs(argv) {
-  const out = { port: 8787, host: '127.0.0.1', tunnel: false, open: true, headlessBrowser: false, newToken: false };
+  const out = { port: 8787, host: '127.0.0.1', tunnel: false, open: true, headlessBrowser: false, newToken: false, awake: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     else if (a === '--no-open') out.open = false;
     else if (a === '--headless-browser') out.headlessBrowser = true;
     else if (a === '--new-token') out.newToken = true;
+    else if (a === '--allow-sleep') out.awake = false;
     else if (a === '--help' || a === '-h') out.help = true;
   }
   return out;
@@ -153,11 +156,14 @@ export async function main(argv = process.argv.slice(2)) {
   } else {
     console.log('  To control your bots from your phone, restart with --tunnel (needs cloudflared) or --lan (same Wi-Fi).');
   }
+  const awake = args.awake && args.port !== 0 ? keepAwake() : null;
+  if (awake?.active) console.log('\n  Keeping this computer awake while Holly Computer runs (start with --allow-sleep to turn that off).');
   console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
   if (args.open) openBrowser(link(local, '', cfg.token));
 
   const shutdown = async () => {
     console.log('\n  Stopping Holly Computer…');
+    awake?.stop();
     app.runtime.stopAll();
     app.stopScheduler();
     server.close();
