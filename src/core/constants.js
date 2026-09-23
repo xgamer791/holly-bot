@@ -5,6 +5,8 @@ export const APP_VERSION = '1.0.0';
 
 export const SHAPE_KEYS_CORE = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
 export const COLOR_KEYS_CORE = ['white', 'brown', 'red', 'vermilion', 'orange', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'];
+/** Each bot's own little animation while it thinks or works. */
+export const THINKING_KEYS = ['ponder', 'hop', 'jelly', 'orbit', 'scan', 'sparkle', 'float', 'nod', 'twirl'];
 
 /** Tool groups a bot can switch on/off in its settings. */
 export const TOOL_GROUPS = {

@@ -1,7 +1,7 @@
 import { html, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useAsync } from './hooks.js';
-import { Avatar } from './avatar.js';
-import { LookPicker } from './create-bot.js';
+import { Avatar, thinkingOf } from './avatar.js';
+import { LookPicker, usePreview } from './create-bot.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { PROVIDERS, PROVIDER_ORDER } from '../core/providers/index.js';
@@ -13,6 +13,7 @@ export function BotProfileSheet({ agentId, onClose }) {
   useTopics(['agents', `memory:${agentId}`, 'routines', 'plugins', 'settings', 'computer']);
   const agent = app.getAgent(agentId);
   const [editLook, setEditLook] = useState(false);
+  const [preview, play] = usePreview();
   const { data: memCount } = useAsync(() => app.memory.count(agentId), [agentId], [`memory:${agentId}`]);
   const { data: routines } = useAsync(() => app.routines.list(agentId), [agentId], ['routines']);
   if (!agent) return html`<${Sheet} title="Bot" onClose=${onClose}><p>This bot was deleted.</p><//>`;
@@ -23,9 +24,11 @@ export function BotProfileSheet({ agentId, onClose }) {
   return html`
     <${Sheet} title=${agent.name} onClose=${onClose}>
       <div class="create-preview" style="padding:14px 0 18px">
-        <button aria-label="Change look" onClick=${() => setEditLook(!editLook)}><${Avatar} shape=${agent.shape} color=${agent.color} size=${120} live /></button>
+        <button aria-label="Change look" onClick=${() => setEditLook(!editLook)}><${Avatar} shape=${agent.shape} color=${agent.color} size=${120} live working=${preview || app.runtime.isAgentBusy(agent.id)} anim=${thinkingOf(agent)} /></button>
+        ${!editLook && html`<div class="hint" style="text-align:center;margin-top:8px">Tap to change the look</div>`}
       </div>
-      ${editLook && html`<div style="margin-bottom:28px"><${LookPicker} shape=${agent.shape} color=${agent.color} onShape=${(shape) => save({ shape })} onColor=${(color) => save({ color })} /></div>`}
+      ${editLook && html`<div style="margin-bottom:28px"><${LookPicker} shape=${agent.shape} color=${agent.color} thinking=${thinkingOf(agent)}
+        onShape=${(shape) => save({ shape })} onColor=${(color) => save({ color })} onThinking=${(thinking) => { save({ thinking }); play(); }} /></div>`}
       <${Group}>
         <div class="row"><div class="label"><div class="t">Name</div></div>
           <input type="text" value=${agent.name} maxlength="40" aria-label="Name" onChange=${(e) => e.currentTarget.value.trim() && save({ name: e.currentTarget.value.trim() })} /></div>

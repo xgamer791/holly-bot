@@ -1,6 +1,6 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { useApp, useUi, haptic } from './hooks.js';
-import { Avatar } from './avatar.js';
+import { Avatar, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { listen, speak, stopSpeaking, sttSupported } from './speech.js';
 import { finalText } from '../core/runtime.js';
@@ -100,7 +100,7 @@ export function VoiceMode({ thread, agent, onClose }) {
         <button class="circle-btn" aria-label="Close voice mode" onClick=${onClose}><${Icon.x} /></button>
       </div>
       <div class="center">
-        <${Avatar} shape=${agent?.shape} color=${agent?.color} size=${Math.min(200, innerWidth * 0.46)} live working=${phase === 'thinking'}
+        <${Avatar} shape=${agent?.shape} color=${agent?.color} size=${Math.min(200, innerWidth * 0.46)} live working=${phase === 'thinking'} anim=${thinkingOf(agent)}
           expression=${phase === 'listening' ? 'curious' : phase === 'speaking' ? 'happy' : undefined} />
         <div class="status">${status}</div>
         <div class="said">${said}</div>

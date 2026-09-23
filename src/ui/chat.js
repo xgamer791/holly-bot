@@ -1,6 +1,6 @@
 import { html, useEffect, useRef, useState, useLayoutEffect } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useMessages } from './hooks.js';
-import { Avatar, AvatarStack } from './avatar.js';
+import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { MessageView } from './message.js';
 import { Composer } from './composer.js';
@@ -85,7 +85,7 @@ export function ChatScreen({ threadId, wide }) {
         <button class="name-pill" onClick=${openProfile} aria-label=${`${title} settings`}>
           ${isGroup
             ? html`<${AvatarStack} agents=${agents} size=${30} />`
-            : html`<${Avatar} shape=${(isChannel ? agents[1] : agent)?.shape} color=${(isChannel ? agents[1] : agent)?.color} size=${30} working=${busy} status=${busy ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
+            : html`<${Avatar} shape=${(isChannel ? agents[1] : agent)?.shape} color=${(isChannel ? agents[1] : agent)?.color} size=${30} working=${busy} anim=${thinkingOf(isChannel ? agents[1] : agent)} status=${busy ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
           <span class="name">${title}</span>
           ${isGroup && html`<span class="sub">${agents.length}</span>`}
         </button>
@@ -96,7 +96,7 @@ export function ChatScreen({ threadId, wide }) {
           ${messages === null && html`<div class="notice">Loading…</div>`}
           ${isChannel && html`<div class="notice">Private channel between ${agents.map((a) => a.name).join(' and ')}. Bots use it when they message each other.</div>`}
           ${items}
-          ${busy && runAgent && !list.some((m) => m.status === 'streaming') && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} working /></div>`}
+          ${busy && runAgent && !list.some((m) => m.status === 'streaming') && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} working anim=${thinkingOf(runAgent)} /></div>`}
         </div>
       </div>
       ${!isChannel && html`<${Composer} thread=${thread} agents=${agents} onVoice=${() => setVoice(true)} />`}

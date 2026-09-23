@@ -8,7 +8,7 @@ import { ComputerClient } from './computer.js';
 import { PluginManager } from './plugins.js';
 import { Runtime, finalText, messageText } from './runtime.js';
 import { BM25 } from './memory/text.js';
-import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE, TOOL_GROUPS, FOCUS_OPTIONS } from './constants.js';
+import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE, THINKING_KEYS, TOOL_GROUPS, FOCUS_OPTIONS } from './constants.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 
 // App state: the single source of truth the UI renders from. Persists to
@@ -276,6 +276,7 @@ export class App {
       name: String(data.name || 'Bot').trim().slice(0, 40),
       shape: SHAPE_KEYS_CORE.includes(data.shape) ? data.shape : SHAPE_KEYS_CORE[Math.floor(Math.random() * SHAPE_KEYS_CORE.length)],
       color: COLOR_KEYS_CORE.includes(data.color) ? data.color : 'green',
+      thinking: THINKING_KEYS.includes(data.thinking) ? data.thinking : THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)],
       description: data.description || '',
       persona: data.persona || '',
       provider: data.provider || '',

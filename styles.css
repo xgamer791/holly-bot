@@ -92,7 +92,56 @@ svg { display: block; }
 .avatar { position: relative; display: inline-flex; flex: none; }
 .avatar svg { overflow: visible; }
 .avatar-eye { transition: transform 420ms cubic-bezier(.3, 1.4, .5, 1); }
-.avatar.is-working svg { animation: bob 1.1s ease-in-out infinite; }
+/* Thinking animations — one style per bot (see THINKING in src/ui/avatar.js) */
+.avatar .av-body { transform-box: view-box; transform-origin: 50px 50px; }
+.avatar.is-working.think-ponder .av-body { animation: av-ponder 2.4s ease-in-out infinite; transform-origin: 50px 92px; }
+.avatar.is-working.think-hop .av-body { animation: av-hop .9s cubic-bezier(.3, .7, .4, 1) infinite; transform-origin: 50px 96px; }
+.avatar.is-working.think-jelly .av-body { animation: av-jelly 1.2s ease-in-out infinite; transform-origin: 50px 92px; }
+.avatar.is-working.think-orbit .av-body,
+.avatar.is-working.think-scan .av-body { animation: av-breathe 2.4s ease-in-out infinite; }
+.avatar.is-working.think-sparkle .av-body { animation: av-breathe 1.5s ease-in-out infinite; }
+.avatar.is-working.think-float .av-body { animation: av-float 2s ease-in-out infinite; }
+.avatar.is-working.think-nod .av-body { animation: av-nod .8s ease-in-out infinite; transform-origin: 50px 95px; }
+.avatar.is-working.think-twirl .av-body { animation: av-twirl 2.2s cubic-bezier(.55, 0, .3, 1) infinite; }
+.av-thought { transform-box: fill-box; transform-origin: center; opacity: 0; animation: av-thought 2.1s ease-in-out infinite; }
+.av-thought.t2 { animation-delay: .35s; }
+.av-thought.t3 { animation-delay: .7s; }
+.av-orbit { transform-box: view-box; transform-origin: 50px 50px; animation: av-spin 2.4s linear infinite; }
+.av-shine { animation: av-shine 1.6s ease-in-out infinite; }
+.av-star { transform-box: fill-box; transform-origin: center; opacity: 0; animation: av-twinkle 1.5s ease-in-out infinite; }
+.av-star.s2 { animation-delay: .5s; }
+.av-star.s3 { animation-delay: 1s; }
+.av-shadow { fill: var(--text); transform-box: fill-box; transform-origin: center; animation: av-shadow 2s ease-in-out infinite; }
+@keyframes av-ponder { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes av-hop {
+  0% { transform: translateY(0) scale(1.08, .92); }
+  30% { transform: translateY(-14px) scale(.94, 1.07); }
+  50% { transform: translateY(-16px) scale(1, 1); }
+  75% { transform: translateY(0) scale(1.1, .9); }
+  88% { transform: translateY(0) scale(.97, 1.03); }
+  100% { transform: translateY(0) scale(1.08, .92); }
+}
+@keyframes av-jelly {
+  0%, 100% { transform: scale(1, 1); }
+  15% { transform: scale(1.12, .88); }
+  30% { transform: scale(.9, 1.1); }
+  45% { transform: scale(1.06, .94) rotate(-2deg); }
+  60% { transform: scale(.97, 1.03) rotate(2deg); }
+  75% { transform: scale(1.02, .98); }
+}
+@keyframes av-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes av-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
+@keyframes av-nod { 0%, 100% { transform: translateY(0) scale(1, 1) rotate(0); } 45% { transform: translateY(3px) scale(1.03, .95) rotate(3deg); } }
+@keyframes av-twirl { 0% { transform: rotate(0); } 36%, 100% { transform: rotate(360deg); } }
+@keyframes av-thought { 0% { opacity: 0; transform: scale(.3); } 20%, 70% { opacity: 1; transform: scale(1); } 90%, 100% { opacity: 0; transform: scale(.8); } }
+@keyframes av-spin { to { transform: rotate(360deg); } }
+@keyframes av-shine { 0% { transform: translateX(-60px) skewX(-18deg); } 100% { transform: translateX(150px) skewX(-18deg); } }
+@keyframes av-twinkle { 0% { opacity: 0; transform: scale(.2) rotate(0); } 40% { opacity: 1; transform: scale(1) rotate(45deg); } 80%, 100% { opacity: 0; transform: scale(.3) rotate(90deg); } }
+@keyframes av-shadow { 0%, 100% { transform: scale(1); opacity: .28; } 50% { transform: scale(.7); opacity: .12; } }
+@media (prefers-reduced-motion: reduce) {
+  .avatar .av-body, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow { animation: none !important; }
+  .av-thought, .av-star { opacity: 1; }
+}
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
 .avatar-dot { position: absolute; right: -4%; bottom: -4%; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 2.5px var(--bg); }
 .avatar-dot.dot-working { background: var(--green-dot); animation: pulse 1.4s ease-in-out infinite; }
@@ -232,6 +281,11 @@ button.row:active { background: var(--surface-2); }
 .picker.shapes { grid-template-columns: repeat(4, 52px); }
 .picker.colors { grid-template-columns: repeat(6, 38px); gap: 16px 24px; margin-top: 30px; }
 .picker.colors .row2 { grid-column: 1 / -1; display: flex; justify-content: center; gap: 24px; }
+.picker-label { text-align: center; margin: 34px 0 0; font-size: 13px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.picker.thinking { grid-template-columns: repeat(3, 84px); gap: 10px 14px; margin-top: 14px; }
+.think-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 4px 9px; border-radius: 16px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; }
+.think-pick.on { background: var(--surface-2, rgba(127,127,127,.14)); color: var(--text); box-shadow: inset 0 0 0 2px var(--text); }
+.think-pick .avatar { margin-top: 4px; }
 .pick { width: 52px; height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; }
 .pick.on { border-color: #5e5e62; }
 .swatch { width: 38px; height: 38px; border-radius: 50%; padding: 3px; border: 2px solid transparent; }

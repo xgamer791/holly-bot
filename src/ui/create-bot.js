@@ -1,11 +1,12 @@
-import { html, useState } from '../../vendor/preact.js';
+import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { useApp, useUi, haptic } from './hooks.js';
-import { Avatar, SHAPES, SHAPE_KEYS, COLORS, COLOR_KEYS } from './avatar.js';
+import { Avatar, SHAPES, SHAPE_KEYS, COLORS, COLOR_KEYS, THINKING } from './avatar.js';
+import { THINKING_KEYS } from '../core/constants.js';
 import { Sheet, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 
-/** Shape + color picker grid used by "Create New Bot" and the bot profile. */
-export function LookPicker({ shape, color, onShape, onColor }) {
+/** Shape, color and thinking-style pickers used by "Create New Bot" and the bot profile. */
+export function LookPicker({ shape, color, thinking, onShape, onColor, onThinking }) {
   const row1 = COLOR_KEYS.slice(0, 6);
   const row2 = COLOR_KEYS.slice(6);
   return html`
@@ -18,7 +19,28 @@ export function LookPicker({ shape, color, onShape, onColor }) {
     <div class="picker colors" role="radiogroup" aria-label="Color">
       ${row1.map((k) => swatch(k, color, onColor))}
       <div class="row2">${row2.map((k) => swatch(k, color, onColor))}</div>
-    </div>`;
+    </div>
+    ${onThinking && html`
+      <div class="picker-label">How it thinks</div>
+      <div class="picker thinking" role="radiogroup" aria-label="Thinking animation">
+        ${THINKING_KEYS.map((k) => html`
+          <button key=${k} role="radio" aria-checked=${thinking === k} class=${`think-pick ${thinking === k ? 'on' : ''}`} onClick=${() => onThinking(k)}>
+            <${Avatar} shape=${shape} color=${color} size=${38} working anim=${k} />
+            <span>${THINKING[k].label}</span>
+          </button>`)}
+      </div>`}`;
+}
+
+/** Plays a bot's thinking animation for a few seconds after it is picked. */
+export function usePreview() {
+  const [on, setOn] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return [on, () => {
+    setOn(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOn(false), 4500);
+  }];
 }
 
 function swatch(k, color, onColor) {
@@ -32,6 +54,8 @@ export function CreateBotSheet({ onClose }) {
   const [name, setName] = useState('');
   const [shape, setShape] = useState('squircle');
   const [color, setColor] = useState('green');
+  const [thinking, setThinking] = useState(() => THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)]);
+  const [preview, play] = usePreview();
   const [busy, setBusy] = useState(false);
   const valid = name.trim().length > 0;
 
@@ -43,7 +67,7 @@ export function CreateBotSheet({ onClose }) {
     }
     setBusy(true);
     haptic(app, 'heavy');
-    const agent = await app.createAgent({ name: name.trim(), shape, color });
+    const agent = await app.createAgent({ name: name.trim(), shape, color, thinking });
     onClose();
     ui.navigate(`#/chat/dm_${agent.id}`);
   };
@@ -51,10 +75,12 @@ export function CreateBotSheet({ onClose }) {
   return html`
     <${Sheet} title="Create New Bot" onClose=${onClose}
       footer=${html`<button class="btn block big ${valid ? 'primary' : ''}" disabled=${!valid || busy} onClick=${create}>Create</button>`}>
-      <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live /></div>
+      <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live working=${preview} anim=${thinking} /></div>
       <input class="name-input" placeholder="Name your Bot" maxlength="40" value=${name} aria-label="Bot name"
         onInput=${(e) => setName(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && create()} />
-      <${LookPicker} shape=${shape} color=${color} onShape=${(s) => { setShape(s); haptic(app); }} onColor=${(c) => { setColor(c); haptic(app); }} />
+      <${LookPicker} shape=${shape} color=${color} thinking=${thinking}
+        onShape=${(s) => { setShape(s); haptic(app); }} onColor=${(c) => { setColor(c); haptic(app); }}
+        onThinking=${(k) => { setThinking(k); play(); haptic(app); }} />
     <//>`;
 }
 

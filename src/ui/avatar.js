@@ -1,7 +1,9 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
+import { THINKING_KEYS } from '../core/constants.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
-// expressions. All geometry lives in a 100×100 viewBox.
+// expressions. All geometry lives in a 100×100 viewBox. While a bot works it
+// plays its own thinking animation (body motion + eyes + little extras).
 
 export const SHAPES = {
   circle: { label: 'Circle', d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
@@ -75,6 +77,7 @@ export const EXPRESSIONS = {
   left: [{ dx: -20, dy: 2, r: -8, s: 1 }, { dx: 0, dy: 2, r: -8, s: 1 }],
   right: [{ dx: 0, dy: 2, r: 8, s: 1 }, { dx: 20, dy: 2, r: 8, s: 1 }],
   up: [{ dx: -10, dy: -10, r: 0, s: 0.95 }, { dx: 10, dy: -10, r: 0, s: 0.95 }],
+  down: [{ dx: -10, dy: 9, r: 0, s: 0.9 }, { dx: 10, dy: 9, r: 0, s: 0.9 }],
   happy: [{ dx: -11, dy: -2, r: 38, s: 0.8 }, { dx: 11, dy: -2, r: -38, s: 0.8 }],
   focused: [{ dx: -11, dy: 2, r: -28, s: 0.85 }, { dx: 11, dy: 2, r: 28, s: 0.85 }],
   curious: [{ dx: -9, dy: 0, r: -12, s: 1 }, { dx: 12, dy: -4, r: 0, s: 1.15 }],
@@ -84,8 +87,32 @@ export const EXPRESSIONS = {
 };
 
 const IDLE_CYCLE = ['downLeft', 'neutral', 'upRight', 'curious', 'left', 'happy', 'right', 'neutral'];
-const WORK_CYCLE = ['left', 'up', 'right', 'focused', 'upRight', 'downLeft'];
 const EYE_HALF = 8.5;
+
+// Thinking styles: `eyes(t)` picks the expression t ms into the animation (so the
+// eyes stay in step with the CSS body motion in styles.css → .think-*).
+const cycle = (list, ms) => (t) => list[Math.floor(t / ms) % list.length];
+export const THINKING = {
+  ponder: { label: 'Ponder', eyes: cycle(['upRight', 'upRight', 'curious', 'up'], 1100) },
+  hop: { label: 'Hop', eyes: cycle(['happy', 'focused'], 450) },
+  jelly: { label: 'Jelly', eyes: cycle(['surprised', 'curious', 'happy'], 650) },
+  orbit: { label: 'Orbit', eyes: (t) => ['up', 'right', 'down', 'left'][Math.floor(((t % 2400) + 300) / 600) % 4] },
+  scan: { label: 'Scan', eyes: cycle(['left', 'right'], 420) },
+  sparkle: { label: 'Sparkle', eyes: cycle(['happy', 'up', 'wink', 'happy'], 800) },
+  float: { label: 'Float', eyes: cycle(['up', 'neutral', 'upRight', 'neutral'], 1000) },
+  nod: { label: 'Nod', eyes: cycle(['focused', 'down'], 400) },
+  twirl: { label: 'Twirl', eyes: (t) => (t % 2200 < 800 ? 'surprised' : 'happy') },
+};
+
+/** The bot's thinking style (older bots get a stable one from their id). */
+export function thinkingOf(agent) {
+  if (agent?.thinking && THINKING[agent.thinking]) return agent.thinking;
+  let h = 0;
+  for (const ch of String(agent?.id || agent?.name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return THINKING_KEYS[h % THINKING_KEYS.length];
+}
+
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function placeEye(def, eye) {
   const [cx, cy] = def.face;
@@ -98,56 +125,117 @@ function eyeTransform(def, eye, blink) {
   return `translate(${p.x}px, ${p.y}px) rotate(${p.r}deg) scaleY(${blink ? 0.12 : p.s})`;
 }
 
+// A four-point sparkle centered on 0,0.
+const STAR = 'M0-9C1.4-2.6 2.6-1.4 9 0C2.6 1.4 1.4 2.6 0 9C-1.4 2.6-2.6 1.4-9 0C-2.6-1.4-1.4-2.6 0-9Z';
+let clipSeq = 0;
+
+function Extras({ anim, def, clipId }) {
+  switch (anim) {
+    case 'ponder':
+      return html`<g class="av-extra" fill="#fff" stroke="#121212" stroke-width="2.4">
+        <circle class="av-thought" cx="77" cy="16" r="4.2" />
+        <circle class="av-thought t2" cx="89" cy="4" r="6" />
+        <circle class="av-thought t3" cx="104" cy="-11" r="8.5" /></g>`;
+    case 'orbit':
+      return html`<g class="av-orbit"><path d=${STAR} transform="translate(50 -8) scale(1.3)" fill="#FFD60A" stroke="#121212" stroke-width="1.6" /></g>`;
+    case 'sparkle':
+      return html`<g fill="#FFD60A" stroke="#121212" stroke-width="1.4">
+        <g transform="translate(4 12) scale(1.35)"><path class="av-star" d=${STAR} /></g>
+        <g transform="translate(99 36) scale(1.05)"><path class="av-star s2" d=${STAR} /></g>
+        <g transform="translate(88 96) scale(1.2)"><path class="av-star s3" d=${STAR} /></g></g>`;
+    case 'float':
+      return html`<ellipse class="av-shadow" cx="50" cy="103" rx="27" ry="3.6" />`;
+    case 'scan':
+      return html`<defs><clipPath id=${clipId}><path d=${def.d} /></clipPath></defs>`;
+    default:
+      return null;
+  }
+}
+
 /**
- * <Avatar shape color size expression live working status />
+ * <Avatar shape color size expression live working anim status />
  * - live: slowly cycles expressions and blinks (use for big / focused avatars)
- * - working: scans around quickly (bot is thinking or using tools)
+ * - working: plays the bot's thinking animation `anim` (see THINKING)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, live = false, working = false,
-  status, className = '', title, onClick,
+  anim = 'hop', status, className = '', title, onClick,
 }) {
   const [expr, setExpr] = useState(expression || 'downLeft');
   const [blink, setBlink] = useState(false);
   const idx = useRef(0);
+  const clipId = useRef(null);
+  const style = THINKING[anim] ? anim : 'hop';
+  clipId.current ||= `av-clip-${++clipSeq}`;
 
   useEffect(() => {
     if (expression) setExpr(expression);
   }, [expression]);
 
   useEffect(() => {
-    if (!live && !working) return undefined;
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
-    const cycle = working ? WORK_CYCLE : IDLE_CYCLE;
+    if ((!live && !working) || expression || reducedMotion()) {
+      setBlink(false);
+      if (!expression) setExpr('downLeft');
+      return undefined;
+    }
     let timer;
-    const tick = () => {
-      idx.current = (idx.current + 1) % cycle.length;
-      if (!expression) setExpr(cycle[idx.current]);
-      if (Math.random() < 0.35) {
+    let alive = true;
+    const blinkSoon = (p) => {
+      if (Math.random() < p) {
         setBlink(true);
-        setTimeout(() => setBlink(false), 140);
+        setTimeout(() => alive && setBlink(false), 140);
       }
-      timer = setTimeout(tick, working ? 650 + Math.random() * 500 : 1700 + Math.random() * 1900);
     };
-    timer = setTimeout(tick, working ? 400 : 900);
-    return () => clearTimeout(timer);
-  }, [live, working, expression]);
+    if (working) {
+      const start = performance.now();
+      const eyes = THINKING[style].eyes;
+      let last = '';
+      const tick = () => {
+        const next = eyes(performance.now() - start);
+        if (next !== last) {
+          last = next;
+          setExpr(next);
+          if (next !== 'wink') blinkSoon(0.12);
+        }
+        timer = setTimeout(tick, 90);
+      };
+      tick();
+    } else {
+      const tick = () => {
+        idx.current = (idx.current + 1) % IDLE_CYCLE.length;
+        setExpr(IDLE_CYCLE[idx.current]);
+        blinkSoon(0.35);
+        timer = setTimeout(tick, 1700 + Math.random() * 1900);
+      };
+      timer = setTimeout(tick, 900);
+    }
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      setBlink(false);
+    };
+  }, [live, working, expression, style]);
 
   const def = SHAPES[shape] || SHAPES.squircle;
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
   const fill = colorHex(color);
   const dotSize = Math.max(8, Math.round(size * 0.3));
+  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${className}`;
 
   return html`
-    <span class=${`avatar ${working ? 'is-working' : ''} ${className}`} style=${`width:${size}px;height:${size}px`}
+    <span class=${cls} style=${`width:${size}px;height:${size}px`}
       title=${title} onClick=${onClick} role=${onClick ? 'button' : undefined}>
       <svg viewBox="0 0 100 100" width=${size} height=${size} aria-hidden="true">
-        <path d=${def.d} fill=${fill} />
-        ${eyes.map((eye, i) => html`
-          <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, blink)}`}>
-            <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke="#121212" stroke-width="7.2" stroke-linecap="round" />
-          </g>`)}
+        <g class="av-body">
+          <path d=${def.d} fill=${fill} />
+          ${working && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
+          ${eyes.map((eye, i) => html`
+            <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, blink)}`}>
+              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke="#121212" stroke-width="7.2" stroke-linecap="round" />
+            </g>`)}
+        </g>
+        ${working && html`<${Extras} anim=${style} def=${def} clipId=${clipId.current} />`}
       </svg>
       ${status ? html`<span class=${`avatar-dot dot-${status}`} style=${`width:${dotSize}px;height:${dotSize}px`}></span>` : null}
     </span>`;

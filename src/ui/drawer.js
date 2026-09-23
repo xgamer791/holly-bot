@@ -1,6 +1,6 @@
 import { html } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
-import { Avatar, AvatarStack } from './avatar.js';
+import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Sheet, Group, Row, Segmented } from './components.js';
 import { formatShort, truncate } from '../core/util.js';
@@ -30,7 +30,7 @@ export function ActivityDrawer({ onClose }) {
             const a = app.getAgent(r.agentId);
             const t = app.getThread(r.threadId);
             return html`<div class="row" key=${r.threadId}>
-              <${Avatar} shape=${a?.shape} color=${a?.color} size=${32} working />
+              <${Avatar} shape=${a?.shape} color=${a?.color} size=${32} working anim=${thinkingOf(a)} />
               <button class="label" style="text-align:left" onClick=${() => go(`#/chat/${r.threadId}`)}><div class="t">${a?.name}</div><div class="s">${t?.kind === 'agents' ? 'Talking with another bot' : t?.kind === 'group' ? `In ${t.title}` : 'Working on your request'}</div></button>
               <button class="stop-btn" aria-label="Stop" onClick=${() => app.runtime.stop(r.threadId)}><span></span></button>
             </div>`;

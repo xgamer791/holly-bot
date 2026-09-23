@@ -1,6 +1,6 @@
 import { html, useState, useRef } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
-import { Avatar, AvatarStack } from './avatar.js';
+import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
 import { initials, formatShort } from '../core/util.js';
@@ -76,7 +76,7 @@ function ThreadRow({ thread, active }) {
     <button class=${`row-bot ${active ? 'active' : ''}`} onClick=${() => ui.navigate(`#/chat/${thread.id}`)}>
       ${thread.kind === 'group'
         ? html`<${AvatarStack} agents=${agents} size=${48} />`
-        : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} working=${busy} status=${busy ? 'working' : undefined} />`}
+        : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} working=${busy} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
       <div class="meta">
         <div class="line1">
           <span class="title">${title}</span>
