@@ -1,0 +1,26 @@
+{
+  "name": "holly-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Holly: a bring-your-own-key, multi-agent AI assistant with per-agent deep memory. Static PWA — no build step.",
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "test:e2e": "node scripts/e2e.mjs",
+    "vendor": "node scripts/build-vendor.mjs",
+    "icons": "node scripts/build-icons.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.128.0",
+    "dompurify": "3.4.16",
+    "esbuild": "0.28.2",
+    "fake-indexeddb": "6.2.5",
+    "htm": "3.1.1",
+    "marked": "18.0.14",
+    "playwright": "^1.56.1",
+    "preact": "10.29.8",
+    "qrcode-generator": "^1.4.4"
+  }
+}
