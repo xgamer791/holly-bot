@@ -284,22 +284,38 @@ export class Runtime {
       }
 
       for (let i = 0; i < MAX_TOOL_STEPS; i++) {
-        const history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
+        let history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
         const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
         msg.steps.push(step);
         app.touchMessage(msg);
 
-        const result = await app.providers.chat({
-          cfg,
+        const ask = (c) => app.providers.chat({
+          cfg: c,
           system: msg.turn.system,
           messages: history,
           tools,
-          serverTools: app.providers.serverToolsFor(cfg, agent),
+          serverTools: app.providers.serverToolsFor(c, agent),
           reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
           maxTokens: agent.maxTokens || undefined,
           signal: controller.signal,
           onEvent: (e) => this.onStreamEvent(msg, step, e),
         });
+        let result;
+        try {
+          result = await ask(cfg);
+        } catch (err) {
+          // Main provider down, rate limited or out of credit: retry this step once on the backup.
+          const backup = controller.signal.aborted ? null : app.providers.backupFor(cfg, err);
+          if (!backup) throw err;
+          Object.assign(step, { text: '', thinking: '', toolCalls: [], serverTools: [], citations: [] });
+          step.notices.push(`${cfg.provider.label} failed (${truncate(errorMessage(err), 140)}) — switched to ${backup.provider.label} for this reply.`);
+          app.touchMessage(msg);
+          cfg = backup;
+          msg.steps.pop();
+          history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
+          msg.steps.push(step);
+          result = await ask(cfg);
+        }
 
         step.text = result.text;
         step.thinking = result.thinking || step.thinking;
@@ -717,7 +733,11 @@ export class Runtime {
     if (!members.length) return null;
     const text = messageText(trigger);
     let queue = mentionedAgents(text, members);
-    if (!queue.length) queue = thread.mode === 'all' ? [...members] : await this.pickSpeakers(thread, members, trigger);
+    if (!queue.length) {
+      // "@Mentions" groups: only bots that are mentioned reply.
+      if (thread.mode === 'mention') return null;
+      queue = thread.mode === 'all' ? [...members] : await this.pickSpeakers(thread, members, trigger);
+    }
     const spoken = new Set();
     let hops = 0;
     let last = null;

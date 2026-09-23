@@ -1,46 +1,18 @@
 import { html, useState, useEffect } from '../../vendor/preact.js';
-import { useApp, useUi, useTopics } from './hooks.js';
+import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Sheet, Group, Row, Field, Toggle, downloadBlob } from './components.js';
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
 import { PROVIDERS, PROVIDER_ORDER } from '../core/providers/index.js';
 import { initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
+import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import { RemoteApp, saveConnection } from '../remote/remote-app.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
 
-// Rough public list prices (USD per 1M input/output tokens) for usage estimates.
-const PRICES = [
-  [/^claude-fable-5/, 10, 50], [/^claude-opus-(5|4-[5-8])/, 5, 25], [/^claude-sonnet-5/, 2, 10],
-  [/^claude-sonnet-4/, 3, 15], [/^claude-haiku-4/, 1, 5],
-  [/^gpt-5-nano/, 0.05, 0.4], [/^gpt-5-mini/, 0.25, 2], [/^gpt-5/, 1.25, 10], [/^gpt-4\.1-mini/, 0.4, 1.6], [/^gpt-4\.1/, 2, 8], [/^o4-mini/, 1.1, 4.4],
-  [/^grok-4-fast|^grok-4-1-fast/, 0.2, 0.5], [/^grok-code-fast/, 0.2, 1.5], [/^grok-4/, 3, 15], [/^grok-3-mini/, 0.3, 0.5], [/^grok-3/, 3, 15],
-  [/^gemini-2\.5-pro/, 1.25, 10], [/^gemini-2\.5-flash-lite/, 0.1, 0.4], [/^gemini-2\.5-flash/, 0.3, 2.5],
-  [/^deepseek-chat/, 0.27, 1.1], [/^deepseek-reasoner/, 0.55, 2.19],
-];
-
-export function estimateCost(model, u) {
-  const bare = String(model).split('/').pop();
-  const p = PRICES.find(([re]) => re.test(bare));
-  if (!p) return null;
-  return ((u.input - (u.cacheRead || 0)) * p[1] + (u.cacheRead || 0) * p[1] * 0.1 + u.output * p[2]) / 1e6;
-}
-
-export function totalCost(settings) {
-  let sum = 0;
-  let known = false;
-  for (const [key, u] of Object.entries(settings.usage?.byModel || {})) {
-    const c = estimateCost(key.split(':').slice(1).join(':'), u);
-    if (c != null) {
-      sum += c;
-      known = true;
-    }
-  }
-  return known ? sum : null;
-}
 
 export function SettingsSheet({ onClose, page: initialPage, provider: initialProvider }) {
   const app = useApp();
@@ -167,14 +139,20 @@ function UsagePage() {
   const rows = Object.entries(app.settings.usage?.byModel || {}).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
   const cost = totalCost(app.settings);
   const fmt = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+  const hasDeepseek = app.providers.isReady('deepseek');
+  const { data: balance } = useAsync(() => (hasDeepseek ? app.providers.balance('deepseek').catch(() => null) : null), [hasDeepseek]);
   return html`
-    <p class="hint" style="font-size:14px;margin:4px">Tracked on this device since ${app.settings.usage?.since ? new Date(app.settings.usage.since).toLocaleDateString() : 'first use'}. Costs are estimates from public list prices — your provider's dashboard is the source of truth.</p>
+    ${hasDeepseek && html`<${Group} label="DeepSeek account">
+      <${Row} title="Balance" value=${balance?.length ? balance.map((b) => `${b.currency === 'USD' ? '$' : b.currency === 'CNY' ? '¥' : `${b.currency} `}${b.total.toFixed(2)}`).join(' · ') : balance === null ? '—' : '…'} />
+      <${Row} title="Price right now" sub="Off-peak is half price. Peak: 01–04 and 06–10 UTC on weekdays." value=${deepseekPeak() ? 'Peak' : 'Off-peak'} />
+    <//>`}
+    <p class="hint" style="font-size:14px;margin:4px">Tracked ${app.remote ? 'on your computer' : 'on this device'} since ${app.settings.usage?.since ? new Date(app.settings.usage.since).toLocaleDateString() : 'first use'}. Costs are estimates from public list prices — your provider's dashboard is the source of truth.</p>
     <div class="group" style="padding:6px 14px">
       <table class="usage-table">
         <thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Est.</th></tr></thead>
         <tbody>${rows.map(([key, u]) => {
           const model = key.split(':').slice(1).join(':');
-          const c = estimateCost(model, u);
+          const c = u.cost != null ? u.cost : estimateCost(model, u);
           return html`<tr key=${key}><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${model}<br /><small style="color:var(--muted)">${PROVIDERS[key.split(':')[0]]?.label || key.split(':')[0]}</small></td>
             <td>${u.calls}${u.images ? ` +${u.images}🖼` : ''}</td><td>${fmt(u.input)}</td><td>${fmt(u.output)}</td><td>${c != null ? `$${c.toFixed(3)}` : '—'}</td></tr>`;
         })}</tbody>
@@ -216,6 +194,15 @@ function KeysPage({ go }) {
     <div class="group-label">Defaults</div>
     <${Group}>
       <${Row} title="Default model" sub="Used by bots that don't pick their own" value=${defaultLabel} onClick=${() => (ready.length ? ui.openSheet('modelPicker', {}) : ui.toast('Add a key first'))} />
+      <div class="row"><div class="label"><div class="t">Backup if it fails</div><div class="s">When the main provider is down, rate limited or out of credit, retry once with this</div></div>
+        <select aria-label="Backup model" value=${s.backup?.provider ? `${s.backup.provider}:${s.backup.model || PROVIDERS[s.backup.provider]?.defaultModel || ''}` : ''}
+          onChange=${(e) => {
+            const [provider, ...rest] = e.currentTarget.value.split(':');
+            app.saveSettings({ backup: { provider: provider || '', model: rest.join(':') } });
+          }}>
+          <option value="">Off</option>
+          ${ready.flatMap((id) => modelsFor(app, id).slice(0, 6).map((m) => html`<option key=${`${id}:${m}`} value=${`${id}:${m}`}>${PROVIDERS[id].label.split(' ')[0]} · ${m}</option>`))}
+        </select></div>
       <${Row} title="Memory & summaries model" sub="Runs memory extraction and summaries" value=${memoryModelLabel(s)} onClick=${() => go('memory')} />
       <div class="row"><div class="label"><div class="t">Image generation</div><div class="s">Provider for generate_image</div></div>
         <select value=${s.defaults?.imageProvider || ''} onChange=${(e) => app.saveSettings({ defaults: { ...s.defaults, imageProvider: e.currentTarget.value } })}>

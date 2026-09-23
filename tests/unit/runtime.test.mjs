@@ -215,3 +215,41 @@ test('delegate_task runs in the background and reports back', async () => {
   const task = [...app.tasks.values()][0];
   assert.equal(task.status, 'done');
 });
+
+test('backup provider: a failed step is retried once on the backup; bad requests are not', async () => {
+  const { ProviderError } = await import('../../src/core/providers/common.js');
+  let outage = true;
+  const { app, calls } = await makeApp(async (req, ctx) => {
+    if (ctx.isMemoryJob) return { text: '{"operations":[]}' };
+    if (req.cfg.provider.id === 'openai' && outage) throw new ProviderError('OpenAI error 503: overloaded', { status: 503, provider: 'OpenAI' });
+    if (req.cfg.provider.id === 'openai' && /bad/.test(ctx.lastUserText)) throw new ProviderError('OpenAI error 400: bad request', { status: 400, provider: 'OpenAI' });
+    return { text: `answer from ${req.cfg.provider.id}`, model: req.cfg.model };
+  });
+  await app.saveSettings({ providers: { ...app.settings.providers, deepseek: { apiKey: 'sk-ds' } }, backup: { provider: 'deepseek', model: '' } });
+  const bot = await app.createAgent({ name: 'Holly', greet: false });
+  const threadId = `dm_${bot.id}`;
+
+  await app.runtime.send(threadId, { text: 'hello' });
+  let reply = (await app.loadMessages(threadId)).at(-1);
+  assert.equal(reply.status, 'done');
+  assert.equal(finalText(reply), 'answer from deepseek');
+  assert.equal(reply.provider, 'deepseek');
+  assert.match(reply.steps[0].notices[0], /OpenAI failed .*switched to DeepSeek/);
+  assert.equal(calls.filter((c) => !c.ctx.isMemoryJob).at(-1).req.cfg.model, 'deepseek-flash');
+
+  outage = false;
+  await app.runtime.send(threadId, { text: 'hello again' });
+  reply = (await app.loadMessages(threadId)).at(-1);
+  assert.equal(finalText(reply), 'answer from openai', 'next turn tries the main provider first');
+
+  await app.runtime.send(threadId, { text: 'a bad request' });
+  reply = (await app.loadMessages(threadId)).at(-1);
+  assert.equal(reply.status, 'error', 'invalid requests are not retried elsewhere');
+
+  await app.saveSettings({ backup: { provider: '', model: '' } });
+  outage = true;
+  await app.runtime.send(threadId, { text: 'no backup set' });
+  reply = (await app.loadMessages(threadId)).at(-1);
+  assert.equal(reply.status, 'error');
+  await settle(app);
+});

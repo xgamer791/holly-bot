@@ -278,9 +278,34 @@ export class ProviderHub {
     }
   }
 
+  /**
+   * The backup model to retry on after `cfg` failed with `err`, or null.
+   * Not for requests that were themselves invalid (400/404/413/422) or cancelled.
+   */
+  backupFor(cfg, err) {
+    if (!err || err.name === 'AbortError' || err.kind === 'no_key') return null;
+    if ([400, 404, 413, 422].includes(err.status)) return null;
+    const b = this.app.settings.backup;
+    if (!b?.provider || !this.isReady(b.provider)) return null;
+    const provider = this.config(b.provider);
+    const model = b.model || provider.defaultModel;
+    if (b.provider === cfg.provider.id && model === cfg.model) return null;
+    return { provider, model, purpose: cfg.purpose, backup: true };
+  }
+
   /** One-shot completion for background work (memory, summaries, routing). Returns text. */
-  async complete({ agent, purpose = 'memory', system, prompt, json = false, maxTokens = 1500, signal }) {
-    const cfg = this.resolve(agent, purpose);
+  async complete(opts) {
+    const cfg = this.resolve(opts.agent, opts.purpose || 'memory');
+    try {
+      return await this.completeWith(cfg, opts);
+    } catch (err) {
+      const backup = opts.signal?.aborted ? null : this.backupFor(cfg, err);
+      if (!backup) throw err;
+      return this.completeWith(backup, opts);
+    }
+  }
+
+  async completeWith(cfg, { system, prompt, json = false, maxTokens = 1500, signal }) {
     const isClaude = cfg.provider.kind === 'anthropic';
     const res = await this.chat({
       cfg,

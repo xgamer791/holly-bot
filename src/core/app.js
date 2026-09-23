@@ -9,6 +9,7 @@ import { PluginManager } from './plugins.js';
 import { Runtime, finalText, messageText } from './runtime.js';
 import { BM25 } from './memory/text.js';
 import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE, THINKING_KEYS, TOOL_GROUPS, FOCUS_OPTIONS } from './constants.js';
+import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 
 // App state: the single source of truth the UI renders from. Persists to
@@ -20,6 +21,8 @@ export const DEFAULT_SETTINGS = {
   profile: { name: '', email: '', about: '' },
   providers: {},
   defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same', effort: '' },
+  // Retry once with this provider/model when the main one fails (outage, rate limit, no credit).
+  backup: { provider: '', model: '' },
   memory: { auto: true, embeddings: 'auto', contextBudget: 'auto' },
   services: {},
   computer: { url: '', token: '' },
@@ -225,7 +228,10 @@ export class App {
     if (!usage) return;
     const key = `${provider}:${model}`;
     const byModel = { ...(this.settings.usage?.byModel || {}) };
-    const cur = byModel[key] || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 0, images: 0 };
+    const cur = byModel[key] || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 0, images: 0, cost: 0 };
+    // Cost is added per call so time-of-day pricing (DeepSeek off-peak) is counted right.
+    const callCost = estimateCost(model, usage, now());
+    const before = cur.cost != null ? cur.cost : estimateCost(model, cur);
     byModel[key] = {
       input: cur.input + (usage.input || 0),
       output: cur.output + (usage.output || 0),
@@ -233,6 +239,7 @@ export class App {
       cacheWrite: cur.cacheWrite + (usage.cacheWrite || 0),
       calls: cur.calls + (usage.images ? 0 : 1),
       images: (cur.images || 0) + (usage.images || 0),
+      cost: callCost == null ? cur.cost : (before || 0) + callCost,
       last: now(),
     };
     this.settings.usage = { since: this.settings.usage?.since || now(), byModel };

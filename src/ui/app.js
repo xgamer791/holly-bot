@@ -1,5 +1,5 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../vendor/preact.js';
-import { AppCtx, UiCtx, useMedia } from './hooks.js';
+import { AppCtx, UiCtx, useMedia, useApp, useTopics } from './hooks.js';
 import { HomeScreen } from './home.js';
 import { ChatScreen } from './chat.js';
 import { CreateBotSheet, NewGroupSheet } from './create-bot.js';
@@ -159,6 +159,7 @@ export function Root({ app }) {
             ? html`<${ChatScreen} key=${route.threadId} threadId=${route.threadId} wide=${wide} />`
             : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="white" size=${84} live /><p>Pick a bot or create a new one.</p></div></div>`}
         </div>
+        ${app.remote && html`<${ConnectionBanner} />`}
         <button class="edge-handle" aria-label="Open activity" onClick=${() => setDrawer(true)}>
           <${Icon.handle} />
           ${waitingCount > 0 && html`<span class="badge">${waitingCount}</span>`}
@@ -172,4 +173,12 @@ export function Root({ app }) {
         <${Toasts} toasts=${toasts} onDismiss=${(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
       <//>
     <//>`;
+}
+
+/** Remote mode: shows when the phone can't reach Holly Computer (it keeps retrying). */
+function ConnectionBanner() {
+  const app = useApp();
+  useTopics(['connection']);
+  if (app.connection !== 'offline') return null;
+  return html`<div class="conn-banner" role="status"><span class="spinner"></span> Can't reach ${app.server?.name || 'your computer'} — reconnecting…</div>`;
 }

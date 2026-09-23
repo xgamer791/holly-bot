@@ -139,6 +139,7 @@ export function Composer({ thread, agents, onVoice }) {
 
   const hasContent = text.trim() || atts.length;
   const placeholder = isGroup ? `Message ${thread.title || 'the group'}` : `Ask ${primary?.name || 'your bot'}`;
+  const hint = isGroup && thread.mode === 'mention' ? 'Only bots you @mention reply' : null;
   const mentionOptions = mention != null ? agents.filter((a) => a.name.toLowerCase().replace(/\s+/g, '').startsWith(mention)) : [];
 
   return html`
@@ -153,7 +154,7 @@ export function Composer({ thread, agents, onVoice }) {
         <button key=${a.id} onClick=${() => insertMention(a)}><${Avatar} shape=${a.shape} color=${a.color} size=${24} /> ${a.name}</button>`)}</div>`}
       <button ref=${plusRef} class="circle-btn plus" aria-label="Add attachment" onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       <div class="input-pill">
-        <textarea ref=${taRef} rows="1" placeholder=${placeholder} value=${text} aria-label=${placeholder}
+        <textarea ref=${taRef} rows="1" placeholder=${hint ? `${placeholder} — @mention who should reply` : placeholder} value=${text} aria-label=${placeholder}
           onInput=${onInput} onKeyDown=${onKeyDown}
           onPaste=${(e) => {
             const files = [...(e.clipboardData?.files || [])];

@@ -99,10 +99,16 @@ function EmptyHome() {
       <${Avatar} shape="cloud" color="white" size=${96} live />
       <h2>Make your first bot</h2>
       <p>Each bot gets its own name, look, personality and long-term memory — and your bots can talk to each other.</p>
-      ${!hasKey && html`<p>Bring your own key: add an xAI, Anthropic, OpenAI, Google, OpenRouter or other API key. It stays in this browser.</p>`}
+      ${!hasKey && html`<p>Bring your own key. DeepSeek is the default brain (smart and cheap); Claude, OpenAI, Grok, Gemini, OpenRouter and others work too. Your key stays ${app.remote ? 'on your computer' : 'in this browser'}.</p>`}
       <div class="btn-row" style="justify-content:center">
         ${!hasKey && html`<button class="btn" onClick=${() => ui.openSheet('settings', { page: 'keys' })}><${Icon.key} size="18" /> Add API key</button>`}
         <button class="btn primary" onClick=${() => ui.openSheet('createBot')}><${Icon.plus} size="18" /> New Bot</button>
       </div>
+      ${!app.remote && html`
+        <button class="computer-cta" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>
+          <${Icon.monitor} size="22" />
+          <span><b>Let your bots use your computer</b><br />Run Holly Computer on your PC or Mac: bots work there around the clock and you control them from your phone.</span>
+          <${Icon.chevron} size="18" />
+        </button>`}
     </div>`;
 }
