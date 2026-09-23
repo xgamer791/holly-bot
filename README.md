@@ -100,3 +100,11 @@ Layout:
   - `tunnel.mjs`: the Cloudflare quick tunnel.
 
 GitHub Pages serves the `main` branch root.
+
+## Convex backend
+
+Separate Convex project `holly-bot` (not Forge). It's a scaffold for now: the app doesn't use it yet.
+
+- Prod: `https://impressive-ferret-800.convex.cloud`
+- Dev: `https://useful-wildebeest-212.convex.cloud`
+- Details: see [CONVEX.md](CONVEX.md)
