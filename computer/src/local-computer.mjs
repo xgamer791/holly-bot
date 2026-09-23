@@ -9,12 +9,13 @@ import { readFile, writeFile, appendFile, readdir, stat, rm } from 'node:fs/prom
 import { runCommand, startBackground, detectShell } from './shell.mjs';
 import { fetchPage, webSearch } from './web.mjs';
 import { McpHost } from './mcp-stdio.mjs';
+import { APP_VERSION } from '../../src/core/constants.js';
 
 const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|js|mjs|cjs|ts|tsx|jsx|py|html?|css|scss|xml|svg|ya?ml|toml|ini|cfg|conf|log|sh|bash|zsh|ps1|psm1|bat|cmd|sql|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|lua|r|tex|env|gitignore|dockerfile)$/i;
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf', '.json': 'application/json', '.html': 'text/html', '.md': 'text/markdown', '.csv': 'text/csv', '.svg': 'image/svg+xml' };
 const MAX_READ = 8 * 1024 * 1024;
 
-export const VERSION = '1.0.0';
+export const VERSION = APP_VERSION;
 
 export class LocalComputer {
   constructor({ workspace, dataDir, log = console, headlessBrowser = false, name } = {}) {

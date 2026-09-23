@@ -451,11 +451,25 @@ function ComputerPage() {
       <p><b>Put your bots on your computer.</b> Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.</p>
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
-      <p style="margin-top:0">1. Install <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 22+</a> on the computer.</p>
-      <p>2. Download <a href=${scriptUrl} download>holly-computer.mjs</a> and run it:</p>
-      <div class="code-block">node holly-computer.mjs --tunnel</div>
+      <p style="margin-top:0">1. Install <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 22 or newer</a> on the computer.</p>
+      <p>2. Download <a href=${scriptUrl} download>holly-computer.mjs</a> and run it. Or paste this into a terminal:</p>
+      ${[
+        ['Mac or Linux (Terminal)', `curl -fsSLO ${scriptUrl} && node holly-computer.mjs --tunnel`],
+        ['Windows (PowerShell)', `iwr ${scriptUrl} -OutFile holly-computer.mjs; node holly-computer.mjs --tunnel`],
+      ].map(([label, cmd]) => html`
+        <div key=${label} style="margin:8px 0 12px">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px">${label}</div>
+          <button class="code-block copyable" title="Copy" onClick=${async () => {
+            try {
+              await navigator.clipboard.writeText(cmd);
+              ui.toast('Copied');
+            } catch {
+              ui.toast('Couldn’t copy — select the text instead', { error: true });
+            }
+          }}>${cmd}</button>
+        </div>`)}
       <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer. That's it.</p>
-      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> uses Cloudflare's free quick tunnel so your phone can reach it from anywhere (install <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/" target="_blank" rel="noopener">cloudflared</a>). On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer enables the bot browser.</p>
+      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
     </div>
     <div class="group-label">Or connect manually</div>
     <${Field} label="Computer URL"><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>

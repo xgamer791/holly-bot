@@ -1,12 +1,12 @@
 import { Emitter, uid } from '../core/util.js';
-import { readSSE } from '../core/providers/sse.js';
 import { ComputerClient } from '../core/computer.js';
 import { ProviderHub } from '../core/providers/index.js';
 import { DEFAULT_SETTINGS } from '../core/app.js';
 
 // Remote control: the same interface as the local App, but every bot, chat,
-// memory and file lives on your Holly Computer. State arrives over a live
-// event stream; actions are RPC calls. The UI can't tell the difference.
+// memory and file lives on your Holly Computer. Live updates arrive by long
+// polling (works through any tunnel or proxy); actions are RPC calls. The UI
+// can't tell the difference.
 
 export class RemoteApp {
   constructor({ url, token, name = '' }) {
@@ -109,6 +109,11 @@ export class RemoteApp {
     let res;
     try {
       res = await fetch(this.url('/api/rpc'), { method: 'POST', headers: this.headers(), body: JSON.stringify({ method, args, clientId: this.clientId }) });
+      // Slow calls come back as a ticket; collect the result.
+      while (res.status === 202) {
+        const { pending } = await res.json();
+        res = await fetch(this.url(`/api/rpc-result/${pending}`), { headers: this.headers(false) });
+      }
     } catch (err) {
       throw new Error(`Can't reach your Holly Computer (${err.message}). Is it running?`);
     }
@@ -137,6 +142,8 @@ export class RemoteApp {
   }
 
   applyState(s) {
+    this.seq = s.seq;
+    this.boot = s.boot;
     this.server = s.server;
     this.settings = s.settings;
     this.providersReady = s.providersReady || [];
@@ -152,38 +159,45 @@ export class RemoteApp {
     for (const t of ['agents', 'threads', 'settings', 'runs', 'tasks', 'computer', 'plugins']) this.emit(t);
   }
 
+  /** Long-poll for events; after being offline, catch up or reload everything. */
   async startEvents() {
     if (this.eventsRunning) return;
     this.eventsRunning = true;
     let backoff = 1000;
     while (!this.closed) {
       try {
-        const res = await fetch(this.url(`/api/events?client=${encodeURIComponent(this.clientId)}`), { headers: this.headers(false) });
-        if (!res.ok) throw new Error(`events ${res.status}`);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 45000);
+        let res;
+        try {
+          const q = `since=${this.seq ?? ''}&boot=${encodeURIComponent(this.boot || '')}&client=${encodeURIComponent(this.clientId)}`;
+          res = await fetch(this.url(`/api/poll?${q}`), { headers: this.headers(false), signal: ctrl.signal, cache: 'no-store' });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!res.ok) throw new Error(`poll ${res.status}`);
+        const data = await res.json();
         if (this.connection !== 'online') {
           this.connection = 'online';
           this.emit('connection');
-          await this.resync();
         }
         backoff = 1000;
-        for await (const evt of readSSE(res.body)) {
-          let msg;
-          try {
-            msg = JSON.parse(evt.data);
-          } catch {
-            continue;
-          }
-          this.handle(msg.topic, msg.data);
+        if (data.reset) {
+          await this.resync();
+          continue;
         }
+        for (const e of data.events || []) this.handle(e.topic, e.data);
+        this.seq = data.seq;
       } catch (err) {
         if (this.closed) break;
-        console.warn('event stream', err.message);
+        console.warn('live updates', err.message);
+        if (this.connection !== 'offline') {
+          this.connection = 'offline';
+          this.emit('connection');
+        }
+        await new Promise((r) => setTimeout(r, backoff));
+        backoff = Math.min(backoff * 2, 15000);
       }
-      if (this.closed) break;
-      this.connection = 'offline';
-      this.emit('connection');
-      await new Promise((r) => setTimeout(r, backoff));
-      backoff = Math.min(backoff * 2, 15000);
     }
     this.eventsRunning = false;
   }
@@ -191,8 +205,9 @@ export class RemoteApp {
   /** After a reconnect: refresh state and any chats that are open. */
   async resync() {
     try {
-      const res = await fetch(this.url('/api/state'), { headers: this.headers(false) });
-      if (res.ok) this.applyState(await res.json());
+      const res = await fetch(this.url('/api/state'), { headers: this.headers(false), cache: 'no-store' });
+      if (!res.ok) throw new Error(`state ${res.status}`);
+      this.applyState(await res.json());
       for (const threadId of this.messageCache.keys()) {
         this.messageCache.set(threadId, await this.rpc('messages.list', threadId));
         this.emit(`messages:${threadId}`);
@@ -200,11 +215,11 @@ export class RemoteApp {
       if (this.viewingThreadId) this.rpc('threads.view', this.viewingThreadId).catch(() => {});
     } catch (err) {
       console.warn('resync failed', err);
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 
   handle(topic, data) {
-    if (topic === 'hello') return;
     if (topic === 'agents') this.agents = new Map((data || []).map((a) => [a.id, a]));
     else if (topic === 'threads') this.threads = new Map((data || []).map((t) => [t.id, t]));
     else if (topic === 'tasks') this.tasks = new Map((data || []).map((t) => [t.id, t]));

@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { main } from '../../computer/src/main.mjs';
-import { readSSE } from '../../src/core/providers/sse.js';
+import { EventHub } from '../../computer/src/server.mjs';
 
 let holly;
 let modelServer;
@@ -86,15 +86,18 @@ test('health is public, everything else needs the pairing token', async () => {
 
 test('shell and files on the computer', async () => {
   const res = await fetch(`${base()}/v1/exec`, { method: 'POST', headers: auth(), body: JSON.stringify({ command: 'echo hello-from-shell' }) });
-  let out = '';
-  let exit;
-  for await (const e of readSSE(res.body)) {
-    const d = JSON.parse(e.data);
-    if (d.type === 'stdout') out += d.data;
-    if (d.type === 'exit') exit = d;
+  const quick = await res.json();
+  assert.match(quick.chunks.map((c) => c.data).join(''), /hello-from-shell/);
+  assert.equal(quick.done.code, 0);
+  // Long commands: output is collected in pieces.
+  const slow = await (await fetch(`${base()}/v1/exec`, { method: 'POST', headers: auth(), body: JSON.stringify({ command: 'echo one && sleep 1 && echo two' }) })).json();
+  let out = slow.chunks.map((c) => c.data).join('');
+  let cur = slow;
+  while (!cur.done) {
+    cur = await (await fetch(`${base()}/v1/jobs/${cur.job}?since=${cur.next}`, { headers: auth() })).json();
+    out += cur.chunks.map((c) => c.data).join('');
   }
-  assert.match(out, /hello-from-shell/);
-  assert.equal(exit.code, 0);
+  assert.match(out, /one\s+two/);
   const w = await (await fetch(`${base()}/v1/fs/write`, { method: 'POST', headers: auth(), body: JSON.stringify({ path: 'notes/a.txt', text: 'hi' }) })).json();
   assert.equal(w.size, 2);
   const r = await (await fetch(`${base()}/v1/fs/read`, { method: 'POST', headers: auth(), body: JSON.stringify({ path: 'notes/a.txt' }) })).json();
@@ -104,12 +107,17 @@ test('shell and files on the computer', async () => {
 test('phone creates a bot, chats, bot runs a shell command on the computer; events stream back', async () => {
   await rpc('settings.save', { providers: { custom: { baseURL: modelUrl, apiKey: 'test', noKey: true } }, defaults: { provider: 'custom', model: 'fake-flash', memoryModel: 'same' }, autoReview: false });
   const events = [];
-  const ctrl = new AbortController();
-  const stream = fetch(`${base()}/api/events?client=test`, { headers: auth(), signal: ctrl.signal }).then(async (res) => {
-    try {
-      for await (const e of readSSE(res.body, ctrl.signal)) events.push(JSON.parse(e.data));
-    } catch { /* aborted */ }
-  });
+  const state = await (await fetch(`${base()}/api/state`, { headers: auth() })).json();
+  let since = state.seq;
+  let polling = true;
+  const poller = (async () => {
+    while (polling) {
+      const r = await (await fetch(`${base()}/api/poll?since=${since}&boot=${state.boot}&client=test`, { headers: auth() })).json();
+      assert.ok(!r.reset, 'no reset needed');
+      events.push(...r.events);
+      since = r.seq;
+    }
+  })();
   const agent = await rpc('agents.create', { name: 'Holly', greet: false });
   const threadId = `dm_${agent.id}`;
   await rpc('runtime.send', threadId, { text: 'Please run echo for me' });
@@ -127,8 +135,9 @@ test('phone creates a bot, chats, bot runs a shell command on the computer; even
   assert.equal(reply.steps[1].text, 'The command printed: holly-works');
   assert.equal(reply.steps[0].raw.provider, 'openai-chat', 'reasoning kept for replay');
   await new Promise((r) => setTimeout(r, 300));
-  ctrl.abort();
-  await stream;
+  polling = false;
+  await rpc('agents.update', agent.id, { bio: 'wake the poller' });
+  await poller;
   assert.ok(events.some((e) => e.topic === 'agents'), 'agents event streamed');
   assert.ok(events.some((e) => e.topic === `messages:${threadId}` && e.data?.authorType === 'agent'), 'message updates streamed');
   assert.ok(events.some((e) => e.topic === 'runs'), 'run status streamed');
@@ -142,4 +151,19 @@ test('API keys never leave the computer', async () => {
   // Saving the masked value back must not overwrite the real key.
   await rpc('settings.save', { providers: { ...state.settings.providers } });
   assert.equal(holly.app.settings.providers.deepseek.apiKey, 'sk-secret-1234');
+});
+
+test('long polls: batching, coalescing and resets', async () => {
+  const hub = new EventHub((topic, payload) => payload, { max: 5 });
+  hub.push('messages:t1', { id: 'm1', text: 'a' });
+  hub.push('messages:t1', { id: 'm1', text: 'ab' });
+  hub.push('activity', { n: 1 });
+  let r = hub.read(0, hub.boot);
+  assert.deepEqual(r.events.map((e) => e.data), [{ id: 'm1', text: 'ab' }, { n: 1 }], 'message updates coalesce to the latest');
+  assert.equal(hub.read(r.seq, hub.boot).events.length, 0);
+  assert.equal(hub.read(r.seq, 'other-boot').reset, true, 'server restarted');
+  for (let i = 0; i < 10; i++) hub.push('activity', { n: i });
+  assert.equal(hub.read(r.seq, hub.boot).reset, true, 'fell too far behind');
+  r = hub.read(hub.seq - 2, hub.boot);
+  assert.equal(r.events.length, 2);
 });

@@ -2,10 +2,6 @@
 // Holly Computer — run your Holly bots on this computer, 24/7, and control them
 // from your phone. Bots can use this machine: shell, files, a real Chrome
 // browser, the screen/mouse/keyboard, and local MCP plugins.
-//
-//   node holly-computer.mjs [--port 8787] [--tunnel] [--lan] [--workspace ~/Holly]
-//                           [--data ~/.holly] [--no-open] [--headless-browser] [--new-token]
-//                           [--allow-sleep]
 
 import os from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -16,11 +12,28 @@ import { fileURLToPath } from 'node:url';
 import { NodeDB } from './node-db.mjs';
 import { LocalComputer, VERSION, defaultWorkspace } from './local-computer.mjs';
 import { createHollyServer } from './server.mjs';
-import { startQuickTunnel, hasCloudflared, qrText } from './tunnel.mjs';
+import { startQuickTunnel, ensureCloudflared, qrText } from './tunnel.mjs';
 import { keepAwake } from './awake.mjs';
 import { App } from '../../src/core/app.js';
 
 const PAGES_URL = 'https://xgamer791.github.io/holly-bot/';
+
+const USAGE = `Holly Computer — your Holly bots live on this computer; control them from your phone.
+
+Usage: node holly-computer.mjs [options]
+
+  --tunnel            Reach this computer from anywhere (Cloudflare quick tunnel; prints a QR code)
+  --lan               Allow phones on the same Wi-Fi
+  --public-url <url>  Your own permanent address for this computer (e.g. a named Cloudflare
+                      Tunnel or Tailscale Funnel pointing at this port) — used in the phone link
+  --port <n>          Port to listen on (default 8787)
+  --workspace <dir>   Folder the bots work in (default ~/Holly)
+  --data <dir>        Where bots, chats and memories are stored (default ~/.holly)
+  --headless-browser  Run the bots' Chrome without a window
+  --allow-sleep       Let the computer sleep while Holly Computer runs
+  --new-token         Make a new pairing link (old links stop working)
+  --no-open           Don't open the app in a browser here
+  -h, --help          Show this help`;
 
 function parseArgs(argv) {
   const out = { port: 8787, host: '127.0.0.1', tunnel: false, open: true, headlessBrowser: false, newToken: false, awake: true };
@@ -37,6 +50,7 @@ function parseArgs(argv) {
     else if (a === '--headless-browser') out.headlessBrowser = true;
     else if (a === '--new-token') out.newToken = true;
     else if (a === '--allow-sleep') out.awake = false;
+    else if (a === '--public-url') out.publicUrl = next();
     else if (a === '--help' || a === '-h') out.help = true;
   }
   return out;
@@ -64,7 +78,11 @@ function assetLoader() {
   const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json', webmanifest: 'application/manifest+json', svg: 'image/svg+xml', png: 'image/png' };
   const typeOf = (p) => TYPES[p.split('.').pop()] || 'application/octet-stream';
   if (embedded) {
-    return (path) => (embedded[path] ? { type: typeOf(path), body: Buffer.from(embedded[path], 'base64') } : null);
+    return (path) => {
+      const v = embedded[path];
+      if (v == null) return null;
+      return { type: typeOf(path), body: v.startsWith('base64:') ? Buffer.from(v.slice(7), 'base64') : Buffer.from(v, 'utf8') };
+    };
   }
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
   return (path) => {
@@ -96,7 +114,7 @@ function lanAddress() {
 export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   if (args.help) {
-    console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 8).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+    console.log(USAGE);
     return null;
   }
   const major = Number(process.versions.node.split('.')[0]);
@@ -124,7 +142,8 @@ export async function main(argv = process.argv.slice(2)) {
     server.listen(args.port, args.host, ok);
   });
 
-  const local = `http://localhost:${args.port}/`;
+  const port = server.address().port;
+  const local = `http://localhost:${port}/`;
   const caps = computer.info.capabilities;
   console.log(`  Workspace: ${workspace}`);
   console.log(`  Data:      ${dataDir}`);
@@ -132,29 +151,28 @@ export async function main(argv = process.argv.slice(2)) {
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
   console.log(`\n  On this computer, open:\n    ${link(local, '', cfg.token)}\n`);
 
-  let publicUrl = null;
-  if (args.tunnel) {
-    if (!hasCloudflared()) {
-      console.log('  --tunnel needs cloudflared: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
-    } else {
-      try {
-        const t = await startQuickTunnel(args.port);
-        publicUrl = t.url;
-        process.on('exit', () => t.stop());
-      } catch (err) {
-        console.log(`  Tunnel failed: ${err.message}`);
-      }
+  let publicUrl = args.publicUrl ? args.publicUrl.replace(/\/+$/, '') : null;
+  if (args.tunnel && !publicUrl) {
+    try {
+      const bin = await ensureCloudflared(dataDir);
+      console.log('  Opening a secure tunnel…');
+      const t = await startQuickTunnel(port, { bin });
+      publicUrl = t.url;
+      process.on('exit', () => t.stop());
+      if (!t.connected) console.log('  The tunnel is slow to connect. If your phone can\'t open the link, this network may block Cloudflare Tunnel — try --lan on the same Wi-Fi.');
+    } catch (err) {
+      console.log(`  Tunnel failed: ${err.message}`);
     }
   }
   const lan = args.host === '0.0.0.0' ? lanAddress() : null;
-  const phoneBase = publicUrl ? `${publicUrl}/` : lan ? `http://${lan}:${args.port}/` : null;
+  const phoneBase = publicUrl ? `${publicUrl}/` : lan ? `http://${lan}:${port}/` : null;
   if (phoneBase) {
     const phone = link(phoneBase, '', cfg.token);
     console.log(`  On your phone, scan or open:\n    ${phone}\n`);
     console.log(qrText(phone).split('\n').map((l) => `    ${l}`).join('\n'));
     if (publicUrl) console.log(`\n  (Or use the installed app: ${link(PAGES_URL, publicUrl, cfg.token)})`);
   } else {
-    console.log('  To control your bots from your phone, restart with --tunnel (needs cloudflared) or --lan (same Wi-Fi).');
+    console.log('  To control your bots from your phone, restart with --tunnel (from anywhere) or --lan (same Wi-Fi).');
   }
   const awake = args.awake && args.port !== 0 ? keepAwake() : null;
   if (awake?.active) console.log('\n  Keeping this computer awake while Holly Computer runs (start with --allow-sleep to turn that off).');

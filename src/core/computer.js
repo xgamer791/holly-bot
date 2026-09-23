@@ -1,4 +1,3 @@
-import { readSSE } from './providers/sse.js';
 import { safeJsonParse } from './util.js';
 
 // Client for Holly Computer — the optional companion program (computer/holly-computer.mjs)
@@ -63,33 +62,32 @@ export class ComputerClient {
     return this.info;
   }
 
-  /** Run a shell command, streaming output through onData(stream, chunk). */
+  /**
+   * Run a shell command. It runs as a job on the computer and output is fetched
+   * in pieces (works through tunnels and proxies); onData(stream, chunk) gets it live.
+   */
   async exec(command, { cwd, timeoutMs = 120000, onData, signal, background = false } = {}) {
-    if (!this.configured) throw new Error('No Bot Computer connected.');
-    const res = await fetch(`${this.url}/v1/exec`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify({ command, cwd, timeoutMs, stream: true, background }),
-      signal,
-    }).catch((err) => {
-      throw err?.name === 'AbortError' ? err : new Error(`Bot Computer unreachable (${err.message})`);
-    });
-    if (!res.ok) throw new Error((safeJsonParse(await res.text()) || {}).error || `exec failed (${res.status})`);
     let stdout = '';
     let stderr = '';
-    let exit = { code: null };
-    for await (const evt of readSSE(res.body, signal)) {
-      const d = safeJsonParse(evt.data);
-      if (!d) continue;
-      if (d.type === 'stdout') {
-        stdout += d.data;
-        onData?.('stdout', d.data);
-      } else if (d.type === 'stderr') {
-        stderr += d.data;
-        onData?.('stderr', d.data);
-      } else if (d.type === 'exit') exit = d;
+    const take = (chunks) => {
+      for (const c of chunks || []) {
+        if (c.stream === 'stderr') stderr += c.data;
+        else stdout += c.data;
+        onData?.(c.stream, c.data);
+      }
+    };
+    let r = await this.request('/v1/exec', { command, cwd, timeoutMs, background }, { signal });
+    take(r.chunks);
+    try {
+      while (!r.done) {
+        r = await this.request(`/v1/jobs/${r.job}?since=${r.next}`, undefined, { signal });
+        take(r.chunks);
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') this.request(`/v1/jobs/${r.job}/kill`, {}).catch(() => {});
+      throw err;
     }
-    return { stdout, stderr, code: exit.code, signal: exit.signal, durationMs: exit.durationMs, cwd: exit.cwd };
+    return { stdout, stderr, code: r.done.code, signal: r.done.signal, durationMs: r.done.durationMs, cwd: r.done.cwd };
   }
 
   fs(op, args, opts) {
