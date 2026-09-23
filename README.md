@@ -9,3 +9,12 @@ Desktop AI agent assistant (Grok Bot clone).
 ## Pages
 
 GitHub Pages serves from the `main` branch root (`/`).
+
+## Convex backend
+
+Separate Convex project `holly-bot` (not Forge).
+
+- Prod: `https://impressive-ferret-800.convex.cloud`
+- Dev: `https://useful-wildebeest-212.convex.cloud`
+- Details: see [CONVEX.md](CONVEX.md)
+

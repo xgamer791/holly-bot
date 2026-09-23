@@ -1,0 +1,17 @@
+{
+  "name": "holly-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "convex": "convex dev",
+    "convex:once": "convex dev --once",
+    "deploy": "convex deploy",
+    "typecheck": "tsc -p convex/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "convex": "^1.46.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
