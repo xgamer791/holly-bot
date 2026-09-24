@@ -1,6 +1,8 @@
 import Apple from "@auth/core/providers/apple";
 import Google from "@auth/core/providers/google";
+import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 /** The live app. Allowed whatever `SITE_URL` says, so a stray value there
  * (prod was once set to http://localhost:8080) can't break sign-in. */
@@ -39,8 +41,26 @@ const AppleOAuth = Apple({
 });
 
 /**
- * Sign-in providers, both OAuth with PKCE. The round trip runs on this
- * deployment's site URL (convex/http.ts), so no secret reaches the app:
+ * Holly Computer signing in to the account it is being linked to. The app
+ * made a one-time code for it (devices:createLink) and handed it over; the
+ * code is checked against its stored hash and spent (convex/devices.ts).
+ */
+const DeviceLink = ConvexCredentials({
+  id: "device",
+  authorize: async (params, ctx) => {
+    const code = typeof params.code === "string" ? params.code : "";
+    if (!/^[A-Za-z0-9_-]{43}$/.test(code)) return null;
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+    const codeHash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    const name = typeof params.name === "string" ? params.name : "";
+    return await ctx.runMutation(internal.devices.redeem, { codeHash, name });
+  },
+});
+
+/**
+ * Sign-in providers: Apple and Google, both OAuth with PKCE, and the device
+ * link above. The OAuth round trip runs on this deployment's site URL
+ * (convex/http.ts), so no secret reaches the app:
  *   - Google: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`. Authorised redirect URI
  *     `<CONVEX_SITE_URL>/api/auth/callback/google`.
  *   - Apple: `AUTH_APPLE_ID` (a Services ID) / `AUTH_APPLE_SECRET` (the client
@@ -50,7 +70,7 @@ const AppleOAuth = Apple({
  * CONVEX.md lists every variable and where it comes from.
  */
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [Google, AppleOAuth],
+  providers: [Google, AppleOAuth, DeviceLink],
   callbacks: {
     async redirect({ redirectTo }) {
       if (isAllowedRedirect(redirectTo, process.env.SITE_URL)) return redirectTo;

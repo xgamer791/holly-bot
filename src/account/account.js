@@ -1,4 +1,5 @@
 import { ConvexHttpClient } from '../../vendor/convex.js';
+import { CONVEX_URL, SITE } from './config.js';
 
 // Holly Bot accounts: Sign in with Apple or Google, kept in Holly Bot's own
 // Convex database (CONVEX.md). This speaks the same protocol as Convex Auth's
@@ -11,8 +12,7 @@ import { ConvexHttpClient } from '../../vendor/convex.js';
 //      the JWT runs out. Refresh tokens rotate; reusing an old one ends the session.
 // Storage keys match Convex Auth's own, so a session survives switching clients.
 
-export const CONVEX_URL = 'https://impressive-ferret-800.convex.cloud';
-export const SITE = 'https://xgamer791.github.io/holly-bot/';
+export { CONVEX_URL, SITE };
 const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
 const NOTICE_KEY = 'holly.notice';

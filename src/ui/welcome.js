@@ -281,6 +281,67 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
     </div>`;
 }
 
+/**
+ * A Holly Computer that isn't linked to an account yet, opened while signed
+ * in. Linking keeps its bots in the account: what it has now moves in, and it
+ * goes on running them (computer/src/home.mjs). `onLink` can take a while.
+ */
+export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const who = signedInAs();
+  const link = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onLink();
+    } catch (err) {
+      console.error(err);
+      setError(String(err?.message || err));
+      setBusy(false);
+    }
+  };
+  return html`
+    <div class="hello">
+      <div class="hello-canvas">
+        <div class="hello-hero device">
+          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} />
+          <h1 class="device-title">Keep your bots in your account</h1>
+          <p class="device-text">Link <b>${name}</b> to your account${who ? html` (<b>${who}</b>)` : ''}. Its bots, chats, memories and keys move into your account, and ${name} keeps running your bots around the clock.</p>
+          ${busy && html`<p class="hello-note" role="status">Moving your bots into your account. This can take a minute.</p>`}
+          ${error && html`<p class="auth-error" role="alert">${error}</p>`}
+        </div>
+        <div class="hello-dock">
+          <div class="hello-ctas">
+            <button class="hello-cta" disabled=${busy} onClick=${link}>${busy ? html`<span class="spinner"></span>` : 'Add to My Account'}</button>
+            <button class="hello-cta secondary" disabled=${busy} onClick=${onSignOut}>Use a Different Account</button>
+          </div>
+          <button class="hello-more" disabled=${busy} onClick=${onDisconnect}>Disconnect from ${name}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** A Holly Computer linked to a different account than the one signed in. */
+export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
+  return html`
+    <div class="hello">
+      <div class="hello-canvas">
+        <div class="hello-hero device">
+          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} expression="sleepy" />
+          <h1 class="device-title">Linked to another account</h1>
+          <p class="device-text"><b>${name}</b> keeps its bots in a different Holly Bot account. Sign in with that account to use it here.</p>
+        </div>
+        <div class="hello-dock">
+          <div class="hello-ctas">
+            <button class="hello-cta" onClick=${onSignOut}>Use a Different Account</button>
+          </div>
+          <button class="hello-more" onClick=${onDisconnect}>Disconnect from ${name}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 /** The account couldn't be loaded (offline, or the server had a problem). */
 export function ProblemScreen({ message, onRetry, onSignOut }) {
   const [busy, setBusy] = useState(false);

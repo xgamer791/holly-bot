@@ -99,6 +99,15 @@ export class EventHub {
     }
   }
 
+  /** Starts a new log because the app behind it changed (linked to an
+   * account, or reloaded from it): every client reloads its state. */
+  reset() {
+    this.boot = randomUUID();
+    this.entries = [];
+    this.trimmed = this.seq;
+    for (const w of [...this.waiters]) w();
+  }
+
   /** Events after `since`, or { reset } if some were dropped (the client reloads state). */
   read(since, boot) {
     if ((boot && boot !== this.boot) || !Number.isFinite(since) || since < this.trimmed || since > this.seq) return { reset: true, seq: this.seq, boot: this.boot };
@@ -193,21 +202,29 @@ class Jobs {
   }
 }
 
+/** Linking this computer to a Holly Bot account (computer/src/home.mjs). */
+const ACCOUNT_RPC = {
+  'account.link': (home, [code]) => home.link(code),
+  'account.unlink': (home) => home.unlink(),
+};
+
 /**
  * @param {object} o
  * @param {import('../../src/core/app.js').App} o.app
+ * @param {import('./home.mjs').BotHome} [o.home]  where the bots are kept; links and unlinks the account
  * @param {import('./local-computer.mjs').LocalComputer} o.computer
  * @param {string} o.token
  * @param {(path: string) => ({ type: string, body: Buffer } | null)} o.assets  web app files
  * @param {object} o.serverInfo
  */
-export function createHollyServer({ app, computer, token, assets, serverInfo, log = console }) {
+export function createHollyServer({ app: firstApp, home = null, computer, token, assets, serverInfo, log = console }) {
   const hub = new EventHub(serialize);
   const jobs = new Jobs(computer);
   const longCalls = new Map();
   const seen = new Map(); // clientId → last poll time
 
-  app.on('*', (topic, payload) => hub.push(topic, payload));
+  let app = firstApp;
+  let unsubscribe = app.on('*', (topic, payload) => hub.push(topic, payload));
 
   // A phone that stopped polling is no longer looking at a chat.
   const sweep = setInterval(() => {
@@ -228,7 +245,11 @@ export function createHollyServer({ app, computer, token, assets, serverInfo, lo
       return;
     }
     try {
-      if (url.pathname === '/v1/health') return json(res, 200, { ok: true, app: 'holly-computer', ...serverInfo });
+      if (url.pathname === '/v1/health') {
+        // Open to anyone who can reach this computer, so it leaves out which account it's linked to.
+        const { account: _account, ...info } = serverInfo;
+        return json(res, 200, { ok: true, app: 'holly-computer', ...info });
+      }
       if (!url.pathname.startsWith('/v1/') && !url.pathname.startsWith('/api/')) return serveAsset(url, res);
       if (!tokenOk(req, url, token)) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Computer.' });
       if (url.pathname.startsWith('/v1/')) return await computerApi(req, res, url);
@@ -303,10 +324,11 @@ export function createHollyServer({ app, computer, token, assets, serverInfo, lo
     }
     if (p === '/api/rpc' && req.method === 'POST') {
       const { method, args = [], clientId } = await readBody(req);
+      const own = home && ACCOUNT_RPC[method];
       const fn = RPC[method];
-      if (!fn) return json(res, 404, { error: `Unknown method ${method}` });
+      if (!own && !fn) return json(res, 404, { error: `Unknown method ${method}` });
       if (clientId) seen.set(clientId, Date.now());
-      const call = Promise.resolve().then(() => fn(app, args, { clientId })).then((v) => ({ result: v ?? null }), (e) => ({ error: e.message || String(e) }));
+      const call = Promise.resolve().then(() => (own ? own(home, args) : fn(app, args, { clientId }))).then((v) => ({ result: v ?? null }), (e) => ({ error: e.message || String(e) }));
       const first = await Promise.race([call, wait(LONG_MS)]);
       if (!first) {
         // Slow call (e.g. memory reflection): hand back a ticket to collect it.
@@ -368,6 +390,15 @@ export function createHollyServer({ app, computer, token, assets, serverInfo, lo
         return payload ?? null;
     }
   }
+
+  /** Serves `next` from now on (computer/src/home.mjs swaps it in). */
+  server.setApp = (next) => {
+    if (next === app) return;
+    unsubscribe();
+    app = next;
+    unsubscribe = app.on('*', (topic, payload) => hub.push(topic, payload));
+    hub.reset();
+  };
 
   server.on('close', () => clearInterval(sweep));
   server.hub = hub;

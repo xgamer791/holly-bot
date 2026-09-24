@@ -6,9 +6,12 @@ import {
   RemoteApp, holdConnection, savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useConnectionsOf,
 } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
-import { DeviceDataScreen, ProblemScreen, WelcomeFlow, screenFromHash } from './ui/welcome.js';
+import {
+  DeviceDataScreen, LinkComputerScreen, OtherAccountScreen, ProblemScreen, WelcomeFlow, screenFromHash,
+} from './ui/welcome.js';
 import { account, friendlyError, signInWorksHere, SITE, takeNotice } from './account/account.js';
 import { CloudDB } from './account/cloud-db.js';
+import { makeLinkCode } from './account/device-link.js';
 import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/device-data.js';
 
 // Boot. Holly Bot needs an account (Sign in with Apple or Google), and what it
@@ -17,8 +20,10 @@ import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/devi
 // two ways to run:
 //  • Your computer (recommended): bots live on Holly Computer and this app is the remote control.
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
-// Holly Computer's Wi-Fi address can't sign in (convex/auth.ts); there the
-// pairing token protects the app and the bots live on the computer.
+// Holly Computer linked to the account keeps its bots there too, and runs
+// them (computer/src/home.mjs); opening one that isn't linked yet offers the
+// link. Its Wi-Fi address can't sign in (convex/auth.ts); there the pairing
+// token alone protects it.
 
 const root = document.getElementById('app');
 /** A Holly Computer link opened just before this sign-in. */
@@ -54,7 +59,8 @@ async function startAccount() {
   if (conn && !found) return bootRemote(conn);
   let db;
   try {
-    db = await CloudDB.open();
+    const userId = account.userId;
+    db = await CloudDB.open({ userId, call: (kind, name, args) => account.authed(kind, name, args, { as: userId }) });
   } catch (err) {
     console.error('account storage', err);
     if (!account.signedIn) return location.reload();
@@ -88,11 +94,11 @@ function loadError(err) {
 }
 
 /** Signs out before the app opens, leaving nothing of the account here. A
- * Holly Computer link opened for this sign-in waits for the next one. */
-async function signOut(db) {
+ * Holly Computer link opened for this sign-in (or `hold`) waits for the next one. */
+async function signOut(db, { hold = adopted } = {}) {
   await db?.close({ forget: true });
   saveConnection(null);
-  if (adopted) holdConnection(adopted);
+  if (hold) holdConnection(hold);
   await account.signOut(); // the listener in boot() reloads into the welcome screen
 }
 
@@ -169,7 +175,41 @@ async function bootRemote(conn) {
   }
   window.holly = app;
   if (app.server?.name && app.server.name !== conn.name) saveConnection({ ...conn, name: app.server.name });
+  if (computerAccountStep(app, conn)) return;
   mount(app);
+}
+
+/**
+ * Signed in, a Holly Computer keeps its bots in the account. One that isn't
+ * linked yet is offered the link; one linked to another account isn't opened
+ * here. True when a screen took over instead of the app.
+ */
+function computerAccountStep(app, conn) {
+  if (!signInWorksHere() || !account.signedIn) return false;
+  const link = app.server?.account;
+  if (!link) {
+    banner('Update Holly Computer to keep its bots in your account', () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener'));
+    return false;
+  }
+  if (link.linked && link.userId === account.userId) return false;
+  app.close();
+  const name = app.server?.name || conn.name || 'your computer';
+  const disconnect = () => {
+    saveConnection(null);
+    location.reload();
+  };
+  const switchAccount = () => signOut(null, { hold: savedConnection() || conn });
+  if (link.linked) {
+    show(html`<${OtherAccountScreen} name=${name} onSignOut=${switchAccount} onDisconnect=${disconnect} />`);
+    return true;
+  }
+  show(html`<${LinkComputerScreen} name=${name} onSignOut=${switchAccount} onDisconnect=${disconnect} onLink=${async () => {
+    const { code, hash } = await makeLinkCode();
+    await account.authed('mutation', 'devices:createLink', { codeHash: hash });
+    await app.rpc('account.link', code);
+    await bootRemote(savedConnection() || conn);
+  }} />`);
+  return true;
 }
 
 async function bootLocal(db) {
@@ -182,7 +222,11 @@ async function bootLocal(db) {
     return;
   }
   window.holly = app;
-  if (db.cloud) watchOtherDevices(app, db);
+  if (db.cloud) {
+    watchOtherDevices(app, db);
+    // A computer linked to the account runs the routines; this app doesn't too.
+    app.routinesOnComputer = await linkedComputers();
+  }
   mount(app);
   app.start().catch((err) => console.warn('startup services', err));
 }
@@ -208,16 +252,31 @@ function watchOtherDevices(app, db) {
       const away = document.visibilityState === 'hidden';
       if (!busy && (away || Date.now() - lastInput > 120_000)) location.reload();
     };
-    const banner = document.createElement('button');
-    banner.className = 'stale-banner';
-    banner.textContent = 'Changed on another device · Tap to refresh';
-    banner.onclick = () => location.reload();
-    document.body.append(banner);
+    banner('Changed on another device · Tap to refresh', () => location.reload());
     document.addEventListener('visibilitychange', reloadIfQuiet);
     setInterval(reloadIfQuiet, 5000);
     reloadIfQuiet();
   };
   if (db.stale) db.onStale();
+}
+
+/** The names of the computers linked to the account ([] if that can't be told quickly). */
+async function linkedComputers() {
+  try {
+    const list = await Promise.race([account.authed('query', 'devices:list'), new Promise((resolve) => setTimeout(resolve, 4000, []))]);
+    return (list || []).map((device) => device.name);
+  } catch {
+    return [];
+  }
+}
+
+/** A small notice at the top of the app that does something when tapped. */
+function banner(text, onClick) {
+  const button = document.createElement('button');
+  button.className = 'stale-banner';
+  button.textContent = text;
+  button.onclick = onClick;
+  document.body.append(button);
 }
 
 function mount(app) {

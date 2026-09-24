@@ -9,12 +9,13 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { NodeDB } from './node-db.mjs';
+import './node-db.mjs'; // IDBKeyRange for the app core
 import { LocalComputer, VERSION, defaultWorkspace } from './local-computer.mjs';
 import { createHollyServer } from './server.mjs';
 import { startQuickTunnel, ensureCloudflared, qrText } from './tunnel.mjs';
 import { keepAwake } from './awake.mjs';
-import { App } from '../../src/core/app.js';
+import { AccountLink } from './account.mjs';
+import { BotHome } from './home.mjs';
 
 const PAGES_URL = 'https://xgamer791.github.io/holly-bot/';
 
@@ -28,7 +29,8 @@ Usage: node holly-computer.mjs [options]
                       Tunnel or Tailscale Funnel pointing at this port) — used in the phone link
   --port <n>          Port to listen on (default 8787)
   --workspace <dir>   Folder the bots work in (default ~/Holly)
-  --data <dir>        Where bots, chats and memories are stored (default ~/.holly)
+  --data <dir>        Holly Computer's own files (default ~/.holly). Until this computer is
+                      linked to your Holly Bot account, its bots are kept here too
   --headless-browser  Run the bots' Chrome without a window
   --allow-sleep       Let the computer sleep while Holly Computer runs
   --new-token         Make a new pairing link (old links stop working)
@@ -130,13 +132,23 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`\n  Holly Computer ${VERSION} — ${os.hostname()}\n`);
   const computer = new LocalComputer({ workspace, dataDir, headlessBrowser: args.headlessBrowser, name: cfg.name });
   await computer.start();
-  const db = await NodeDB.open(join(dataDir, 'data'));
-  const app = await App.create({ db, computer, host: 'computer' });
-  await app.start();
-  app.startScheduler();
+  // Linked to a Holly Bot account, the bots are kept in the account; until
+  // then, in the data folder (computer/src/home.mjs).
+  const account = new AccountLink(join(dataDir, 'account.json'), { name: cfg.name });
+  const home = new BotHome({ dataDir, account, computer });
+  const app = await home.open();
 
-  const serverInfo = { name: cfg.name, hostname: os.hostname(), version: VERSION, platform: process.platform };
-  const server = createHollyServer({ app, computer, token: cfg.token, assets: assetLoader(), serverInfo });
+  const serverInfo = {
+    name: cfg.name,
+    hostname: os.hostname(),
+    version: VERSION,
+    platform: process.platform,
+    get account() {
+      return home.status();
+    },
+  };
+  const server = createHollyServer({ app, home, computer, token: cfg.token, assets: assetLoader(), serverInfo });
+  home.onSwap = (next) => server.setApp(next);
   await new Promise((ok, fail) => {
     server.once('error', fail);
     server.listen(args.port, args.host, ok);
@@ -147,6 +159,9 @@ export async function main(argv = process.argv.slice(2)) {
   const caps = computer.info.capabilities;
   console.log(`  Workspace: ${workspace}`);
   console.log(`  Data:      ${dataDir}`);
+  console.log(account.linked
+    ? '  Bots:      kept in your Holly Bot account'
+    : '  Bots:      kept on this computer until you link it to your Holly Bot account (open the link below and sign in)');
   console.log(`  Can use:   shell ✓  files ✓  web ✓  screen ${caps.screenshot ? '✓' : '✗'}  mouse/keyboard ${caps.desktop ? '✓' : '✗'}  Chrome ${caps.browser ? '✓' : '✗'}  plugins ✓`);
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
   console.log(`\n  On this computer, open:\n    ${link(local, '', cfg.token)}\n`);
@@ -184,16 +199,14 @@ export async function main(argv = process.argv.slice(2)) {
   const shutdown = async () => {
     console.log('\n  Stopping Holly Computer…');
     awake?.stop();
-    app.runtime.stopAll();
-    app.stopScheduler();
     server.close();
+    await home.close();
     await computer.close();
-    db.close();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-  return { app, server, computer, db, token: cfg.token, url: local };
+  return { app, home, server, computer, db: app.db, token: cfg.token, url: local };
 }
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

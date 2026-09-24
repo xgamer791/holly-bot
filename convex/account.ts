@@ -87,6 +87,13 @@ export const deleteAccount = mutation({
     for (const head of await ctx.db.query("heads").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       await ctx.db.delete(head._id);
     }
+    // Linked computers lose their sessions with the rest below.
+    for (const device of await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(device._id);
+    }
+    for (const link of await ctx.db.query("deviceLinks").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(link._id);
+    }
 
     const sessions = await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", userId)).collect();
     for (const session of sessions) {

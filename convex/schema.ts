@@ -57,6 +57,24 @@ export default defineSchema({
     at: v.number(),
   }).index("by_user_key", ["userId", "key"]),
 
+  /** One-time codes that link a Holly Computer to an account, stored as the
+   * SHA-256 of the code (convex/devices.ts). */
+  deviceLinks: defineTable({
+    userId: v.id("users"),
+    codeHash: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_code", ["codeHash"])
+    .index("by_user", ["userId"]),
+
+  /** Holly Computers linked to an account, each signed in with a session of its own. */
+  devices: defineTable({
+    userId: v.id("users"),
+    sessionId: v.id("authSessions"),
+    name: v.string(),
+    linkedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   meta: defineTable({
     key: v.string(),
     value: v.string(),

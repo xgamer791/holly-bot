@@ -165,7 +165,7 @@ function MainPage({ go, onClose }) {
  * forgotten here (opening its link again reconnects). */
 async function signOut(app, ui) {
   const message = app.remote
-    ? "You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer."
+    ? `You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay ${app.server?.account?.linked ? 'in your account, and the computer keeps running them' : 'on the computer'}.`
     : "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.";
   if (!(await ui.confirm({ title: 'Sign out?', message, confirmText: 'Sign Out', danger: true }))) return;
   ui.toast('Signing out…');
@@ -184,7 +184,9 @@ async function signOut(app, ui) {
  * this device kept for it. Storage stops first, so nothing is written after.
  */
 async function deleteAccount(app, ui) {
-  const computer = app.remote ? " Bots on your Holly Computer aren't part of your account: they stay on that computer until you delete them there." : '';
+  const computer = app.remote && !app.server?.account?.linked
+    ? " Bots on your Holly Computer aren't part of your account: they stay on that computer until you delete them there."
+    : '';
   if (!(await ui.confirm({
     title: 'Delete your account?',
     message: `This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys. It can't be undone.${computer}`,
@@ -476,6 +478,28 @@ function SkillEditor({ skill, onSave, onCancel, onDelete }) {
   </div>`;
 }
 
+/** Computers linked to the account (convex/devices.ts), each with Unlink. */
+function LinkedComputers() {
+  const ui = useUi();
+  const { data: devices = [], reload } = useAsync(() => account.authed('query', 'devices:list'), []);
+  if (!devices.length) return null;
+  return html`
+    <div class="group-label">Linked to your account</div>
+    <${Group}>
+      ${devices.map((device) => html`<${Row} key=${device.id} title=${device.name}
+        sub=${`Runs your bots and routines · linked ${new Date(device.linkedAt).toLocaleDateString()}`} value="Unlink" onClick=${async () => {
+          if (!(await ui.confirm({ title: `Unlink ${device.name}?`, message: `${device.name} stops running your bots and routines. They stay in your account.`, confirmText: 'Unlink', danger: true }))) return;
+          try {
+            await account.authed('mutation', 'devices:unlink', { id: device.id });
+            reload();
+          } catch {
+            ui.toast("Couldn't unlink it. Check your connection and try again.", { error: true });
+          }
+        }} />`)}
+    <//>
+    <div class="group-note">To control it from here, open the link Holly Computer shows.</div>`;
+}
+
 function ComputerPage() {
   const app = useApp();
   const ui = useUi();
@@ -487,6 +511,7 @@ function ComputerPage() {
   if (app.remote) {
     const info = app.computer.info || {};
     const caps = info.capabilities || {};
+    const name = info.hostname || app.server?.name || 'your computer';
     return html`
       <div class="welcome" style="padding-bottom:6px">
         <p><b>Your bots live on ${info.hostname || app.server?.name || 'your computer'}</b> and keep working when your phone is locked. This app is the remote control.</p>
@@ -500,7 +525,21 @@ function ComputerPage() {
         <${Row} title="Chrome browser" value=${caps.browser ? 'Yes' : 'Not found'} />
       <//>
       ${info.notes?.length > 0 && html`<div class="group-note">${info.notes.join(' ')}</div>`}
+      ${app.server?.account?.linked && html`
+        <div class="group-label">Your account</div>
+        <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them.`} /><//>`}
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
+      ${app.server?.account?.linked && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
+        if (!(await ui.confirm({ title: `Unlink ${name}?`, message: `Your bots stay in your account, and this device switches to them. ${name} stops running them until you link it again.`, confirmText: 'Unlink', danger: true }))) return;
+        try {
+          await app.rpc('account.unlink');
+        } catch (err) {
+          ui.toast(err.message, { error: true });
+          return;
+        }
+        saveConnection(null);
+        location.reload();
+      }}>Unlink from My Account</button>`}
       <button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         if (!(await ui.confirm({ title: 'Disconnect from your computer?', message: `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`, confirmText: 'Disconnect', danger: true }))) return;
         saveConnection(null);
@@ -515,7 +554,9 @@ function ComputerPage() {
       const remote = new RemoteApp(conn);
       await remote.connect();
       remote.close();
-      if (app.listAgents().length && !remote.agents.size
+      // Linked to the account, a computer runs the account's own bots, so
+      // there's nothing to copy (it offers the link when this app reconnects).
+      if (!app.db?.cloud && app.listAgents().length && !remote.agents.size
         && await ui.confirm({ title: 'Copy your bots to the computer?', message: `Copy the bots, chats and memories ${home(app).from} to your computer so they can keep working there.`, confirmText: 'Copy them', cancelText: 'Start fresh' })) {
         const data = await app.exportData({ includeKeys: true });
         await remote.rpc('data.import', data);
@@ -530,8 +571,11 @@ function ComputerPage() {
   };
 
   return html`
+    ${app.db?.cloud && html`<${LinkedComputers} />`}
     <div class="welcome" style="padding-bottom:4px">
-      <p><b>Put your bots on your computer.</b> Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.</p>
+      ${app.db?.cloud
+        ? html`<p><b>Run your bots on your computer.</b> Link Holly Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.</p>`
+        : html`<p><b>Put your bots on your computer.</b> Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.</p>`}
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
       <p style="margin-top:0">1. Install <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 22 or newer</a> on the computer.</p>
@@ -551,7 +595,7 @@ function ComputerPage() {
             }
           }}>${cmd}</button>
         </div>`)}
-      <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer. That's it.</p>
+      <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer${app.db?.cloud ? ', then tap Add to My Account' : ''}. That's it.</p>
       <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
     </div>
     <div class="group-label">Or connect manually</div>

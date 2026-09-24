@@ -11,7 +11,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. **Delete Account** erases the account and everything in it.
 - A browser that kept bots in it before accounts (1.2.0 and older) asks the first account to sign in there whether to add them to that account or delete them. Either way they leave the browser.
 - Open on two devices at once? Each notices the other's changes and reloads when nothing would be lost. A routine runs once, on whichever device gets to it first.
-- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots. Bots on Holly Computer live on that computer, not in your account.
+- Holly Computer keeps its bots in your account too, once it's linked. The first time you open it signed in, the app asks to link it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, each with Unlink, and deleting your account unlinks them.
+- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
 - [Privacy Policy](https://xgamer791.github.io/holly-bot/privacy.html) and [Terms of Service](https://xgamer791.github.io/holly-bot/terms.html) (`privacy.html`, `terms.html`), linked from the sign-in screens and Settings.
 - Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md).
 
@@ -20,7 +21,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 | | In the app | On your computer (Holly Computer) |
 |---|---|---|
 | Where bots run | The app, while it's open | Your PC, Mac or Linux box, around the clock |
-| Where they're kept | Your Holly Bot account | That computer |
+| Where they're kept | Your Holly Bot account | Your Holly Bot account, once the computer is linked to it |
 | What they can use | Web search and page reading (with a search key), a Python/JavaScript sandbox, their own drive, memory | Everything on the left, plus the shell, your files, a real Chrome browser, and the screen, mouse and keyboard |
 | Your phone | Is the app | Is the remote control: chat, approve actions, watch and tap the live screen |
 
@@ -37,7 +38,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
    ```powershell
    iwr https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs -OutFile holly-computer.mjs; node holly-computer.mjs --tunnel
    ```
-3. Scan the QR code it prints with your phone and sign in. That's it. The code opens the Holly Bot site connected to your computer, so your phone always runs the current app. (Before this version, Holly Computer's links opened the copy of the app built into it. If you're still running an older Holly Computer, run the command above again.)
+3. Scan the QR code it prints with your phone, sign in, and tap **Add to My Account** to link the computer. That's it. The code opens the Holly Bot site connected to your computer, so your phone always runs the current app. (Before this version, Holly Computer's links opened the copy of the app built into it. If you're still running an older Holly Computer, run the command above again.)
 
 - `--tunnel` gives you a private https address that works from anywhere, through Cloudflare's free quick tunnels. The first run downloads `cloudflared` from Cloudflare's GitHub releases. The address changes each time Holly Computer restarts; scan the new QR code when it does.
 - `--lan` lets phones on the same Wi-Fi connect instead.
@@ -58,8 +59,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Also supported: DeepSeek V4 Pro, Anthropic Claude, OpenAI, xAI Grok (with live web and X search), Google Gemini, OpenRouter, Groq, Mistral, Ollama and any OpenAI-compatible endpoint. Each bot can use a different model.
 - **Backup if it fails:** choose a second provider in Settings → API Keys. When the main one is down, rate limited or out of credit, the reply is retried once on the backup.
 - Where keys live:
-  - In the app: in your Holly Bot account, so they're on every device you sign in on.
-  - Holly Computer: only on the computer. They are never sent back to your phone.
+  - In your Holly Bot account, so they're on every device you sign in on and on your linked Holly Computer. A Holly Computer that isn't linked keeps them on the computer.
+  - Holly Computer never sends keys back to the phone it's controlled from.
   - Requests go straight from the app (or the computer) to the provider. Holly Bot's server stores your keys but never calls a provider with them.
 
 ## What bots can do
@@ -108,6 +109,7 @@ Layout:
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
 - `convex`: that backend (accounts and everything in them). `.github/workflows/convex.yml` deploys it.
 - `computer/src`: Holly Computer.
+  - `home.mjs`, `account.mjs`, `outbox.mjs`: where its bots are kept, its session on your account, and changes waiting to be saved.
   - `server.mjs`: HTTP API and long-poll events.
   - `desktop.mjs`: screen, mouse and keyboard.
   - `browser-cdp.mjs`: the Chrome DevTools Protocol browser.

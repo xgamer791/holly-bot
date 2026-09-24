@@ -1,17 +1,19 @@
 import { SCHEMA, DB } from '../core/db.js';
-import { account } from './account.js';
 
 // The app's storage on Holly Bot's Convex backend (convex/data.ts), with the
 // same interface as the browser's IndexedDB wrapper (src/core/db.js) and Holly
 // Computer's NodeDB, so the app core runs on it unchanged. Everything belongs to
 // the signed-in account, and the server only ever hands out that account's rows.
+// It runs in the app (src/main.js) and in Holly Computer once it is linked to
+// the account (computer/src/account.mjs), each with its own session.
 //
 // Reads come from memory. The small stores (settings, bots, chats, routines,
 // tasks) load when the app opens; messages, memories, files and activity load a
 // chat or a bot at a time, the first time the app asks for one.
 //
-// Writes land in memory at once and in an outbox on this device (IndexedDB, one
-// per account), then go to the server in order and in batches, retried through
+// Writes land in memory at once and in an outbox on this device (IndexedDB in
+// the browser, files on Holly Computer; one per account), then go to the
+// server in order and in batches, retried through
 // network drops. What the outbox still holds when the app closes is sent the next
 // time the same account opens it. A file's contents go to Convex file storage,
 // and so does a record too big for one database document.
@@ -172,10 +174,12 @@ function deleteDatabase(name) {
 }
 
 /** Changes not on the server yet, kept on this device so closing the app
- * doesn't lose them. Falls back to memory where IndexedDB is unavailable. */
+ * doesn't lose them. Falls back to memory where IndexedDB is unavailable.
+ * Holly Computer keeps its own in files, with the same methods
+ * (computer/src/outbox.mjs). */
 class Outbox {
   static async open(name) {
-    const box = new Outbox();
+    const box = new Outbox(name);
     try {
       const open = indexedDB.open(name, 1);
       open.onupgradeneeded = () => open.result.createObjectStore('ops', { keyPath: 'seq', autoIncrement: true });
@@ -186,7 +190,8 @@ class Outbox {
     return box;
   }
 
-  constructor() {
+  constructor(name) {
+    this.name = name;
     this.idb = null;
     this.seq = 0;
   }
@@ -222,6 +227,12 @@ class Outbox {
   close() {
     this.idb?.close();
   }
+
+  /** Closes it and removes it from the device. */
+  async destroy() {
+    this.close();
+    await deleteDatabase(this.name);
+  }
 }
 
 // ----- the store -----------------------------------------------------------------
@@ -236,7 +247,7 @@ export class CloudDB {
    * session left unsent (a second copy could land after a newer change). */
   static holdOutbox(userId) {
     const free = { held: true, release: () => {} };
-    if (!navigator.locks?.request) return Promise.resolve(free);
+    if (typeof navigator === 'undefined' || !navigator.locks?.request) return Promise.resolve(free);
     return new Promise((resolve) => {
       navigator.locks.request(CloudDB.outboxName(userId), { ifAvailable: true }, (lock) => {
         if (!lock) return resolve({ held: false, release: () => {} });
@@ -245,12 +256,19 @@ export class CloudDB {
     });
   }
 
-  /** Opens the signed-in account's storage: last session's unsent changes
-   * first, then the small stores. Throws when the server can't be reached. */
-  static async open() {
-    const userId = account.userId;
+  /**
+   * Opens an account's storage: last session's unsent changes first, then the
+   * small stores. Throws when the server can't be reached.
+   * @param {object} o
+   * @param {string} o.userId  the account
+   * @param {(kind: 'query'|'mutation'|'action', name: string, args?: object) => Promise<any>} o.call
+   *   calls a Convex function as that account, and throws "Not signed in" once
+   *   it can't (signed out, or another account signed in meanwhile)
+   * @param {object} [o.outbox]  where unsent changes wait (default: IndexedDB)
+   */
+  static async open({ userId, call, outbox = null }) {
     if (!userId) throw new Error('Not signed in');
-    const db = new CloudDB(userId, await Outbox.open(CloudDB.outboxName(userId)));
+    const db = new CloudDB(userId, outbox || await Outbox.open(CloudDB.outboxName(userId)), call);
     const hold = await CloudDB.holdOutbox(userId);
     db.release = hold.release;
     try {
@@ -272,10 +290,11 @@ export class CloudDB {
     return db;
   }
 
-  constructor(userId, outbox) {
+  constructor(userId, outbox, call) {
     this.cloud = true;
     this.userId = userId;
     this.outbox = outbox;
+    this.callServer = call;
     this.mem = new Map(Object.keys(SCHEMA).map((store) => [store, new Map()]));
     this.whole = new Set();
     this.groups = new Map(Object.keys(GROUP).map((store) => [store, new Set()]));
@@ -297,10 +316,9 @@ export class CloudDB {
     this.release = () => {};
   }
 
-  /** Calls the server as this storage's account, and never as another one
-   * that has signed in since (see account.authed). */
+  /** Calls the server as this storage's account (see `open`). */
   call(kind, name, args) {
-    return account.authed(kind, name, args, { as: this.userId });
+    return this.callServer(kind, name, args);
   }
 
   remember({ op, store, key, value }) {
@@ -534,8 +552,15 @@ export class CloudDB {
   // ----- other devices ----------------------------------------------------------------
 
   /** Checks for other devices' changes when the app comes back to the front,
-   * when the connection returns, and every minute while it's on screen. */
+   * when the connection returns, and every minute while it's on screen (or,
+   * on Holly Computer, every minute). */
   watch() {
+    if (typeof document === 'undefined') {
+      const timer = setInterval(() => this.checkFresh(), CHECK_EVERY);
+      timer.unref?.();
+      this.unwatch = () => clearInterval(timer);
+      return;
+    }
     const onOnline = () => {
       this.kick();
       this.checkFresh();
@@ -751,8 +776,8 @@ export class CloudDB {
     this.stopped = true;
     this.unwatch();
     this.release();
-    this.outbox.close();
-    if (forget && !this.pending.length) await deleteDatabase(CloudDB.outboxName(this.userId));
+    if (forget && !this.pending.length) await this.outbox.destroy();
+    else this.outbox.close();
   }
 
   /** Stops at once and drops what hasn't been sent, here and in the outbox
@@ -763,7 +788,6 @@ export class CloudDB {
     this.unwatch();
     await Promise.race([Promise.resolve(this.flushing).catch(() => {}), sleep(10_000)]); // a batch on its way lands first
     this.release();
-    this.outbox.close();
-    await deleteDatabase(CloudDB.outboxName(this.userId));
+    await this.outbox.destroy();
   }
 }

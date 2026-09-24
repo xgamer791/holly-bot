@@ -11,7 +11,7 @@ Dashboard: https://dashboard.convex.dev/t/chris-4b19d/holly-bot
 | Production | `impressive-ferret-800` | https://impressive-ferret-800.convex.cloud | https://dashboard.convex.dev/t/chris-4b19d/holly-bot/impressive-ferret-800 |
 | Development | `useful-wildebeest-212` (`dev/chris`) | https://useful-wildebeest-212.convex.cloud | https://dashboard.convex.dev/t/chris-4b19d/holly-bot/useful-wildebeest-212 |
 
-The app talks to production (`CONVEX_URL` in `src/account/account.js`).
+The app and Holly Computer talk to production (`CONVEX_URL` in `src/account/config.js`).
 
 Do not point Forge (`polished-ram-883` / `zealous-partridge-60`) or Macronaut at Holly Bot, or Holly Bot at them. The deploy workflow refuses any key that isn't for `impressive-ferret-800`.
 
@@ -26,6 +26,7 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 - `convex/schema.ts`: Convex Auth's tables (`users`, `authAccounts`, `authSessions`, …), `records`, `blobs`, `heads`, `claims` and `meta`.
 - `convex/health.ts`: `health:ping`, and `health:upsertMeta` (internal: dashboard or `npx convex run` only).
 - `convex/uploads.ts` and `convex/crons.ts`: the daily sweep of unclaimed uploads.
+- `convex/devices.ts`: linking Holly Computer to an account (below).
 
 The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
@@ -38,10 +39,17 @@ Everything the app keeps (bots, chats, messages, memories, files, routines, task
 - **Uploads** that no record claims within a day (the app closed mid-save, or an upload URL used for nothing) are deleted by a daily sweep (`convex/uploads.ts`, scheduled in `convex/crons.ts`).
 - **Writes** go through `data:apply`, in order and in batches, from an outbox the app keeps on the device (IndexedDB `holly-outbox-<userId>`) until the server has them, so nothing is lost offline or when the app closes.
 - **Several devices.** `heads` counts each account's writes. A device that sees the count move without its own writes knows another device changed the account and reloads when nothing would be lost (`src/main.js`). `claims` makes a routine's scheduled run happen on one device only.
-- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
+- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, linked computers, sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
 - **Before accounts** (1.2.0 and older) the app kept everything in the browser's IndexedDB (`holly`), shared by whoever used the browser. The first account to sign in on such a browser is asked to add it to the account or delete it (`src/account/device-data.js`); either way it leaves the browser.
 
-Holly Computer keeps its bots on the computer it runs on (`computer/src/node-db.mjs`), not in the account.
+## Holly Computer on the account
+
+A linked Holly Computer keeps its bots in the account with the same storage the app uses, and runs them (`computer/src/home.mjs`). Until it's linked it keeps them in its data folder (`computer/src/node-db.mjs`).
+
+- **Linking.** The signed-in app makes a random code, sends only its SHA-256 to `devices:createLink` (one code per account, ten minutes), and hands the code to the computer over their paired connection (`account.link`). The computer signs in with it through the `device` provider in `convex/auth.ts`, which spends the code (`devices:redeem`) and opens a session of the computer's own, a year long. The computer keeps it in `<data>/account.json` (mode 600) and renews it after 300 days.
+- **Moving in.** Linking copies everything in the computer's folder into the account (the account's own settings win; API keys and plugins only the computer had are added), waits until the server has all of it, and only then runs from the account. The old folder is set aside as `<data>/data-before-account-<time>`.
+- **Unlinking.** Settings → Bot Computer: from the computer itself (it ends its session and forgets the account's files) or from any signed-in device (`devices:unlink` ends the computer's session; the computer notices within a minute). Deleting the account ends it too. The bots stay in the account either way.
+- **Routines.** While a computer is linked, it runs the routines and the app doesn't.
 
 ## Setting up sign-in (once)
 

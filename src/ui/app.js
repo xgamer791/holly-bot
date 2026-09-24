@@ -127,10 +127,11 @@ export function Root({ app }) {
     return () => navigator.serviceWorker?.removeEventListener('message', on);
   }, []);
 
-  // Routine scheduler for bots that live in this browser (one tab at a time when Web Locks exist).
-  // When bots live on a Holly Computer, it runs routines 24/7 instead.
+  // Routine scheduler for bots that run in this app (one tab at a time when Web Locks exist).
+  // When a Holly Computer runs them (this app controls it, or it's linked to
+  // the account), it runs routines 24/7 instead.
   useEffect(() => {
-    if (app.remote) return undefined;
+    if (app.remote || app.routinesOnComputer?.length) return undefined;
     app.startScheduler({
       lock: navigator.locks?.request ? (fn) => navigator.locks.request('holly-routines', { ifAvailable: true }, (l) => (l ? fn() : null)) : null,
     });
