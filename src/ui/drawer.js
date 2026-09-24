@@ -39,7 +39,7 @@ export function ActivityDrawer({ onClose }) {
         ${waiting.length > 0 && html`<div class="group-label">Waiting for you</div><div class="group">
           ${waiting.map((t) => {
             const a = app.getAgent(t.preview?.authorId) || app.getAgent(t.agentIds[0]);
-            return html`<${Row} key=${t.id} icon=${html`<${Avatar} shape=${a?.shape} color=${a?.color} size=${32} />`} title=${a?.name || t.title} sub=${t.preview?.text} onClick=${() => go(`#/chat/${t.id}`)} />`;
+            return html`<${Row} key=${t.id} icon=${html`<${Avatar} shape=${a?.shape} color=${a?.color} size=${32} working=${!!a && app.runtime.isAgentBusy(a.id)} anim=${thinkingOf(a)} />`} title=${a?.name || t.title} sub=${t.preview?.text} onClick=${() => go(`#/chat/${t.id}`)} />`;
           })}</div>`}
         ${tasks.length > 0 && html`<div class="group-label">Delegated tasks</div><div class="group">
           ${tasks.map((k) => {

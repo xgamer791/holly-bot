@@ -3,7 +3,9 @@ import { THINKING_KEYS } from '../core/constants.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
 // expressions. All geometry lives in a 100×100 viewBox. While a bot works it
-// plays its own thinking animation (body motion + eyes + little extras).
+// plays its own thinking animation (body motion + eyes + little extras), and
+// an animated avatar blinks every few seconds. With Reduce Motion on, a
+// working bot fades gently instead of moving (styles.css), and still blinks.
 
 export const SHAPES = {
   circle: { label: 'Circle', d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
@@ -158,7 +160,7 @@ function Extras({ anim, def, clipId }) {
  * <Avatar shape color size expression rest live working anim status />
  * - rest: the expression it settles on when it isn't animating (default 'downLeft')
  * - live: slowly cycles expressions and blinks (use for big / focused avatars)
- * - working: plays the bot's thinking animation `anim` (see THINKING)
+ * - working: plays the bot's thinking animation `anim` (see THINKING) and blinks
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
  * - eyeColor: for a dark body on a light page (the welcome screen)
  */
@@ -167,7 +169,7 @@ export function Avatar({
   anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
 }) {
   const [expr, setExpr] = useState(expression || rest);
-  const [blink, setBlink] = useState(false);
+  const [blink, setBlink] = useState(0); // 0 open · 1 shut · 2 opening again
   const idx = useRef(0);
   const clipId = useRef(null);
   const style = THINKING[anim] ? anim : 'hop';
@@ -177,20 +179,19 @@ export function Avatar({
     if (expression) setExpr(expression);
   }, [expression]);
 
+  // Where the eyes look: a slow glance around (live), or the bot's thinking
+  // style (working). With Reduce Motion they hold still: a thinking look
+  // while it works, the resting one otherwise.
   useEffect(() => {
-    if ((!live && !working) || expression || reducedMotion()) {
-      setBlink(false);
+    if ((!live && !working) || expression) {
       if (!expression) setExpr(rest);
       return undefined;
     }
+    if (reducedMotion()) {
+      setExpr(working ? THINKING[style].eyes(0) : rest);
+      return undefined;
+    }
     let timer;
-    let alive = true;
-    const blinkSoon = (p) => {
-      if (Math.random() < p) {
-        setBlink(true);
-        setTimeout(() => alive && setBlink(false), 140);
-      }
-    };
     if (working) {
       const start = performance.now();
       const eyes = THINKING[style].eyes;
@@ -200,7 +201,6 @@ export function Avatar({
         if (next !== last) {
           last = next;
           setExpr(next);
-          if (next !== 'wink') blinkSoon(0.12);
         }
         timer = setTimeout(tick, 90);
       };
@@ -209,23 +209,46 @@ export function Avatar({
       const tick = () => {
         idx.current = (idx.current + 1) % IDLE_CYCLE.length;
         setExpr(IDLE_CYCLE[idx.current]);
-        blinkSoon(0.35);
         timer = setTimeout(tick, 1700 + Math.random() * 1900);
       };
       timer = setTimeout(tick, 900);
     }
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-      setBlink(false);
-    };
+    return () => clearTimeout(timer);
   }, [live, working, expression, style, rest]);
+
+  // Blinking, while animated: every two to five and a half seconds, now and
+  // then twice. The eyes shut and open quickly (the .blinking class), then
+  // go back to gliding.
+  useEffect(() => {
+    if ((!live && !working) || expression) return undefined;
+    let timer;
+    const at = (ms, fn) => {
+      timer = setTimeout(fn, ms);
+    };
+    const blinkThen = (next) => {
+      setBlink(1);
+      at(110, () => {
+        setBlink(2);
+        at(120, () => {
+          setBlink(0);
+          next();
+        });
+      });
+    };
+    const wait = () => at(2000 + Math.random() * 3500, () => blinkThen(() => (Math.random() < 0.2 ? at(90, () => blinkThen(wait)) : wait())));
+    wait();
+    return () => {
+      clearTimeout(timer);
+      setBlink(0);
+    };
+  }, [live, working, expression]);
 
   const def = SHAPES[shape] || SHAPES.squircle;
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
+  const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
   const dotSize = Math.max(8, Math.round(size * 0.3));
-  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${className}`;
+  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${blink ? 'blinking' : ''} ${className}`;
 
   return html`
     <span class=${cls} style=${`width:${size}px;height:${size}px`}
@@ -235,7 +258,7 @@ export function Avatar({
           <path d=${def.d} fill=${fill} />
           ${working && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
           ${eyes.map((eye, i) => html`
-            <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, blink)}`}>
+            <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, shut)}`}>
               <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColor} stroke-width="7.2" stroke-linecap="round" />
             </g>`)}
         </g>
@@ -245,15 +268,15 @@ export function Avatar({
     </span>`;
 }
 
-/** Stacked mini-avatars for group chats. */
-export function AvatarStack({ agents, size = 40, rest }) {
+/** Stacked mini-avatars for group chats; `isBusy(agent)` animates the ones at work. */
+export function AvatarStack({ agents, size = 40, rest, isBusy }) {
   const shown = agents.slice(0, 3);
   const inner = Math.round(size * (shown.length > 1 ? 0.62 : 1));
   return html`
     <span class="avatar-stack" style=${`width:${size}px;height:${size}px`}>
       ${shown.map((a, i) => html`
         <span key=${a.id} class="avatar-stack-item" style=${stackPos(i, shown.length, size, inner)}>
-          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} />
+          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} working=${!!isBusy?.(a)} anim=${thinkingOf(a)} />
         </span>`)}
     </span>`;
 }

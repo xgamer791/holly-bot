@@ -91,6 +91,8 @@ svg { display: block; }
 .avatar { position: relative; display: inline-flex; flex: none; }
 .avatar svg { overflow: visible; }
 .avatar-eye { transition: transform 420ms cubic-bezier(.3, 1.4, .5, 1); }
+/* A blink shuts and opens quickly; the eyes glide again after it. */
+.avatar.blinking .avatar-eye { transition: transform 90ms ease-in-out; }
 /* Thinking animations — one style per bot (see THINKING in src/ui/avatar.js) */
 .avatar .av-body { transform-box: view-box; transform-origin: 50px 50px; }
 .avatar.is-working.think-ponder .av-body { animation: av-ponder 2.4s ease-in-out infinite; transform-origin: 50px 92px; }
@@ -140,7 +142,10 @@ svg { display: block; }
 @media (prefers-reduced-motion: reduce) {
   .avatar .av-body, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow { animation: none !important; }
   .av-thought, .av-star { opacity: 1; }
+  /* Still plainly at work without moving about: a working bot fades gently. */
+  .avatar.is-working .av-body { animation: av-fade 1.6s ease-in-out infinite !important; }
 }
+@keyframes av-fade { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
 .avatar-dot { position: absolute; right: -4%; bottom: -4%; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 2.5px var(--bg); }
 .avatar-dot.dot-working { background: var(--green-dot); animation: pulse 1.4s ease-in-out infinite; }
@@ -160,7 +165,8 @@ svg { display: block; }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
 .chat-topbar { display: grid; grid-template-columns: var(--tap) 1fr var(--tap); align-items: center; gap: 10px; padding: calc(10px + var(--safe-top)) 16px 10px; background: var(--bg); flex: none; position: relative; z-index: 3; }
-.name-pill { justify-self: center; display: inline-flex; align-items: center; gap: 10px; height: var(--tap); padding: 0 18px 0 8px; border-radius: 22px; border: 1px solid var(--border); background: var(--bg); max-width: 100%; min-width: 0; }
+.name-pill { justify-self: center; display: inline-flex; align-items: center; gap: 10px; height: var(--tap); padding: 0 8px; border: 0; background: none; max-width: 100%; min-width: 0; }
+.name-pill:active { opacity: .6; }
 .name-pill .name { font-weight: 600; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .name-pill .sub { color: var(--muted); font-size: 12px; font-weight: 400; }
 
