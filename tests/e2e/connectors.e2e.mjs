@@ -50,6 +50,10 @@ function hollyServer() {
     'data:claim': () => true,
     'connectors:available': () => ({ gmail: true, outlook: false, github: true, githubToken: true }),
     'connectors:list': () => connections,
+    'e2e:outdated': () => {
+      connections = connections.map((c) => (c.service === 'gmail' ? { ...c, outdated: true } : c));
+      return null;
+    },
     'connectors:start': ({ service, returnTo }) => `https://accounts.google.com/o/oauth2/v2/auth?client_id=google-id&state=state-1&service=${service}&back=${encodeURIComponent(returnTo)}`,
     'connectors:claim': ({ claim }) => {
       if (claim !== 'claim-123') return { error: 'That connection has expired. Connect it again.' };
@@ -67,6 +71,10 @@ function hollyServer() {
     },
     'connectors:run': ({ service, op, args }) => {
       if (service === 'gmail' && op === 'send') return { sent: true, id: 's1', threadId: 't1', to: args.to, cc: [], bcc: [], subject: args.subject };
+      if (service === 'gmail' && op === 'peek') {
+        return { total: 12, ids: Array.from({ length: 12 }, (_, i) => `d${i + 1}`), named: Array.from({ length: 8 }, (_, i) => ({ id: `d${i + 1}`, from: 'Deals', subject: `Sale ${i + 1}`, date: '2026-09-21T09:00:00Z' })) };
+      }
+      if (service === 'gmail' && op === 'delete') return { deleted: args.ids.length, forever: !!args.forever, ids: args.ids, failed: [] };
       throw Object.assign(new Error('refused'), { data: `${service} ${op} isn't expected here` });
     },
   };
@@ -91,6 +99,9 @@ function script(d) {
   if (d.isMemoryJob) return textResponse('{"operations":[]}');
   if (d.lastToolName === 'gmail_send') return textResponse(/denied/.test(d.lastTool.output) ? 'Okay, not sent.' : 'Sent — I told Anna you’re running late.');
   if (d.lastToolName === 'github_delete_repo') return textResponse(/denied/.test(d.lastTool.output) ? 'Okay, I kept octo/old-stuff.' : 'Deleted.');
+  if (d.lastToolName === 'gmail_delete') return textResponse(/denied/.test(d.lastTool.output) ? 'Okay, I left them.' : 'Done: they’re in Trash.');
+  if (/deals emails forever/i.test(d.lastUserText)) return toolResponse([{ name: 'gmail_delete', args: { query: 'from:deals', forever: true } }]);
+  if (/deals emails/i.test(d.lastUserText)) return toolResponse([{ name: 'gmail_delete', args: { query: 'from:deals' } }]);
   if (/running late/i.test(d.lastUserText)) {
     return toolResponse([{ name: 'gmail_send', args: { to: ['anna@example.com'], subject: 'Running late', body: 'Hi Anna,\n\nI’m running 15 minutes late — sorry!\n\nSam' } }]);
   }
@@ -231,6 +242,40 @@ test('deleting a repository asks every time, with no Always allow', async () => 
   await card.getByRole('button', { name: 'Deny' }).click();
   await chat().getByText('Okay, I kept octo/old-stuff.').waitFor();
   assert.ok(!called('connectors:run').some((c) => c.args.op === 'delete_repo'));
+});
+
+test('deleting email: the card shows exactly which emails, and for good has no Always allow', async () => {
+  await page.getByLabel('Ask Holly').fill('Delete the deals emails');
+  await page.getByRole('button', { name: 'Send' }).click();
+  let card = chat().getByRole('group', { name: 'Permission required' });
+  await card.getByText('Holly wants to delete emails matching “from:deals” in Gmail:').waitFor();
+  const summary = await card.locator('.cmd').innerText();
+  assert.match(summary, /^Move 12 emails in sam@gmail\.com to Trash\. Gmail keeps them there for 30 days\.\n\n• Deals — Sale 1 · .+/);
+  assert.match(summary, /• Deals — Sale 8 · .+\n…and 4 more$/);
+  await card.getByRole('button', { name: 'Always allow' }).waitFor();
+  assert.equal(called('connectors:run').filter((c) => c.args.op === 'delete').length, 0, 'nothing deleted before approval');
+  await card.getByRole('button', { name: 'Approve' }).click();
+  await chat().getByText('Done: they’re in Trash.').waitFor();
+  const del = called('connectors:run').find((c) => c.args.op === 'delete');
+  assert.deepEqual(del.args.args.ids, Array.from({ length: 12 }, (_, i) => `d${i + 1}`), 'exactly the emails shown');
+
+  await page.getByLabel('Ask Holly').fill('Delete the deals emails forever');
+  await page.getByRole('button', { name: 'Send' }).click();
+  card = chat().getByRole('group', { name: 'Permission required' });
+  await card.getByText('Holly wants to permanently delete emails matching “from:deals” in Gmail:').waitFor();
+  await card.getByText("Delete 12 emails in sam@gmail.com forever. This can't be undone.", { exact: false }).waitFor();
+  assert.equal(await card.getByRole('button', { name: 'Always allow' }).count(), 0);
+  await card.getByRole('button', { name: 'Deny' }).click();
+  await chat().getByText('Okay, I left them.').waitFor();
+  assert.ok(!called('connectors:run').some((c) => c.args.op === 'delete' && c.args.args.forever));
+});
+
+test('a Gmail connection from before deleting offers to connect again', async () => {
+  await page.evaluate((url) => fetch(`${url}/api/mutation`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: 'e2e:outdated', args: [{}] }) }), CONVEX);
+  await page.evaluate(() => { location.hash = '#/'; });
+  await openPlugins();
+  await page.getByRole('button', { name: /Connect Gmail again/ }).getByText('It was connected before bots could delete email', { exact: false }).waitFor();
+  await closeSheets();
 });
 
 test('Disconnect Gmail', async () => {

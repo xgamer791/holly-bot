@@ -519,11 +519,34 @@ export class Runtime {
       call.label = safeLabel(tool, args);
       const risk = typeof tool.risk === 'function' ? tool.risk(args) : tool.risk || 'low';
       const turnApproved = tool.approvalScope === 'turn' && (msg.turn?.approved || []).includes(tool.name);
-      // `alwaysAsk`: can't be undone (deleting a repository), so it asks whatever Auto-review and Always allow say.
-      const needsReview = tool.alwaysAsk || (risk === 'high' && app.settings.autoReview !== false && !agent.alwaysAllow?.[tool.name] && !turnApproved);
+      // `alwaysAsk`: can't be undone (deleting a repository, or email for good), so it asks whatever Auto-review and Always allow say.
+      const alwaysAsk = typeof tool.alwaysAsk === 'function' ? !!tool.alwaysAsk(args) : !!tool.alwaysAsk;
+      const needsReview = alwaysAsk || (risk === 'high' && app.settings.autoReview !== false && !agent.alwaysAllow?.[tool.name] && !turnApproved);
       if (needsReview && call.approval?.status !== 'approved') {
+        let summary = tool.approval ? tool.approval(args, { app, agent }) : call.label;
+        // `preview`: what the call would do, looked up first (which emails a
+        // delete reaches), to ask with. The approved call does exactly that
+        // (`prepared`); with nothing to do, it finishes without asking.
+        if (tool.preview) {
+          let seen;
+          try {
+            seen = await tool.preview(args, { app, agent, thread, signal });
+          } catch (err) {
+            if (isAbort(err) || signal.aborted) throw err;
+            call.status = 'error';
+            call.result = { content: errorMessage(err), isError: true };
+            return null;
+          }
+          if (seen?.result) {
+            call.status = 'done';
+            call.result = { content: seen.result.content ?? '', isError: false, images: [] };
+            return null;
+          }
+          if (seen?.args) call.prepared = seen.args;
+          if (seen?.summary) summary = seen.summary;
+        }
         call.status = 'waiting';
-        call.approval = { status: 'pending', summary: tool.approval ? tool.approval(args, { app, agent }) : call.label, requestedAt: now() };
+        call.approval = { status: 'pending', summary, requestedAt: now() };
         return 'paused';
       }
       call.status = 'running';
@@ -531,7 +554,7 @@ export class Runtime {
       app.touchMessage(msg);
       let res;
       try {
-        res = await tool.run(args, {
+        res = await tool.run(call.prepared || args, {
           app, agent, thread, message: msg, callId: call.id, signal, depth, runtime: this,
           progress: (text) => {
             call.progress = text;

@@ -273,8 +273,9 @@ function QuestionCard({ call, msg }) {
 function ApprovalCard({ call, msg }) {
   const app = useApp();
   const agent = app.getAgent(msg.authorId);
-  // Deleting a repository asks every time, so there's no Always allow for it.
-  const always = !BUILTIN_TOOLS.find((t) => t.name === call.name)?.alwaysAsk;
+  // What always asks (deleting a repository, or email for good) has no Always allow.
+  const def = BUILTIN_TOOLS.find((t) => t.name === call.name);
+  const always = !(typeof def?.alwaysAsk === 'function' ? def.alwaysAsk(call.args || {}) : def?.alwaysAsk);
   const decide = (d) => {
     haptic(app, 'heavy');
     app.runtime.approve(msg.id, call.id, d);

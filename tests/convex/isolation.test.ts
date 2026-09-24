@@ -33,7 +33,7 @@ beforeEach(() => {
     const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
       new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", ...headers } });
     if (url.host === "oauth2.googleapis.com" && url.pathname === "/token") {
-      return json({ access_token: "gmail-token-of-a", refresh_token: "gmail-refresh-of-a", expires_in: 3600, scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send" });
+      return json({ access_token: "gmail-token-of-a", refresh_token: "gmail-refresh-of-a", expires_in: 3600, scope: "https://mail.google.com/" });
     }
     if (url.host === "oauth2.googleapis.com" && url.pathname === "/revoke") return json({});
     if (url.host === "gmail.googleapis.com") {

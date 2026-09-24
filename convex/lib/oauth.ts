@@ -44,7 +44,9 @@ export const SERVICES: Record<Service, ServiceConfig> = {
     label: "Gmail",
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
-    scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
+    // Gmail's full access: reading, sending, and deleting, to Trash or for good.
+    // (gmail.modify can't delete for good; this is the one scope that can.)
+    scopes: ["openid", "email", "https://mail.google.com/"],
     pkce: true,
     // A refresh token every time, so the connection lasts.
     params: { access_type: "offline", prompt: "consent" },
@@ -53,7 +55,8 @@ export const SERVICES: Record<Service, ServiceConfig> = {
     label: "Outlook",
     authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    scopes: ["offline_access", "User.Read", "Mail.Read", "Mail.Send"],
+    // Mail.ReadWrite: reading, and moving or deleting email.
+    scopes: ["offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send"],
     pkce: true,
     params: { response_mode: "query", prompt: "select_account" },
   },
@@ -176,12 +179,19 @@ export async function refreshTokens(service: Service, o: { app: OAuthApp; tokens
       refresh_token: o.tokens.refreshToken,
       client_id: o.app.clientId,
       client_secret: o.app.clientSecret,
-      ...(service === "outlook" ? { scope: SERVICES.outlook.scopes.join(" ") } : {}),
+      // Microsoft wants the scopes named again: the ones this connection was
+      // granted, so one made before Holly Bot asked for more keeps working.
+      ...(service === "outlook" ? { scope: outlookScope(o.tokens.scopes) } : {}),
     },
     o.fetch ?? fetch,
   );
   // Google keeps the refresh token; Microsoft hands out a new one each time.
   return { ...fresh, refreshToken: fresh.refreshToken ?? o.tokens.refreshToken, scopes: fresh.scopes.length ? fresh.scopes : o.tokens.scopes };
+}
+
+function outlookScope(granted: string[]): string {
+  if (!granted.length) return SERVICES.outlook.scopes.join(" ");
+  return [...new Set([...granted, "offline_access"])].join(" ");
 }
 
 /**
@@ -211,14 +221,16 @@ export async function revokeTokens(service: Service, o: { app: OAuthApp | null; 
   }
 }
 
-/** Permissions the person unticked on the service's consent screen that bots need. */
+/** Permissions bots need that a connection lacks: unticked on the service's
+ * consent screen, or granted before Holly Bot asked for them (Gmail and
+ * Outlook connected before bots could delete email). */
 export function missingScopes(service: Service, granted: string[]): string[] {
   const have = new Set(granted.map((s) => s.toLowerCase().replace(/^https:\/\/graph\.microsoft\.com\//, "")));
   const need =
     service === "gmail"
-      ? ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"]
+      ? ["https://mail.google.com/"]
       : service === "outlook"
-        ? ["mail.read", "mail.send"]
+        ? ["mail.readwrite", "mail.send"]
         : ["repo"];
   // A service that doesn't list what it granted (some don't on refresh) is taken at its word.
   return have.size ? need.filter((s) => !have.has(s.toLowerCase())) : [];

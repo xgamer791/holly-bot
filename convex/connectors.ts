@@ -46,7 +46,7 @@ const key = () => process.env.CONNECTORS_KEY;
 const bound = (userId: string, s: string) => `${userId}:${s}`;
 const callbackUrl = (s: Service) => `${process.env.CONVEX_SITE_URL}/connectors/${s}/callback`;
 const label = (s: string) => SERVICES[s as Service]?.label ?? s;
-const reconnect = (s: string) => new ConvexError(`${label(s)} needs connecting again: Settings → Connectors.`);
+const reconnect = (s: string) => new ConvexError(`${label(s)} needs connecting again: Settings → Plugins.`);
 
 /** Which services can be connected on this deployment right now. */
 export const available = query({
@@ -63,16 +63,23 @@ export const available = query({
   },
 });
 
-/** The account's connections, without their tokens. */
+/** The account's connections, without their tokens. `outdated`: a Gmail or
+ * Outlook connection made before bots could delete email, which needs
+ * connecting again for that. */
 export const list = query({
   args: {},
-  returns: v.array(v.object({ service: v.string(), account: v.string(), via: v.string(), connectedAt: v.number() })),
+  returns: v.array(v.object({ service: v.string(), account: v.string(), via: v.string(), connectedAt: v.number(), outdated: v.boolean() })),
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
     const rows = await ctx.db.query("connections").withIndex("by_user_service", (q) => q.eq("userId", userId)).collect();
-    return rows.map((row) => ({ service: row.service, account: row.account, via: row.via, connectedAt: row.connectedAt }));
+    return rows.map((row) => ({ service: row.service, account: row.account, via: row.via, connectedAt: row.connectedAt, outdated: outdated(row.service, row.scopes) }));
   },
 });
+
+/** A mail connection without the access deleting takes. */
+function outdated(s: string, scopes: string[]): boolean {
+  return (s === "gmail" || s === "outlook") && missingScopes(s, scopes).length > 0;
+}
 
 /** The signed-in account, for the actions below (their sign-in passes to what they run). */
 export const whoami = internalQuery({
@@ -301,11 +308,11 @@ export const revokeLater = internalAction({
 
 export const mine = internalQuery({
   args: { service },
-  returns: v.union(v.null(), v.object({ id: v.id("connections"), userId: v.id("users"), sealed: v.string() })),
+  returns: v.union(v.null(), v.object({ id: v.id("connections"), userId: v.id("users"), sealed: v.string(), scopes: v.array(v.string()) })),
   handler: async (ctx, { service: s }) => {
     const userId = await requireUserId(ctx);
     const row = await ctx.db.query("connections").withIndex("by_user_service", (q) => q.eq("userId", userId).eq("service", s)).unique();
-    return row ? { id: row._id, userId, sealed: row.sealed } : null;
+    return row ? { id: row._id, userId, sealed: row.sealed, scopes: row.scopes } : null;
   },
 });
 
@@ -320,8 +327,8 @@ export const updateTokens = internalMutation({
 
 type Op = (api: { token: string }, args: any) => Promise<unknown>;
 const OPS: Record<Service, Record<string, Op>> = {
-  gmail: { search: mail.gmailSearch, read: mail.gmailRead, send: mail.gmailSend },
-  outlook: { search: mail.outlookSearch, read: mail.outlookRead, send: mail.outlookSend },
+  gmail: { search: mail.gmailSearch, read: mail.gmailRead, send: mail.gmailSend, peek: mail.gmailPeek, delete: mail.gmailDelete, restore: mail.gmailRestore },
+  outlook: { search: mail.outlookSearch, read: mail.outlookRead, send: mail.outlookSend, peek: mail.outlookPeek, delete: mail.outlookDelete, restore: mail.outlookRestore },
   github: {
     list_repos: github.listRepos,
     create_repo: github.createRepo,
@@ -358,8 +365,12 @@ export const run = action({
   handler: async (ctx, { service: s, op, args }): Promise<any> => {
     const fn = Object.prototype.hasOwnProperty.call(OPS[s], op) ? OPS[s][op] : undefined;
     if (!fn) throw new ConvexError(`${label(s)} has no “${op}”.`);
-    const conn: { id: Id<"connections">; userId: Id<"users">; sealed: string } | null = await ctx.runQuery(internal.connectors.mine, { service: s });
-    if (!conn) throw new ConvexError(`${label(s)} isn't connected. Connect it in Settings → Connectors.`);
+    const conn: { id: Id<"connections">; userId: Id<"users">; sealed: string; scopes: string[] } | null = await ctx.runQuery(internal.connectors.mine, { service: s });
+    if (!conn) throw new ConvexError(`${label(s)} isn't connected. Connect it in Settings → Plugins.`);
+    // peek is how a delete starts (its preview), so it says so before anyone is asked to approve.
+    if ((op === "peek" || op === "delete" || op === "restore") && outdated(s, conn.scopes)) {
+      throw new ConvexError(`${label(s)} was connected before bots could delete email. To let them, connect it again: Settings → Plugins → ${label(s)}.`);
+    }
     const where = bound(conn.userId, s);
     let tokens: Tokens = await unseal<Tokens>(key(), conn.sealed, where).catch(() => {
       throw reconnect(s);

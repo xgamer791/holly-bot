@@ -286,14 +286,38 @@ export async function outlookProfile(api: Api) {
   return { email: String(me?.mail || me?.userPrincipalName || "") };
 }
 
-/** Emails matching words (Outlook search), or the inbox's newest without them. */
-export async function outlookSearch(api: Api, args: { query?: string; max?: number }) {
+/** Outlook's well-known folders, by the names people use too. */
+const FOLDERS: Record<string, string> = {
+  inbox: "inbox",
+  deleteditems: "deleteditems",
+  deleted: "deleteditems",
+  trash: "deleteditems",
+  junkemail: "junkemail",
+  junk: "junkemail",
+  spam: "junkemail",
+  sentitems: "sentitems",
+  sent: "sentitems",
+  drafts: "drafts",
+  archive: "archive",
+};
+
+/** The messages of one folder, or of the whole mailbox. */
+function outlookMessages(folder: unknown): string {
+  const f = oneLine(folder).toLowerCase().replace(/[\s_-]+/g, "");
+  if (!f) return `${GRAPH}/messages`;
+  if (!FOLDERS[f]) throw new Error(`Outlook has no folder “${oneLine(folder)}” here. Use inbox, deleteditems, junkemail, sentitems, drafts or archive.`);
+  return `${GRAPH}/mailFolders/${FOLDERS[f]}/messages`;
+}
+
+/** Emails matching words (Outlook search), or the newest without them: in the
+ * inbox, or in `folder` (deleteditems, junkemail, sentitems…). */
+export async function outlookSearch(api: Api, args: { query?: string; max?: number; folder?: string }) {
   const n = clamp(args.max, 1, 25, 10);
   const q = oneLine(args.query).replace(/"/g, "");
   const select = "$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,conversationId";
   const url = q
-    ? `${GRAPH}/messages?$search=${encodeURIComponent(`"${q}"`)}&$top=${n}&${select}`
-    : `${GRAPH}/mailFolders/inbox/messages?$top=${n}&$orderby=${encodeURIComponent("receivedDateTime desc")}&${select}`;
+    ? `${outlookMessages(args.folder)}?$search=${encodeURIComponent(`"${q}"`)}&$top=${n}&${select}`
+    : `${outlookMessages(args.folder || "inbox")}?$top=${n}&$orderby=${encodeURIComponent("receivedDateTime desc")}&${select}`;
   const list = await call(api, url);
   return (list?.value ?? []).map((m: any) => ({
     id: String(m.id),
@@ -370,4 +394,179 @@ export async function outlookSend(api: Api, args: { to?: unknown; cc?: unknown; 
     }),
   });
   return { sent: true, to, cc, bcc, subject };
+}
+
+// ----- deleting and restoring ------------------------------------------------------
+
+/** The most emails one delete reaches (a bot can ask again for more). */
+export const MAX_DELETE = 500;
+/** How many emails a preview names before “and N more”. */
+const NAMED = 8;
+
+/** What a delete reaches: the emails with these ids, or up to `max` (newest
+ * first) matching a search, or in an Outlook folder. */
+export interface Target {
+  ids?: unknown;
+  query?: string;
+  folder?: string;
+  max?: number;
+}
+
+/** What a delete would reach, before it happens: every id, and the first few by name. */
+export interface Preview {
+  total: number;
+  ids: string[];
+  named: { id: string; from: string; subject: string; date: string }[];
+}
+
+/** Ids from a list or a comma/space separated string: each once, each one line. */
+function idList(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : value == null ? [] : String(value).split(/[,\s]+/);
+  return [...new Set(list.map((id) => oneLine(id)).filter(Boolean))];
+}
+
+/** `fn` for every item, at most `limit` at a time (Outlook allows 4 calls at once per mailbox). */
+async function eachLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const out: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      try {
+        out[i] = { status: "fulfilled", value: await fn(items[i]) };
+      } catch (reason) {
+        out[i] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** What went through and what didn't. When nothing did, the first error is
+ * thrown as it came (so an expired token is renewed and the whole thing retried). */
+function tally<R>(ids: string[], results: PromiseSettledResult<R>[]) {
+  const failed: { id: string; error: string }[] = [];
+  const done: { id: string; value: R }[] = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") done.push({ id: ids[i], value: r.value });
+    else failed.push({ id: ids[i], error: r.reason instanceof Error ? r.reason.message : String(r.reason) });
+  });
+  if (!done.length && failed.length) throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason;
+  return { done, failed };
+}
+
+function whoShort(from: string): string {
+  return from.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/)?.[1] ?? from;
+}
+
+async function gmailTargets(api: Api, args: Target): Promise<string[]> {
+  const given = idList(args.ids);
+  if (given.length) return given.slice(0, MAX_DELETE);
+  const q = oneLine(args.query);
+  if (!q) throw new Error("Which emails? Give their ids from a search, or a search to delete what matches.");
+  const max = clamp(args.max, 1, MAX_DELETE, 50);
+  // Gmail leaves Trash and Spam out of searches unless asked for them by name.
+  const everywhere = /\bin:(trash|spam|anywhere)\b/i.test(q);
+  const ids: string[] = [];
+  let page = "";
+  do {
+    const list = await call(api, `${GMAIL}/messages?maxResults=${Math.min(500, max - ids.length)}&q=${encodeURIComponent(q)}${everywhere ? "&includeSpamTrash=true" : ""}${page ? `&pageToken=${encodeURIComponent(page)}` : ""}`);
+    for (const m of list?.messages ?? []) if (ids.length < max) ids.push(String(m.id));
+    page = list?.nextPageToken ?? "";
+  } while (page && ids.length < max);
+  return ids;
+}
+
+/** Which emails a Gmail delete would reach, the first few by sender, subject and date. */
+export async function gmailPeek(api: Api, args: Target): Promise<Preview> {
+  const ids = await gmailTargets(api, args);
+  const wanted = ["From", "Subject", "Date"].map((h) => `metadataHeaders=${h}`).join("&");
+  const named = await Promise.all(ids.slice(0, NAMED).map(async (id) => {
+    const m = await call(api, `${GMAIL}/messages/${encodeURIComponent(id)}?format=metadata&${wanted}`);
+    return { id, from: whoShort(header(m.payload, "From")), subject: header(m.payload, "Subject"), date: header(m.payload, "Date") };
+  }));
+  return { total: ids.length, ids, named };
+}
+
+/** Deletes emails from Gmail: to Trash, where Gmail keeps them 30 days
+ * (gmailRestore brings them back), or with `forever`, for good. */
+export async function gmailDelete(api: Api, args: Target & { forever?: boolean }) {
+  const ids = await gmailTargets(api, args);
+  if (!ids.length) return { deleted: 0, forever: !!args.forever, ids: [] as string[], failed: [] as { id: string; error: string }[] };
+  if (args.forever) {
+    for (let i = 0; i < ids.length; i += 1000) {
+      await call(api, `${GMAIL}/messages/batchDelete`, { method: "POST", body: JSON.stringify({ ids: ids.slice(i, i + 1000) }) });
+    }
+    return { deleted: ids.length, forever: true, ids, failed: [] as { id: string; error: string }[] };
+  }
+  const { done, failed } = tally(ids, await eachLimit(ids, 10, (id) => call(api, `${GMAIL}/messages/${encodeURIComponent(id)}/trash`, { method: "POST" })));
+  return { deleted: done.length, forever: false, ids: done.map((d) => d.id), failed };
+}
+
+/** Brings emails back out of Gmail's Trash. */
+export async function gmailRestore(api: Api, args: { ids?: unknown }) {
+  const ids = idList(args.ids).slice(0, MAX_DELETE);
+  if (!ids.length) throw new Error("Which emails? Give the ids the delete gave back.");
+  const { done, failed } = tally(ids, await eachLimit(ids, 10, (id) => call(api, `${GMAIL}/messages/${encodeURIComponent(id)}/untrash`, { method: "POST" })));
+  return { restored: done.length, ids: done.map((d) => d.id), failed };
+}
+
+async function outlookTargets(api: Api, args: Target): Promise<{ id: string; from: string; subject: string; date: string }[]> {
+  const given = idList(args.ids);
+  if (given.length) return given.slice(0, MAX_DELETE).map((id) => ({ id, from: "", subject: "", date: "" }));
+  const q = oneLine(args.query).replace(/"/g, "");
+  if (!q && !oneLine(args.folder)) throw new Error("Which emails? Give their ids from a search, a search, or a folder.");
+  const max = clamp(args.max, 1, MAX_DELETE, 50);
+  const select = "$select=id,subject,from,receivedDateTime";
+  const top = Math.min(max, 250);
+  let url: string | null = q
+    ? `${outlookMessages(args.folder)}?$search=${encodeURIComponent(`"${q}"`)}&$top=${top}&${select}`
+    : `${outlookMessages(args.folder)}?$top=${top}&$orderby=${encodeURIComponent("receivedDateTime desc")}&${select}`;
+  const found: { id: string; from: string; subject: string; date: string }[] = [];
+  while (url && found.length < max) {
+    const page: any = await call(api, url);
+    for (const m of page?.value ?? []) {
+      if (found.length < max) found.push({ id: String(m.id), from: whoShort(who(m.from)), subject: String(m.subject ?? ""), date: String(m.receivedDateTime ?? "") });
+    }
+    url = typeof page?.["@odata.nextLink"] === "string" && page["@odata.nextLink"].startsWith(`${GRAPH}/`) ? page["@odata.nextLink"] : null;
+  }
+  return found;
+}
+
+/** Which emails an Outlook delete would reach, the first few by sender, subject and date. */
+export async function outlookPeek(api: Api, args: Target): Promise<Preview> {
+  const found = await outlookTargets(api, args);
+  const results = await eachLimit(found.slice(0, NAMED), 4, async (m) => {
+    if (m.subject || m.from) return m;
+    const full = await call(api, `${GRAPH}/messages/${encodeURIComponent(m.id)}?$select=subject,from,receivedDateTime`);
+    return { id: m.id, from: whoShort(who(full.from)), subject: String(full.subject ?? ""), date: String(full.receivedDateTime ?? "") };
+  });
+  const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+  if (rejected) throw rejected.reason;
+  const named = results.map((r) => (r as PromiseFulfilledResult<(typeof found)[number]>).value);
+  return { total: found.length, ids: found.map((m) => m.id), named };
+}
+
+/** Deletes emails from Outlook: to Deleted Items (outlookRestore brings them
+ * back, by the new ids they get there), or with `forever`, for good. */
+export async function outlookDelete(api: Api, args: Target & { forever?: boolean }) {
+  const ids = (await outlookTargets(api, args)).map((m) => m.id);
+  if (!ids.length) return { deleted: 0, forever: !!args.forever, ids: [] as string[], failed: [] as { id: string; error: string }[] };
+  if (args.forever) {
+    const { done, failed } = tally(ids, await eachLimit(ids, 4, (id) => call(api, `${GRAPH}/messages/${encodeURIComponent(id)}/permanentDelete`, { method: "POST" })));
+    return { deleted: done.length, forever: true, ids: done.map((d) => d.id), failed };
+  }
+  const move = (id: string) => call(api, `${GRAPH}/messages/${encodeURIComponent(id)}/move`, { method: "POST", body: JSON.stringify({ destinationId: "deleteditems" }) });
+  const { done, failed } = tally(ids, await eachLimit(ids, 4, move));
+  return { deleted: done.length, forever: false, ids: done.map((d) => String(d.value?.id ?? d.id)), failed };
+}
+
+/** Moves emails back to the inbox (from Deleted Items, or anywhere else). */
+export async function outlookRestore(api: Api, args: { ids?: unknown }) {
+  const ids = idList(args.ids).slice(0, MAX_DELETE);
+  if (!ids.length) throw new Error("Which emails? Give the ids the delete gave back.");
+  const move = (id: string) => call(api, `${GRAPH}/messages/${encodeURIComponent(id)}/move`, { method: "POST", body: JSON.stringify({ destinationId: "inbox" }) });
+  const { done, failed } = tally(ids, await eachLimit(ids, 4, move));
+  return { restored: done.length, ids: done.map((d) => String(d.value?.id ?? d.id)), failed };
 }

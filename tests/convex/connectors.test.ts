@@ -7,6 +7,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
+import { seal } from "../../convex/lib/seal";
 import schema from "../../convex/schema";
 
 const modules = import.meta.glob("../../convex/**/*.*s");
@@ -14,7 +15,7 @@ const modules = import.meta.glob("../../convex/**/*.*s");
 const SITE = "https://xgamer791.github.io/holly-bot/";
 const CONVEX_SITE = "https://test-deployment.convex.site";
 const KEY = btoa(String.fromCharCode(...Array.from({ length: 32 }, (_, i) => (i * 13 + 5) % 256)));
-const GMAIL_SCOPES = "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
+const GMAIL_SCOPES = "openid email https://mail.google.com/";
 
 interface Req {
   url: URL;
@@ -91,6 +92,8 @@ function google(opts: { scope?: string; expiresIn?: number; access?: string[] } 
       if (!valid.has(token)) return { status: 401, json: { error: { code: 401, message: "Request had invalid authentication credentials." } } };
       if (req.url.pathname.endsWith("/profile")) return { json: { emailAddress: "me@gmail.com" } };
       if (req.url.pathname.endsWith("/messages")) return { json: { resultSizeEstimate: 0 } };
+      const trash = req.url.pathname.match(/\/messages\/([^/]+)\/trash$/);
+      if (trash && req.method === "POST") return { json: { id: trash[1], labelIds: ["TRASH"] } };
     }
     return { status: 404, json: { error: { message: `unexpected ${req.method} ${req.url}` } } };
   });
@@ -104,6 +107,10 @@ function google(opts: { scope?: string; expiresIn?: number; access?: string[] } 
     },
     expire() {
       valid = new Set();
+    },
+    /** A token Google already gave out (a connection made earlier). */
+    allow(token: string) {
+      valid.add(token);
     },
     refuseRefresh() {
       refreshRefused = true;
@@ -208,7 +215,8 @@ describe("Gmail", () => {
     expect(await as.mutation(api.connectors.claim, { claim })).toEqual({ service: "gmail", account: "me@gmail.com" });
     const list = await as.query(api.connectors.list, {});
     expect(list).toMatchObject([{ service: "gmail", account: "me@gmail.com", via: "oauth" }]);
-    expect(Object.keys(list[0]).sort()).toEqual(["account", "connectedAt", "service", "via"]);
+    expect(Object.keys(list[0]).sort()).toEqual(["account", "connectedAt", "outdated", "service", "via"]);
+    expect(list[0].outdated).toBe(false);
 
     // The tokens are sealed at rest.
     const rows = await t.run((ctx) => ctx.db.query("connections").collect());
@@ -320,6 +328,27 @@ describe("Gmail", () => {
     await expect(as.action(api.connectors.run, { service: "gmail", op: "search", args: {} })).rejects.toThrow(/Gmail needs connecting again/);
   });
 
+  test("a connection from before bots could delete keeps reading, and asks to connect again to delete", async () => {
+    const g = google();
+    const { as, userId } = await signIn(t, "a@example.com");
+    // Connected with 1.5's permissions: read and send only.
+    const old = ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"];
+    g.allow("old-token");
+    const sealed = await seal(KEY, { accessToken: "old-token", refreshToken: "rt-1", expiresAt: Date.now() + 3_600_000, scopes: old }, `${userId}:gmail`);
+    await t.run((ctx) => ctx.db.insert("connections", { userId, service: "gmail", account: "me@gmail.com", scopes: old, via: "oauth", sealed, connectedAt: Date.now(), updatedAt: Date.now() }));
+    expect(await as.query(api.connectors.list, {})).toMatchObject([{ service: "gmail", outdated: true }]);
+    expect(await as.action(api.connectors.run, { service: "gmail", op: "search", args: {} })).toEqual([]);
+    for (const op of ["peek", "delete", "restore"]) {
+      await expect(as.action(api.connectors.run, { service: "gmail", op, args: { ids: ["m1"] } })).rejects.toThrow(/connected before bots could delete email/);
+    }
+    expect(g.calls.some((c) => c.url.pathname.endsWith("/trash"))).toBe(false);
+    // Connecting again replaces it, with the access deleting takes.
+    await as.mutation(api.connectors.claim, { claim: (await connectGmail(as, g)).searchParams.get("connect")! });
+    expect(await as.query(api.connectors.list, {})).toMatchObject([{ service: "gmail", outdated: false }]);
+    expect(await as.action(api.connectors.run, { service: "gmail", op: "delete", args: { ids: ["m1"] } })).toEqual({ deleted: 1, forever: false, ids: ["m1"], failed: [] });
+    expect(g.calls.filter((c) => c.url.pathname.endsWith("/messages/m1/trash"))).toHaveLength(1);
+  });
+
   test("disconnecting removes it and gives the access back to Google", async () => {
     const g = google();
     const { as } = await signIn(t, "a@example.com");
@@ -344,12 +373,12 @@ describe("Outlook", () => {
         expect(req.url.pathname).toBe("/common/oauth2/v2.0/token");
         if (f.grant_type === "authorization_code") {
           if ((await sha256url(f.code_verifier)) !== challenges.get(f.code)) return { status: 400, json: { error: "invalid_grant" } };
-        } else if (f.refresh_token !== refreshToken || f.scope !== "offline_access User.Read Mail.Read Mail.Send") {
+        } else if (f.refresh_token !== refreshToken || f.scope !== "Mail.ReadWrite Mail.Send User.Read openid profile email offline_access") {
           return { status: 400, json: { error: "invalid_grant" } };
         }
         issued++;
         refreshToken = `mrt-${issued}`;
-        return { json: { access_token: `mat-${issued}`, refresh_token: refreshToken, expires_in: issued === 1 ? 10 : 3600, scope: "Mail.Read Mail.Send User.Read openid profile email" } };
+        return { json: { access_token: `mat-${issued}`, refresh_token: refreshToken, expires_in: issued === 1 ? 10 : 3600, scope: "Mail.ReadWrite Mail.Send User.Read openid profile email" } };
       }
       if (req.url.host === "graph.microsoft.com") {
         if (req.headers.get("authorization") !== `Bearer mat-${issued}`) return { status: 401, json: { error: { code: "InvalidAuthenticationToken", message: "Access token has expired." } } };

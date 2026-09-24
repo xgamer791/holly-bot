@@ -102,7 +102,7 @@ function MainPage({ go, onClose }) {
     <//>
     <div class="group-label">Bot</div>
     <${Group}>
-      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending email and publishing repositories." toggle=${s.autoReview !== false} onToggle=${(v) => set({ autoReview: v })} />
+      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories." toggle=${s.autoReview !== false} onToggle=${(v) => set({ autoReview: v })} />
       <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
         onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
       <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />
@@ -481,8 +481,8 @@ function SkillEditor({ skill, onSave, onCancel, onDelete }) {
 }
 
 const CONNECTORS = [
-  { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: 'Bots read, search and send your email' },
-  { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: 'Bots read, search and send your email' },
+  { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: 'Bots read, send and delete your email' },
+  { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: 'Bots read, send and delete your email' },
   { id: 'github', label: 'GitHub', icon: Icon.code, does: 'Bots create, edit and delete your repositories' },
 ];
 
@@ -563,7 +563,10 @@ function ConnectedAccounts() {
         const can = oauth || (c.id === 'github' && !!ready?.githubToken);
         const icon = html`<${c.icon} size="20" />`;
         if (busy === c.id) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="…" />`;
-        if (conn) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${`${conn.account} · ${c.does.replace(/^Bots /, 'bots ')}`} value="Disconnect" onClick=${() => disconnect(c, conn)} />`;
+        if (conn) {
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${`${conn.account} · ${c.does.replace(/^Bots /, 'bots ')}`} value="Disconnect" onClick=${() => disconnect(c, conn)} />
+            ${conn.outdated && oauth && html`<${Row} key=${`${c.id}-again`} title=${`Connect ${c.label} again`} sub="It was connected before bots could delete email. Connecting again lets them." onClick=${() => connect(c)} />`}`;
+        }
         if ((!ready && readyError) || (!list && listError)) {
           return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub="Couldn't reach Holly Bot's server" value="Retry" onClick=${() => { reloadReady(); reload(); }} />`;
         }
@@ -574,7 +577,7 @@ function ConnectedAccounts() {
       ${ready?.github && ready?.githubToken && !(list || []).some((x) => x.service === 'github') && busy !== 'github'
         && html`<${Row} title="Connect GitHub with a token instead" sub="A personal access token you made on GitHub" onClick=${useToken} />`}
     <//>
-    <div class="group-note">Bots use them when you ask. With Auto-review on, they ask you before sending an email or making a repository public, and deleting a repository always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.</div>`;
+    <div class="group-note">Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.</div>`;
 }
 
 /** Computers linked to the account (convex/devices.ts), each with Unlink. */
@@ -863,7 +866,7 @@ function HelpPage() {
     <h3>Tools</h3>
     <p>Web search, a Python/JavaScript sandbox, files, image generation, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
     <h3>Email and GitHub</h3>
-    <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out; deleting a repository always asks.</p>
+    <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
     <h3>Install as an app</h3>
     <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>

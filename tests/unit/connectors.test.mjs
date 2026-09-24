@@ -88,11 +88,11 @@ test('oauth: consent screen addresses carry what each service needs', async () =
   assert.equal(g.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(g.searchParams.get('access_type'), 'offline');
   assert.equal(g.searchParams.get('prompt'), 'consent');
-  assert.deepEqual(g.searchParams.get('scope').split(' '), ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']);
+  assert.deepEqual(g.searchParams.get('scope').split(' '), ['openid', 'email', 'https://mail.google.com/'], 'Gmail\'s full access: read, send and delete');
 
   const o = new URL(oauth.authorizeUrl('outlook', { clientId: 'mid', redirectUri: 'https://x/cb', state: 's2', challenge }));
   assert.equal(o.origin + o.pathname, 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
-  assert.deepEqual(o.searchParams.get('scope').split(' '), ['offline_access', 'User.Read', 'Mail.Read', 'Mail.Send']);
+  assert.deepEqual(o.searchParams.get('scope').split(' '), ['offline_access', 'User.Read', 'Mail.ReadWrite', 'Mail.Send']);
   assert.equal(o.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(o.searchParams.get('response_mode'), 'query');
 
@@ -111,7 +111,7 @@ test('oauth: trading a code, renewing, and turning down', async () => {
       assert.equal(req.method, 'POST');
       assert.equal(req.headers['content-type'], 'application/x-www-form-urlencoded');
       assert.deepEqual(form, { grant_type: 'authorization_code', code: 'the-code', redirect_uri: 'https://x/cb', client_id: 'cid', client_secret: 'csecret', code_verifier: 'ver' });
-      return { json: { access_token: 'at1', refresh_token: 'rt1', expires_in: 3599, scope: 'https://www.googleapis.com/auth/gmail.send openid https://www.googleapis.com/auth/gmail.readonly', token_type: 'Bearer' } };
+      return { json: { access_token: 'at1', refresh_token: 'rt1', expires_in: 3599, scope: 'https://mail.google.com/ openid https://www.googleapis.com/auth/userinfo.email', token_type: 'Bearer' } };
     }
     assert.deepEqual(form, { grant_type: 'refresh_token', refresh_token: 'rt1', client_id: 'cid', client_secret: 'csecret' });
     return { json: { access_token: 'at2', expires_in: 3599, token_type: 'Bearer' } };
@@ -131,12 +131,14 @@ test('oauth: trading a code, renewing, and turning down', async () => {
   const microsoft = fakeFetch((req) => {
     const form = req.form();
     assert.equal(req.url, 'https://login.microsoftonline.com/common/oauth2/v2.0/token');
-    assert.equal(form.scope, 'offline_access User.Read Mail.Read Mail.Send');
-    return { json: { access_token: 'mat', refresh_token: 'mrt2', expires_in: 3600, scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read' } };
+    assert.equal(form.scope, form.refresh_token === 'mrt-old' ? 'Mail.Read Mail.Send User.Read offline_access' : 'offline_access User.Read Mail.ReadWrite Mail.Send');
+    return { json: { access_token: 'mat', refresh_token: 'mrt2', expires_in: 3600, scope: 'https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read' } };
   });
   const ms = await oauth.refreshTokens('outlook', { app, tokens: { accessToken: 'x', refreshToken: 'mrt1', scopes: [] }, fetch: microsoft });
   assert.equal(ms.refreshToken, 'mrt2');
   assert.deepEqual(oauth.missingScopes('outlook', ms.scopes), []);
+  // A connection made before Holly Bot asked for more renews with what it was granted, so it keeps working.
+  await oauth.refreshTokens('outlook', { app, tokens: { accessToken: 'x', refreshToken: 'mrt-old', scopes: ['Mail.Read', 'Mail.Send', 'User.Read'] }, fetch: microsoft });
 
   // GitHub answers a code with tokens that don't expire.
   const github = fakeFetch((req) => {
@@ -159,8 +161,10 @@ test('oauth: trading a code, renewing, and turning down', async () => {
 });
 
 test('oauth: unticked permissions are caught', () => {
-  assert.deepEqual(oauth.missingScopes('gmail', ['openid', 'https://www.googleapis.com/auth/gmail.readonly']), ['https://www.googleapis.com/auth/gmail.send']);
-  assert.deepEqual(oauth.missingScopes('outlook', ['User.Read', 'Mail.Read']), ['mail.send']);
+  assert.deepEqual(oauth.missingScopes('gmail', ['openid', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']), ['https://mail.google.com/'], 'connected before deleting');
+  assert.deepEqual(oauth.missingScopes('gmail', ['openid', 'email', 'https://mail.google.com/']), []);
+  assert.deepEqual(oauth.missingScopes('outlook', ['User.Read', 'Mail.Read']), ['mail.readwrite', 'mail.send']);
+  assert.deepEqual(oauth.missingScopes('outlook', ['https://graph.microsoft.com/Mail.ReadWrite', 'https://graph.microsoft.com/Mail.Send']), []);
   assert.deepEqual(oauth.missingScopes('github', ['read:user']), ['repo']);
   assert.deepEqual(oauth.missingScopes('gmail', []), [], 'a service that lists none is taken at its word');
 });
@@ -415,6 +419,179 @@ test('outlook: sending a new email and replying', async () => {
   assert.deepEqual(await mail.outlookProfile({ token: 't', fetch: who }), { email: 'me@outlook.com' });
   const denied = fakeFetch(() => ({ status: 403, json: { error: { code: 'ErrorAccessDenied', message: 'Access is denied.' } } }));
   await assert.rejects(mail.outlookSend({ token: 't', fetch: denied }, { to: 'a@b.co', body: 'x' }), (err) => err.status === 403 && err.message === 'Access is denied.');
+});
+
+// ----- deleting email -------------------------------------------------------------------------
+
+/** A Gmail mailbox that trashes, restores and deletes for good like the real one. */
+function gmailBox(mail) {
+  const trashed = new Set();
+  const gone = new Set();
+  const f = fakeFetch((req) => {
+    const url = new URL(req.url);
+    const path = url.pathname.replace('/gmail/v1/users/me', '');
+    const live = (id) => mail[id] && !gone.has(id);
+    if (path === '/messages' && req.method === 'GET') {
+      const q = url.searchParams.get('q') || '';
+      const withTrash = url.searchParams.get('includeSpamTrash') === 'true';
+      const all = Object.keys(mail).filter((id) => live(id) && (withTrash || !trashed.has(id))
+        && (q === 'in:trash' ? trashed.has(id) : mail[id].from.toLowerCase().includes(q.replace('from:', '').toLowerCase())));
+      const start = Number(url.searchParams.get('pageToken') || 0);
+      const size = Math.min(Number(url.searchParams.get('maxResults')), 2); // two a page, to exercise paging
+      const page = all.slice(start, start + size);
+      return { json: { messages: page.map((id) => ({ id, threadId: `t-${id}` })), ...(start + size < all.length ? { nextPageToken: String(start + size) } : {}) } };
+    }
+    if (path === '/messages/batchDelete') {
+      for (const id of req.json().ids) gone.add(id);
+      return { status: 204 };
+    }
+    const m = path.match(/^\/messages\/([^/]+)(?:\/(trash|untrash))?$/);
+    const id = m && decodeURIComponent(m[1]);
+    if (!id || !live(id)) return { status: 404, json: { error: { code: 404, message: 'Requested entity was not found.' } } };
+    if (m[2] === 'trash') trashed.add(id);
+    if (m[2] === 'untrash') trashed.delete(id);
+    return { json: { id, labelIds: trashed.has(id) ? ['TRASH'] : ['INBOX'], payload: { headers: [{ name: 'From', value: mail[id].from }, { name: 'Subject', value: mail[id].subject }, { name: 'Date', value: mail[id].date }] } } };
+  });
+  return { f, trashed, gone };
+}
+
+test('gmail: a delete reaches exactly the emails meant, to Trash or for good, and comes back', async () => {
+  const { f, trashed, gone } = gmailBox({
+    g1: { from: 'Groupon <deals@groupon.com>', subject: 'Deals for you', date: 'Mon, 21 Sep 2026 09:00:00 +0000' },
+    g2: { from: 'Groupon <deals@groupon.com>', subject: 'Last chance', date: 'Sun, 20 Sep 2026 09:00:00 +0000' },
+    g3: { from: '"Groupon" <deals@groupon.com>', subject: 'Weekend', date: 'Sat, 19 Sep 2026 09:00:00 +0000' },
+    a1: { from: 'Anna <anna@example.com>', subject: 'Dinner?', date: 'Sat, 19 Sep 2026 10:00:00 +0000' },
+  });
+  const api = { token: 't', fetch: f };
+  // The preview: every match (across pages), the first ones by sender and subject.
+  const p = await mail.gmailPeek(api, { query: 'from:groupon', max: 50 });
+  assert.equal(p.total, 3);
+  assert.deepEqual(p.ids, ['g1', 'g2', 'g3']);
+  assert.deepEqual(p.named[0], { id: 'g1', from: 'Groupon', subject: 'Deals for you', date: 'Mon, 21 Sep 2026 09:00:00 +0000' });
+  assert.equal(p.named[2].from, 'Groupon', 'the sender\'s name, quoted or not');
+  assert.equal((await mail.gmailPeek(api, { query: 'from:groupon', max: 2 })).total, 2, 'no more than max');
+  await assert.rejects(mail.gmailPeek(api, {}), /Which emails/, 'nothing named, nothing deleted');
+
+  // To Trash, by the ids the preview found; Anna's email is untouched.
+  const r = await mail.gmailDelete(api, { ids: p.ids });
+  assert.deepEqual(r, { deleted: 3, forever: false, ids: ['g1', 'g2', 'g3'], failed: [] });
+  assert.deepEqual([...trashed].sort(), ['g1', 'g2', 'g3']);
+  assert.ok(f.calls.filter((c) => c.url.endsWith('/trash')).every((c) => c.method === 'POST'));
+  // Back out of Trash.
+  assert.deepEqual(await mail.gmailRestore(api, { ids: ['g2'] }), { restored: 1, ids: ['g2'], failed: [] });
+  assert.ok(!trashed.has('g2'));
+  // Emptying the trash, for good: Trash is searched only when asked for by name, in one batch.
+  const forever = await mail.gmailDelete(api, { query: 'in:trash', forever: true });
+  assert.deepEqual(forever, { deleted: 2, forever: true, ids: ['g1', 'g3'], failed: [] });
+  assert.equal(new URL(f.calls.find((c) => /q=in%3Atrash/.test(c.url)).url).searchParams.get('includeSpamTrash'), 'true');
+  const batch = f.calls.find((c) => c.url.endsWith('/batchDelete'));
+  assert.deepEqual(batch.json(), { ids: ['g1', 'g3'] });
+  assert.deepEqual([...gone].sort(), ['g1', 'g3']);
+  assert.ok(!f.calls.some((c) => /q=from%3Agroupon/.test(c.url) && c.url.includes('includeSpamTrash')), 'other searches leave Trash out');
+
+  // Some found, some not: what worked, and what didn't.
+  const partly = await mail.gmailDelete(api, { ids: 'a1, nope' });
+  assert.equal(partly.deleted, 1);
+  assert.deepEqual(partly.failed.map((x) => x.id), ['nope']);
+  // None worked (an expired token): the error itself, so the token is renewed and the whole thing retried.
+  const expired = fakeFetch(() => ({ status: 401, json: { error: { message: 'Invalid Credentials' } } }));
+  await assert.rejects(mail.gmailDelete({ token: 'old', fetch: expired }, { ids: ['g2'] }), (err) => err instanceof mail.ApiError && err.status === 401);
+  // A search can't reach more than 500 at once.
+  const counting = fakeFetch(() => ({ json: { messages: [] } }));
+  await mail.gmailPeek({ token: 't', fetch: counting }, { query: 'older_than:1y', max: 5000 });
+  assert.equal(new URL(counting.calls[0].url).searchParams.get('maxResults'), '500');
+});
+
+/** An Outlook mailbox: folders, search, moving (which gives an email a new id) and deleting for good. */
+function outlookBox(mail) {
+  let seq = 0;
+  let inFlight = 0;
+  let most = 0;
+  const f = fakeFetch(async (req) => {
+    inFlight++;
+    most = Math.max(most, inFlight);
+    await new Promise((r) => setTimeout(r, 2));
+    inFlight--;
+    const url = new URL(req.url);
+    const path = url.pathname.replace('/v1.0/me', '');
+    const row = (id) => ({ id, subject: mail[id].subject, from: { emailAddress: { name: mail[id].name, address: mail[id].address } }, receivedDateTime: mail[id].date });
+    const list = (ids) => {
+      const top = Number(url.searchParams.get('$top'));
+      const skip = Number(url.searchParams.get('$skip') || 0);
+      const page = ids.slice(skip, skip + Math.min(top, 2));
+      const next = new URL(req.url);
+      next.searchParams.set('$skip', String(skip + 2));
+      return { json: { value: page.map(row), ...(skip + 2 < ids.length ? { '@odata.nextLink': next.toString() } : {}) } };
+    };
+    const folderOf = path.match(/^\/mailFolders\/([^/]+)\/messages$/)?.[1];
+    if (path === '/messages' || folderOf) {
+      const q = (url.searchParams.get('$search') || '').replace(/"/g, '').toLowerCase();
+      return list(Object.keys(mail).filter((id) => (!folderOf || mail[id].folder === folderOf) && (!q || mail[id].name.toLowerCase().includes(q))));
+    }
+    const m = path.match(/^\/messages\/([^/]+)(?:\/(move|permanentDelete))?$/);
+    const id = m && decodeURIComponent(m[1]);
+    if (!id || !mail[id]) return { status: 404, json: { error: { code: 'ErrorItemNotFound', message: 'The specified object was not found in the store.' } } };
+    if (m[2] === 'permanentDelete') {
+      delete mail[id];
+      return { status: 204 };
+    }
+    if (m[2] === 'move') {
+      const moved = { ...mail[id], folder: req.json().destinationId };
+      delete mail[id];
+      const newId = `${id.split('~')[0]}~${++seq}`;
+      mail[newId] = moved;
+      return { status: 201, json: { id: newId, ...row(newId) } };
+    }
+    return { json: row(id) };
+  });
+  return { f, most: () => most };
+}
+
+test('outlook: a delete reaches exactly the emails meant, to Deleted Items or for good, and comes back', async () => {
+  const mailbox = {
+    s1: { name: 'Shop', address: 'news@shop.example', subject: 'Sale', date: '2026-09-21T09:00:00Z', folder: 'inbox' },
+    s2: { name: 'Shop', address: 'news@shop.example', subject: 'Sale ends', date: '2026-09-20T09:00:00Z', folder: 'inbox' },
+    s3: { name: 'Shop', address: 'news@shop.example', subject: 'New in', date: '2026-09-19T09:00:00Z', folder: 'inbox' },
+    b1: { name: 'Boss', address: 'boss@contoso.com', subject: 'Q3', date: '2026-09-18T09:00:00Z', folder: 'inbox' },
+  };
+  const { f, most } = outlookBox(mailbox);
+  const api = { token: 't', fetch: f };
+  const p = await mail.outlookPeek(api, { query: 'shop', max: 50 });
+  assert.equal(p.total, 3, 'across pages');
+  assert.deepEqual(p.named[0], { id: 's1', from: 'Shop', subject: 'Sale', date: '2026-09-21T09:00:00Z' });
+  assert.equal(new URL(f.calls[0].url).searchParams.get('$search'), '"shop"');
+
+  // To Deleted Items: each email gets a new id there, and those are what restoring takes.
+  const r = await mail.outlookDelete(api, { ids: p.ids });
+  assert.equal(r.deleted, 3);
+  assert.equal(r.forever, false);
+  assert.ok(r.ids.every((id) => mailbox[id]?.folder === 'deleteditems'));
+  const moves = f.calls.filter((c) => c.url.endsWith('/move'));
+  assert.ok(moves.every((c) => c.method === 'POST' && c.json().destinationId === 'deleteditems'));
+  assert.ok(most() <= 4, 'no more than 4 calls at once (Outlook\'s limit per mailbox)');
+  const back = await mail.outlookRestore(api, { ids: [r.ids[0]] });
+  assert.equal(back.restored, 1);
+  assert.equal(mailbox[back.ids[0]].folder, 'inbox');
+
+  // Emptying Deleted Items for good, by folder; the boss's email stays.
+  const gone = await mail.outlookDelete(api, { folder: 'deleteditems', forever: true });
+  assert.equal(gone.deleted, 2);
+  assert.ok(f.calls.some((c) => new URL(c.url).pathname === '/v1.0/me/mailFolders/deleteditems/messages'));
+  assert.ok(f.calls.filter((c) => c.url.endsWith('/permanentDelete')).every((c) => c.method === 'POST'));
+  assert.deepEqual(Object.values(mailbox).map((m) => m.subject).sort(), ['Q3', 'Sale']);
+
+  // Names people use for folders, and ones Outlook doesn't have.
+  await mail.outlookSearch(api, { folder: 'Trash' });
+  assert.equal(new URL(f.calls.at(-1).url).pathname, '/v1.0/me/mailFolders/deleteditems/messages');
+  await assert.rejects(mail.outlookPeek(api, { folder: 'secret' }), /no folder “secret”/);
+  await assert.rejects(mail.outlookPeek(api, {}), /Which emails/);
+  // Named by id: looked up for the preview.
+  const byId = await mail.outlookPeek(api, { ids: ['b1'] });
+  assert.deepEqual(byId.named, [{ id: 'b1', from: 'Boss', subject: 'Q3', date: '2026-09-18T09:00:00Z' }]);
+  // A next page on another host isn't followed.
+  const foreign = fakeFetch(() => ({ json: { value: [{ id: 'x1', subject: 's', from: {} }], '@odata.nextLink': 'https://evil.example/next' } }));
+  assert.equal((await mail.outlookPeek({ token: 't', fetch: foreign }, { query: 'x', max: 50 })).total, 1);
+  assert.equal(foreign.calls.length, 1);
 });
 
 // ----- GitHub --------------------------------------------------------------------------------
