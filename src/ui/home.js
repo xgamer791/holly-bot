@@ -1,6 +1,6 @@
 import { html, useState, useRef } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
-import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
+import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
 import { initials, formatShort } from '../core/util.js';
@@ -75,8 +75,8 @@ function ThreadRow({ thread, active }) {
   return html`
     <button class=${`row-bot ${active ? 'active' : ''}`} onClick=${() => ui.navigate(`#/chat/${thread.id}`)}>
       ${thread.kind === 'group'
-        ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" isBusy=${(a) => app.runtime.isAgentBusy(a.id)} />`
-        : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" working=${busy || (!!agent && app.runtime.isAgentBusy(agent.id))} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
+        ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" activityOf=${(a) => botActivity(app, a, thread.id)} />`
+        : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" activity=${botActivity(app, agent, thread.id) || (busy ? 'thinking' : null)} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
       <div class="meta">
         <div class="line1">
           <span class="title">${title}</span>

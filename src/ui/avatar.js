@@ -2,11 +2,14 @@ import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { THINKING_KEYS } from '../core/constants.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
-// expressions. All geometry lives in a 100×100 viewBox. While a bot works it
-// plays its own thinking animation (body motion + eyes + little extras). A
-// `live` one idles: it glances around and bobs gently. Either way it blinks
-// every few seconds. With Reduce Motion on, a working bot fades gently
-// instead of moving and an idle one holds still (styles.css); both still blink.
+// expressions. All geometry lives in a 100×100 viewBox. While a bot's AI is
+// thinking or writing it plays its own thinking animation (body motion + eyes
+// + little extras); while it's doing a task (tools: searching, code, the
+// computer, other bots) it plays the working animation, the same for every
+// bot: a busy rock, eyes on the task and a spinning gear. A `live` one idles:
+// it glances around and bobs gently. All of them blink every few seconds.
+// With Reduce Motion on, a busy bot fades gently instead of moving and an idle
+// one holds still (styles.css); both still blink.
 
 export const SHAPES = {
   circle: { label: 'Circle', d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
@@ -109,6 +112,35 @@ export const THINKING = {
   twirl: { label: 'Twirl', eyes: (t) => (t % 2200 < 800 ? 'surprised' : 'happy') },
 };
 
+/** Doing a task: eyes on the work, now and then checking around. */
+const WORKING_EYES = cycle(['focused', 'down', 'focused', 'right', 'focused', 'left'], 480);
+
+/** A small eight-toothed gear centered on 0,0. */
+const GEAR = (() => {
+  const teeth = 8;
+  const step = (Math.PI * 2) / teeth;
+  const at = (r, a) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
+  let d = '';
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    d += `${i ? 'L' : 'M'}${at(7.4, a - step * 0.3)}L${at(10.5, a - step * 0.16)}L${at(10.5, a + step * 0.16)}L${at(7.4, a + step * 0.3)}`;
+  }
+  return `${d}Z`;
+})();
+
+/**
+ * What `agent` is doing right now, for its face: 'thinking' (its AI is
+ * thinking or writing), 'working' (doing a task: tools, the computer, another
+ * bot), or null. Its run in `threadId` counts first.
+ */
+export function botActivity(app, agent, threadId) {
+  if (!agent) return null;
+  const runs = app.runtime.activeRuns().filter((r) => r.agentId === agent.id);
+  const run = runs.find((r) => r.threadId === threadId) || runs[0];
+  if (!run) return null;
+  return run.phase === 'working' ? 'working' : 'thinking';
+}
+
 /** The bot's thinking style (older bots get a stable one from their id). */
 export function thinkingOf(agent) {
   if (agent?.thinking && THINKING[agent.thinking]) return agent.thinking;
@@ -136,6 +168,10 @@ let clipSeq = 0;
 
 function Extras({ anim, def, clipId }) {
   switch (anim) {
+    case 'working':
+      return html`<g transform="translate(86 13)"><g class="av-gear">
+        <path d=${GEAR} fill="#FFD60A" stroke="#121212" stroke-width="1.8" stroke-linejoin="round" />
+        <circle r="2.9" fill="#121212" /></g></g>`;
     case 'ponder':
       return html`<g class="av-extra" fill="#fff" stroke="#121212" stroke-width="2.4">
         <circle class="av-thought" cx="77" cy="16" r="4.2" />
@@ -158,18 +194,21 @@ function Extras({ anim, def, clipId }) {
 }
 
 /**
- * <Avatar shape color size expression rest live working anim status />
+ * <Avatar shape color size expression rest live activity working anim status />
  * - rest: the expression it settles on when it isn't animating (default 'downLeft')
- * - live: idles when not working: glances around, bobs gently and blinks
+ * - live: idles when not busy: glances around, bobs gently and blinks
  *   (use for big / focused avatars, and the bot above a chat)
- * - working: plays the bot's thinking animation `anim` (see THINKING) and blinks
+ * - activity: 'thinking' plays the bot's thinking animation `anim` (see
+ *   THINKING); 'working' plays the working animation (see botActivity)
+ * - working: the same as activity="thinking" (for previews of a style)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
  * - eyeColor: for a dark body on a light page (the welcome screen)
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,
-  anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
+  activity = null, anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
 }) {
+  const mode = activity === 'working' || activity === 'thinking' ? activity : working ? 'thinking' : null;
   const [expr, setExpr] = useState(expression || rest);
   const [blink, setBlink] = useState(0); // 0 open · 1 shut · 2 opening again
   const idx = useRef(0);
@@ -181,22 +220,23 @@ export function Avatar({
     if (expression) setExpr(expression);
   }, [expression]);
 
-  // Where the eyes look: a slow glance around (live), or the bot's thinking
-  // style (working). With Reduce Motion they hold still: a thinking look
-  // while it works, the resting one otherwise.
+  // Where the eyes look: a slow glance around (live), the bot's thinking
+  // style (thinking), or on the task (working). With Reduce Motion they hold
+  // still: a thinking or working look while busy, the resting one otherwise.
   useEffect(() => {
-    if ((!live && !working) || expression) {
+    if ((!live && !mode) || expression) {
       if (!expression) setExpr(rest);
       return undefined;
     }
+    const busyEyes = mode === 'working' ? WORKING_EYES : mode === 'thinking' ? THINKING[style].eyes : null;
     if (reducedMotion()) {
-      setExpr(working ? THINKING[style].eyes(0) : rest);
+      setExpr(busyEyes ? busyEyes(0) : rest);
       return undefined;
     }
     let timer;
-    if (working) {
+    if (busyEyes) {
       const start = performance.now();
-      const eyes = THINKING[style].eyes;
+      const eyes = busyEyes;
       let last = '';
       const tick = () => {
         const next = eyes(performance.now() - start);
@@ -216,13 +256,13 @@ export function Avatar({
       timer = setTimeout(tick, 900);
     }
     return () => clearTimeout(timer);
-  }, [live, working, expression, style, rest]);
+  }, [live, mode, expression, style, rest]);
 
   // Blinking, while animated: every two to five and a half seconds, now and
   // then twice. The eyes shut and open quickly (the .blinking class), then
   // go back to gliding.
   useEffect(() => {
-    if ((!live && !working) || expression) return undefined;
+    if ((!live && !mode) || expression) return undefined;
     let timer;
     const at = (ms, fn) => {
       timer = setTimeout(fn, ms);
@@ -243,15 +283,16 @@ export function Avatar({
       clearTimeout(timer);
       setBlink(0);
     };
-  }, [live, working, expression]);
+  }, [live, mode, expression]);
 
   const def = SHAPES[shape] || SHAPES.squircle;
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
   const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
   const dotSize = Math.max(8, Math.round(size * 0.3));
-  const idle = live && !working && !expression;
-  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
+  const idle = live && !mode && !expression;
+  const busyClass = mode === 'thinking' ? `is-thinking think-${style}` : mode === 'working' ? 'is-working' : '';
+  const cls = `avatar ${busyClass} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
 
   return html`
     <span class=${cls} style=${`width:${size}px;height:${size}px`}
@@ -259,28 +300,28 @@ export function Avatar({
       <svg viewBox="0 0 100 100" width=${size} height=${size} aria-hidden="true">
         <g class="av-body">
           <path d=${def.d} fill=${fill} />
-          ${working && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
+          ${mode === 'thinking' && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
           ${eyes.map((eye, i) => html`
             <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, shut)}`}>
               <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColor} stroke-width="7.2" stroke-linecap="round" />
             </g>`)}
         </g>
-        ${working && html`<${Extras} anim=${style} def=${def} clipId=${clipId.current} />`}
+        ${mode && html`<${Extras} anim=${mode === 'working' ? 'working' : style} def=${def} clipId=${clipId.current} />`}
       </svg>
       ${status ? html`<span class=${`avatar-dot dot-${status}`} style=${`width:${dotSize}px;height:${dotSize}px`}></span>` : null}
     </span>`;
 }
 
-/** Stacked mini-avatars for group chats; `isBusy(agent)` animates the ones at
- * work, and `live` makes the rest idle (see Avatar). */
-export function AvatarStack({ agents, size = 40, rest, isBusy, live = false }) {
+/** Stacked mini-avatars for group chats; `activityOf(agent)` animates the
+ * busy ones (see botActivity), and `live` makes the rest idle (see Avatar). */
+export function AvatarStack({ agents, size = 40, rest, activityOf, live = false }) {
   const shown = agents.slice(0, 3);
   const inner = Math.round(size * (shown.length > 1 ? 0.62 : 1));
   return html`
     <span class="avatar-stack" style=${`width:${size}px;height:${size}px`}>
       ${shown.map((a, i) => html`
         <span key=${a.id} class="avatar-stack-item" style=${stackPos(i, shown.length, size, inner)}>
-          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} live=${live} working=${!!isBusy?.(a)} anim=${thinkingOf(a)} />
+          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} live=${live} activity=${activityOf?.(a) || null} anim=${thinkingOf(a)} />
         </span>`)}
     </span>`;
 }

@@ -1,6 +1,6 @@
 import { html, useEffect, useRef, useState, useLayoutEffect } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useMessages } from './hooks.js';
-import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
+import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { MessageView } from './message.js';
 import { Composer } from './composer.js';
@@ -52,11 +52,12 @@ export function ChatScreen({ threadId, wide }) {
   const isGroup = thread.kind === 'group';
   const isChannel = thread.kind === 'agents';
   // The bot in the header is never frozen: it idles (glances, bobs, blinks),
-  // and plays its thinking animation whenever it's thinking or doing a task,
-  // in this chat or anywhere else (a routine, a job for another bot).
+  // plays its thinking animation while its AI thinks or writes, and the
+  // working one while it does a task, in this chat or anywhere else (a
+  // routine, a job for another bot).
   const face = isChannel ? agents[1] : agent;
-  const faceBusy = busy || (!!face && app.runtime.isAgentBusy(face.id));
-  const agentBusy = (a) => app.runtime.isAgentBusy(a.id);
+  const faceActivity = botActivity(app, face, threadId) || (busy && !isGroup ? 'thinking' : null);
+  const activityOf = (a) => botActivity(app, a, threadId);
 
   const onScroll = (e) => {
     const el = e.currentTarget;
@@ -90,8 +91,8 @@ export function ChatScreen({ threadId, wide }) {
         ${wide ? html`<span></span>` : html`<button class="circle-btn" aria-label="Back" onClick=${() => ui.navigate('#/')}><${Icon.back} /></button>`}
         <button class="name-pill" onClick=${openProfile} aria-label=${`${title} settings`}>
           ${isGroup
-            ? html`<${AvatarStack} agents=${agents} size=${30} isBusy=${agentBusy} live />`
-            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live working=${faceBusy} anim=${thinkingOf(face)} status=${faceBusy ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
+            ? html`<${AvatarStack} agents=${agents} size=${30} activityOf=${activityOf} live />`
+            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live activity=${faceActivity} anim=${thinkingOf(face)} status=${faceActivity ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
           <span class="name">${title}</span>
           ${isGroup && html`<span class="sub">${agents.length}</span>`}
         </button>
@@ -102,7 +103,7 @@ export function ChatScreen({ threadId, wide }) {
           ${messages === null && html`<div class="notice">Loading…</div>`}
           ${isChannel && html`<div class="notice">Private channel between ${agents.map((a) => a.name).join(' and ')}. Bots use it when they message each other.</div>`}
           ${items}
-          ${busy && runAgent && !list.some((m) => m.status === 'streaming') && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} working anim=${thinkingOf(runAgent)} /></div>`}
+          ${busy && runAgent && !list.some((m) => m.status === 'streaming') && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
         </div>
       </div>
       ${!isChannel && html`<${Composer} thread=${thread} agents=${agents} onVoice=${() => setVoice(true)} />`}

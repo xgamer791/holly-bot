@@ -33,6 +33,15 @@ export class Runtime {
     return false;
   }
 
+  /** What a reply is doing, for the bot's face (src/ui/avatar.js): 'thinking'
+   * while its model thinks or writes, 'working' while tools run. */
+  setPhase(threadId, phase) {
+    const run = this.runs.get(threadId);
+    if (!run || run.phase === phase) return;
+    run.phase = phase;
+    this.app.emitRuns();
+  }
+
   activeRuns() {
     return [...this.runs.entries()].map(([threadId, r]) => ({ threadId, ...r }));
   }
@@ -246,7 +255,7 @@ export class Runtime {
     }
     msg.status = 'streaming';
     msg.error = null;
-    this.runs.set(threadId, { controller, agentId: agent.id, messageId: msg.id });
+    this.runs.set(threadId, { controller, agentId: agent.id, messageId: msg.id, phase: 'thinking' });
     app.emitRuns();
     await app.updateThread(threadId, { status: 'working' });
 
@@ -288,6 +297,7 @@ export class Runtime {
         const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
         msg.steps.push(step);
         app.touchMessage(msg);
+        this.setPhase(threadId, 'thinking');
 
         const ask = (c) => app.providers.chat({
           cfg: c,
@@ -452,6 +462,8 @@ export class Runtime {
           st.error = e.error || null;
         }
         if (e.input && Object.keys(e.input).length) st.input = e.input;
+        // The provider searching the web for the model is the bot at work.
+        this.setPhase(msg.threadId, step.serverTools.some((x) => x.status === 'running') ? 'working' : 'thinking');
         break;
       }
       case 'server_tool_args': {
@@ -478,6 +490,7 @@ export class Runtime {
   /** Execute a step's tool calls. Returns 'paused' if the turn must wait for the user. */
   async executeCalls({ agent, thread, msg, step, tools, depth, signal, cfg = null }) {
     const app = this.app;
+    this.setPhase(msg.threadId, 'working');
     const byName = new Map(tools.map((t) => [t.name, t]));
     const todo = step.toolCalls.filter((c) => !c.result);
     const runOne = async (call) => {

@@ -1,6 +1,6 @@
 import { html, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useAsync } from './hooks.js';
-import { Avatar, thinkingOf } from './avatar.js';
+import { Avatar, botActivity, thinkingOf } from './avatar.js';
 import { LookPicker, usePreview } from './create-bot.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
@@ -24,7 +24,7 @@ export function BotProfileSheet({ agentId, onClose }) {
   return html`
     <${Sheet} title=${agent.name} onClose=${onClose}>
       <div class="create-preview" style="padding:14px 0 18px">
-        <button aria-label="Change look" onClick=${() => setEditLook(!editLook)}><${Avatar} shape=${agent.shape} color=${agent.color} size=${120} live working=${preview || app.runtime.isAgentBusy(agent.id)} anim=${thinkingOf(agent)} /></button>
+        <button aria-label="Change look" onClick=${() => setEditLook(!editLook)}><${Avatar} shape=${agent.shape} color=${agent.color} size=${120} live activity=${preview ? 'thinking' : botActivity(app, agent)} anim=${thinkingOf(agent)} /></button>
         ${!editLook && html`<div class="hint" style="text-align:center;margin-top:8px">Tap to change the look</div>`}
       </div>
       ${editLook && html`<div style="margin-bottom:28px"><${LookPicker} shape=${agent.shape} color=${agent.color} thinking=${thinkingOf(agent)}

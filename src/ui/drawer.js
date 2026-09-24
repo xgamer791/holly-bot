@@ -1,6 +1,6 @@
 import { html } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
-import { Avatar, AvatarStack, thinkingOf } from './avatar.js';
+import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Sheet, Group, Row, Segmented } from './components.js';
 import { formatShort, truncate } from '../core/util.js';
@@ -30,7 +30,7 @@ export function ActivityDrawer({ onClose }) {
             const a = app.getAgent(r.agentId);
             const t = app.getThread(r.threadId);
             return html`<div class="row" key=${r.threadId}>
-              <${Avatar} shape=${a?.shape} color=${a?.color} size=${32} working anim=${thinkingOf(a)} />
+              <${Avatar} shape=${a?.shape} color=${a?.color} size=${32} activity=${r.phase === 'working' ? 'working' : 'thinking'} anim=${thinkingOf(a)} />
               <button class="label" style="text-align:left" onClick=${() => go(`#/chat/${r.threadId}`)}><div class="t">${a?.name}</div><div class="s">${t?.kind === 'agents' ? 'Talking with another bot' : t?.kind === 'group' ? `In ${t.title}` : 'Working on your request'}</div></button>
               <button class="stop-btn" aria-label="Stop" onClick=${() => app.runtime.stop(r.threadId)}><span></span></button>
             </div>`;
@@ -39,7 +39,7 @@ export function ActivityDrawer({ onClose }) {
         ${waiting.length > 0 && html`<div class="group-label">Waiting for you</div><div class="group">
           ${waiting.map((t) => {
             const a = app.getAgent(t.preview?.authorId) || app.getAgent(t.agentIds[0]);
-            return html`<${Row} key=${t.id} icon=${html`<${Avatar} shape=${a?.shape} color=${a?.color} size=${32} working=${!!a && app.runtime.isAgentBusy(a.id)} anim=${thinkingOf(a)} />`} title=${a?.name || t.title} sub=${t.preview?.text} onClick=${() => go(`#/chat/${t.id}`)} />`;
+            return html`<${Row} key=${t.id} icon=${html`<${Avatar} shape=${a?.shape} color=${a?.color} size=${32} activity=${botActivity(app, a)} anim=${thinkingOf(a)} />`} title=${a?.name || t.title} sub=${t.preview?.text} onClick=${() => go(`#/chat/${t.id}`)} />`;
           })}</div>`}
         ${tasks.length > 0 && html`<div class="group-label">Delegated tasks</div><div class="group">
           ${tasks.map((k) => {

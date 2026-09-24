@@ -1,6 +1,6 @@
 import { html, useState, useEffect } from '../../vendor/preact.js';
 import { useApp, useUi, useAsync, haptic } from './hooks.js';
-import { Avatar, thinkingOf } from './avatar.js';
+import { Avatar, botActivity, thinkingOf } from './avatar.js';
 import { Icon, fileIcon } from './icons.js';
 import { Markdown } from './markdown.js';
 import { copyText } from './components.js';
@@ -298,7 +298,7 @@ function AgentChatCard({ call, d }) {
   return html`
     <div class="agent-card">
       <div class="who">
-        ${other && html`<${Avatar} shape=${other.shape} color=${other.color} size=${22} working=${running} anim=${thinkingOf(other)} />`}
+        ${other && html`<${Avatar} shape=${other.shape} color=${other.color} size=${22} activity=${running ? botActivity(app, other, d.threadId) || 'thinking' : null} anim=${thinkingOf(other)} />`}
         <span>${other?.name || 'Bot'}</span><span class="arrow">· ${running ? 'replying…' : 'replied'}</span>
         <button style="margin-left:auto;color:var(--muted);font-size:13px;font-weight:400" onClick=${() => d.threadId && ui.navigate(`#/chat/${d.threadId}`)}>View chat</button>
       </div>
@@ -315,7 +315,7 @@ function DelegationCard({ d }) {
   const status = task?.status || 'running';
   return html`
     <div class="agent-card">
-      <div class="who">${other && html`<${Avatar} shape=${other.shape} color=${other.color} size=${22} working=${status === 'running'} anim=${thinkingOf(other)} />`}
+      <div class="who">${other && html`<${Avatar} shape=${other.shape} color=${other.color} size=${22} activity=${status === 'running' ? botActivity(app, other) || 'working' : null} anim=${thinkingOf(other)} />`}
         <span>Handed to ${other?.name || 'a bot'}</span><span class="arrow">· ${status === 'running' ? 'working…' : status}</span></div>
       <div class="q">${truncate(d.task, 220)}</div>
     </div>`;
