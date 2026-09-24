@@ -1,0 +1,86 @@
+name: Deploy Convex
+
+# Pushes convex/ to Holly Bot's own production deployment (impressive-ferret-800)
+# and keeps the variables sign-in needs in place. GitHub Pages serves the app
+# itself straight from main; this job only handles the backend.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'convex/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/convex-auth-keys.mjs'
+      - '.github/workflows/convex.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convex-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Production deploy key for the holly-bot Convex project (dashboard →
+      # Settings → Deploy keys), stored as a repository secret. It can deploy
+      # code, so it never goes in the repository or the app.
+      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Deploying with another project's key would replace that project's
+      # backend with Holly Bot's, so only Holly Bot's own production key is used.
+      - name: Require Holly Bot's deploy key
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "::error::CONVEX_DEPLOY_KEY is not set. Create a production deploy key for the holly-bot project in the Convex dashboard (Settings → Deploy keys) and add it as a repository secret. See CONVEX.md."
+            exit 1
+          fi
+          case "${CONVEX_DEPLOY_KEY%%|*}" in
+            *impressive-ferret-800) ;;
+            *)
+              echo "::error::CONVEX_DEPLOY_KEY is not the production key for impressive-ferret-800, Holly Bot's own deployment. Refusing to deploy."
+              exit 1
+              ;;
+          esac
+
+      # Where Google and Apple send people back to. It follows the Pages URL.
+      - name: Set SITE_URL
+        run: npx convex env set SITE_URL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+
+      - name: Create the session signing keys if the deployment has none
+        run: node scripts/convex-auth-keys.mjs --if-missing
+
+      # Optional: the Google and Apple credentials can live here as repository
+      # secrets, or be set in the Convex dashboard. A secret that isn't set here
+      # leaves the deployment's own value alone.
+      - name: Copy sign-in credentials to the deployment
+        env:
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          AUTH_APPLE_ID: ${{ secrets.AUTH_APPLE_ID }}
+          AUTH_APPLE_SECRET: ${{ secrets.AUTH_APPLE_SECRET }}
+        run: |
+          for name in AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET AUTH_APPLE_ID AUTH_APPLE_SECRET; do
+            if [ -n "${!name}" ]; then
+              printf '%s' "${!name}" | npx convex env set "$name"
+            else
+              echo "$name is not a repository secret; keeping the deployment's value."
+            fi
+          done
+
+      - name: Deploy functions
+        run: npx convex deploy

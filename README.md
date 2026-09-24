@@ -4,6 +4,14 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 
 **Open the app:** https://xgamer791.github.io/holly-bot/ (on a phone, use "Add to Home Screen" to install it)
 
+## Your account
+
+The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. Your account lives in Holly Bot's own Convex database and holds only your name and email. Your bots, chats, memories and API keys don't go there: they stay in your browser or on your computer.
+
+- Settings shows who you're signed in as. Sign Out takes you back to the welcome screen and leaves everything on the device.
+- Holly Computer's links (tunnel, Wi-Fi and its own page on the computer) don't ask you to sign in. Apple and Google can only send you back to the Holly Bot site, and those links are protected by their pairing token.
+- Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md). Until sign-in is set up, the sign-in screen offers to continue without an account.
+
 ## Two ways to run your bots
 
 | | In the browser | On your computer (Holly Computer) |
@@ -48,7 +56,7 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 - Where keys live:
   - Browser mode: only in your browser.
   - Holly Computer: only on the computer. They are never sent back to your phone.
-  - Requests go straight to the provider. There is no Holly server.
+  - Requests go straight to the provider. Holly Bot's own server (Convex) only keeps your account, never your keys or chats.
 
 ## What bots can do
 
@@ -93,6 +101,8 @@ Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
 - `src/ui`: the interface.
 - `src/remote`: the phone-side remote-control client.
+- `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend.
+- `convex`: that backend (accounts). `.github/workflows/convex.yml` deploys it.
 - `computer/src`: Holly Computer.
   - `server.mjs`: HTTP API and long-poll events.
   - `desktop.mjs`: screen, mouse and keyboard.
@@ -103,7 +113,7 @@ GitHub Pages serves the `main` branch root.
 
 ## Convex backend
 
-Separate Convex project `holly-bot` (not Forge). It's a scaffold for now: the app doesn't use it yet.
+Separate Convex project `holly-bot` (not Forge). It holds accounts: Sign in with Apple and Google, through Convex Auth. A push to `main` that changes `convex/` deploys it to production.
 
 - Prod: `https://impressive-ferret-800.convex.cloud`
 - Dev: `https://useful-wildebeest-212.convex.cloud`

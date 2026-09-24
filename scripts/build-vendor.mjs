@@ -23,6 +23,7 @@ const entries = {
     export { marked, DOMPurify };
   `,
   'anthropic-sdk.js': `export { default as Anthropic } from '@anthropic-ai/sdk';`,
+  'convex.js': `export { ConvexHttpClient } from 'convex/browser';`,
 };
 
 for (const [out, src] of Object.entries(entries)) {

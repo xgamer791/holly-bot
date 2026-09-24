@@ -1,8 +1,12 @@
+import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// Scaffold only — expand when Holly Bot app wiring starts.
+// `authTables` adds `users`, `authAccounts`, `authSessions` and the other
+// tables Convex Auth keeps for Apple and Google sign-in (convex/auth.ts).
 export default defineSchema({
+  ...authTables,
+
   meta: defineTable({
     key: v.string(),
     value: v.string(),

@@ -19,10 +19,13 @@
     "typecheck": "tsc -p convex/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "^0.0.95",
     "convex": "^1.46.0"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "0.128.0",
+    "@types/node": "^22.20.4",
     "dompurify": "3.4.16",
     "esbuild": "0.28.2",
     "fake-indexeddb": "6.2.5",

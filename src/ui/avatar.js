@@ -160,10 +160,11 @@ function Extras({ anim, def, clipId }) {
  * - live: slowly cycles expressions and blinks (use for big / focused avatars)
  * - working: plays the bot's thinking animation `anim` (see THINKING)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
+ * - eyeColor: for a dark body on a light page (the welcome screen)
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,
-  anim = 'hop', status, className = '', title, onClick,
+  anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
 }) {
   const [expr, setExpr] = useState(expression || rest);
   const [blink, setBlink] = useState(false);
@@ -235,7 +236,7 @@ export function Avatar({
           ${working && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
           ${eyes.map((eye, i) => html`
             <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, blink)}`}>
-              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke="#121212" stroke-width="7.2" stroke-linecap="round" />
+              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColor} stroke-width="7.2" stroke-linecap="round" />
             </g>`)}
         </g>
         ${working && html`<${Extras} anim=${style} def=${def} clipId=${clipId.current} />`}

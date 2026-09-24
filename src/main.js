@@ -3,8 +3,11 @@ import { App } from './core/app.js';
 import { Root } from './ui/app.js';
 import { RemoteApp, savedConnection, saveConnection, takeConnectLink } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
+import { WelcomeFlow, screenFromHash } from './ui/welcome.js';
+import { account, signInWorksHere } from './account/account.js';
 
-// Boot. Two ways to run:
+// Boot. First your Holly Bot account: signed out, you get the welcome screens
+// (Sign in with Apple or Google). Then two ways to run:
 //  • Your computer (recommended): bots live on Holly Computer and this app is the remote control.
 //  • This browser: bots live here (IndexedDB) and call your AI provider directly.
 
@@ -13,9 +16,40 @@ const root = document.getElementById('app');
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
   if (link) saveConnection(link);
+  if (signInWorksHere()) {
+    const unfinished = await account.finishSignIn();
+    if (!account.signedIn) await welcome(unfinished?.from, unfinished?.error);
+    // Signing in or out in another tab, or a session that ran out, reloads into the right screen.
+    const signedIn = account.signedIn;
+    account.on(() => account.signedIn !== signedIn && location.reload());
+    if (signedIn) account.refreshUser().catch((err) => console.warn('account', err));
+  }
   const conn = savedConnection();
   if (conn) return bootRemote(conn);
   return bootLocal();
+}
+
+/** The welcome screens, on white. Signing in leaves for Google or Apple and
+ * comes back through boot(). Resolves only if the person carries on without an
+ * account, which is offered while sign-in can't work (not set up, or offline). */
+function welcome(start, notice) {
+  const screen = start || screenFromHash();
+  history.replaceState(null, '', `${location.pathname}${location.search}#/${screen}`);
+  document.documentElement.classList.add('signed-out');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#ffffff');
+  registerServiceWorker();
+  return new Promise((resolve) => {
+    const off = account.on(() => account.signedIn && location.reload());
+    const skip = () => {
+      off();
+      render(null, root);
+      document.documentElement.classList.remove('signed-out');
+      history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+      resolve();
+    };
+    render(html`<${WelcomeFlow} start=${screen} notice=${notice} onSkip=${skip} />`, root);
+    document.getElementById('boot')?.remove();
+  });
 }
 
 async function bootRemote(conn) {
@@ -53,6 +87,10 @@ async function bootLocal() {
 function mount(app) {
   render(html`<${Root} app=${app} />`, root);
   document.getElementById('boot')?.remove();
+  registerServiceWorker();
+}
+
+function registerServiceWorker() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/[?&]nosw\b/.test(location.search)) {
     navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('service worker', err));
   }

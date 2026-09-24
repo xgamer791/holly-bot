@@ -1,12 +1,12 @@
 // Holly Bot service worker: offline app shell (stale-while-revalidate for this
 // site's own files) and notification clicks. API calls are never cached.
 
-const CACHE = 'holly-v2';
+const CACHE = 'holly-v3';
 // Only the app's own files are cached. Everything else — notably Holly
 // Computer's /api and /v1 calls when the app is served by it — goes straight
 // to the network.
 const APP_FILE = /(\/|\/index\.html|\/styles\.css|\/manifest\.webmanifest|\/(src|vendor|icons)\/[^?#]+)$/;
-const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './src/main.js', './icons/icon.svg'];
+const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './vendor/convex.js', './src/main.js', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting()));

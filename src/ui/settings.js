@@ -10,8 +10,42 @@ import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import { RemoteApp, saveConnection } from '../remote/remote-app.js';
+import { account, signInWorksHere } from '../account/account.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
+const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
+
+/** The Holly Bot account, re-rendering when it changes and refreshing who is
+ * signed in from the database each time Settings opens. */
+function useAccount() {
+  const [, setTick] = useState(0);
+  const here = signInWorksHere();
+  useEffect(() => {
+    const off = account.on(() => setTick((n) => n + 1));
+    if (here && account.signedIn) account.refreshUser().catch((err) => console.warn('account', err));
+    return off;
+  }, []);
+  return { here, signedIn: here && account.signedIn, user: account.user };
+}
+
+/** Who is signed in, or a way back to the sign-in screens for someone who
+ * carried on without an account. Pages that skip sign-in (Holly Computer's
+ * links, local development) show neither. */
+function AccountGroup({ acct }) {
+  if (!acct.here) return null;
+  if (!acct.signedIn) {
+    return html`<${Group}><${Row} title="Sign In" sub="Use your Apple or Google account." onClick=${() => location.reload()} /><//>`;
+  }
+  const user = acct.user || {};
+  const via = (user.providers || []).map((p) => SIGN_IN_WITH[p] || p).join(' and ');
+  const detail = [user.name && user.email, via && `Signed in with ${via}`].filter(Boolean).join(' · ');
+  return html`<${Group}>
+    <div class="row">
+      <span class="initials">${initials(user.name || user.email)}</span>
+      <div class="label"><div class="t">${user.name || user.email || 'Holly Bot account'}</div><div class="s">${detail || 'Signed in'}</div></div>
+    </div>
+  <//>`;
+}
 
 
 export function SettingsSheet({ onClose, page: initialPage, provider: initialProvider }) {
@@ -43,12 +77,14 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
 function MainPage({ go, onClose }) {
   const app = useApp();
   const ui = useUi();
+  const acct = useAccount();
   const s = app.settings;
   const ready = app.providers.readyProviders();
   const cost = totalCost(s);
   const tz = app.timeZone();
   const set = (patch) => app.saveSettings(patch);
   return html`
+    <${AccountGroup} acct=${acct} />
     <${Group}>
       <button class="row" onClick=${() => go('profile')}>
         <span class="initials">${s.profile?.name ? initials(s.profile.name) : '?'}</span>
@@ -99,7 +135,10 @@ function MainPage({ go, onClose }) {
       <${Row} title="Send Feedback" onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')} />
     <//>
     <${Group}>
-      <${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
+      ${acct.signedIn ? html`<${Row} title="Sign Out" sub="Signs you out of your Holly Bot account. Bots, chats, memories and keys stay on this device." danger onClick=${async () => {
+        if (!(await ui.confirm({ title: 'Sign out?', message: "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay on this device.", confirmText: 'Sign Out', danger: true }))) return;
+        await account.signOut();
+      }} />` : html`<${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
         if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed from this browser. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
@@ -109,7 +148,7 @@ function MainPage({ go, onClose }) {
         app.computer.connected = false;
         ui.toast('Signed out — keys removed');
         onClose();
-      }} />
+      }} />`}
     <//>
     <div class="footer-brand">
       <${Avatar} shape="circle" color="white" size=${84} expression="upRight" />
