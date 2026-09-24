@@ -1,7 +1,7 @@
 // Constants shared by core logic and UI (kept free of UI imports so core runs in Node tests).
 
 export const APP_NAME = 'Holly Bot';
-export const APP_VERSION = '1.7.0';
+export const APP_VERSION = '1.7.1';
 
 export const SHAPE_KEYS_CORE = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
 export const COLOR_KEYS_CORE = ['white', 'brown', 'red', 'vermilion', 'orange', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'];

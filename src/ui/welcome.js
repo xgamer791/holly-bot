@@ -139,7 +139,7 @@ function WelcomeScreen({ go, notice }) {
   return html`
     <div class="hello-canvas">
       <div class="hello-hero">
-        <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${84} live />
+        <${Avatar} shape="cloud" color="blue" size=${84} live />
         <h1 class="hello-wordmark" aria-label="Holly Bot">
           <span class="w-holly" aria-hidden="true">HOLLY</span>
           <span class="w-bot" aria-hidden="true">bot</span>
@@ -260,7 +260,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
     <div class="hello">
       <div class="hello-canvas">
         <div class="hello-hero device">
-          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} />
+          <${Avatar} shape="cloud" color="blue" size=${72} />
           <h1 class="device-title">Found on this device</h1>
           <p class="device-text">This device has ${what} from before Holly Bot had accounts.
             Add them to your account${who ? html` (<b>${who}</b>)` : ''} to keep them, or delete them. Either way they're removed from this device.</p>
@@ -305,7 +305,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect }) {
     <div class="hello">
       <div class="hello-canvas">
         <div class="hello-hero device">
-          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} />
+          <${Avatar} shape="cloud" color="blue" size=${72} />
           <h1 class="device-title">Keep your bots in your account</h1>
           <p class="device-text">Link <b>${name}</b> to your account${who ? html` (<b>${who}</b>)` : ''}. Its bots, chats, memories and keys move into your account, and ${name} keeps running your bots around the clock.</p>
           <p class="hello-warning" role="note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with <code>--new-token</code> and the old links stop working.</p>
@@ -329,7 +329,7 @@ export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
     <div class="hello">
       <div class="hello-canvas">
         <div class="hello-hero device">
-          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} expression="sleepy" />
+          <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
           <h1 class="device-title">Linked to another account</h1>
           <p class="device-text"><b>${name}</b> keeps its bots in a different Holly Bot account. Sign in with that account to use it here.</p>
         </div>
@@ -350,7 +350,7 @@ export function ProblemScreen({ message, onRetry, onSignOut }) {
     <div class="hello">
       <div class="hello-canvas">
         <div class="hello-hero device">
-          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} expression="sleepy" />
+          <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
           <h1 class="device-title">Couldn't load your account</h1>
           <p class="device-text">${message}</p>
         </div>
