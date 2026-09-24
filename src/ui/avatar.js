@@ -202,7 +202,7 @@ function Extras({ anim, def, clipId }) {
  *   THINKING); 'working' plays the working animation (see botActivity)
  * - working: the same as activity="thinking" (for previews of a style)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
- * - eyeColor: for a dark body on a light page (the welcome screen)
+ * - eyeColor: for the Holly cloud's white eyes
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,

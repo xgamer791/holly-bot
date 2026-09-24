@@ -2,7 +2,9 @@
 //   /v1/*   the Bot Computer API (shell, files, web, desktop, browser, plugins)
 //   /api/*  remote control of the bots that live here (state, live events, RPC, files, images)
 //   /       the Holly Bot web app itself (so a phone can open one link)
-// Everything except the web app and /v1/health needs the pairing token.
+// Everything except the web app and /v1/health needs the pairing token, or,
+// while the computer is linked to an account, the access key it gave the
+// account's devices (computer/src/account.mjs).
 // Only plain request/response is used — live updates are long polls — so it
 // works through Cloudflare quick tunnels (no SSE there) and any proxy, and no
 // request is held open longer than ~50s (proxies cut responses at ~100s).
@@ -16,12 +18,16 @@ import { RPC, stateSnapshot, sanitizeMessage, findImage, redactSettings } from '
 
 const MAX_BODY = 60 * 1024 * 1024;
 
-function tokenOk(req, url, token) {
+/** Whether the request carries one of `tokens`. */
+function tokenOk(req, url, tokens) {
   const h = req.headers.authorization || '';
-  const given = h.startsWith('Bearer ') ? h.slice(7) : url.searchParams.get('token') || '';
-  const a = Buffer.from(given);
-  const b = Buffer.from(token);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const given = Buffer.from(h.startsWith('Bearer ') ? h.slice(7) : url.searchParams.get('token') || '');
+  let ok = false;
+  for (const token of tokens) {
+    const want = Buffer.from(token);
+    if (given.length === want.length && timingSafeEqual(given, want)) ok = true;
+  }
+  return ok;
 }
 
 function cors(req, res) {
@@ -242,9 +248,9 @@ const ACCOUNT_RPC = {
 /**
  * @param {object} o
  * @param {import('../../src/core/app.js').App} o.app
- * @param {import('./home.mjs').BotHome} [o.home]  where the bots are kept; links and unlinks the account
+ * @param {import('./home.mjs').BotHome} [o.home]  where the bots are kept; links and unlinks the account, whose access key also opens the API
  * @param {import('./local-computer.mjs').LocalComputer} o.computer
- * @param {string} o.token
+ * @param {string} o.token  the pairing token
  * @param {(path: string) => ({ type: string, body: Buffer } | null)} o.assets  web app files
  * @param {object} o.serverInfo
  */
@@ -282,7 +288,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
         return json(res, 200, { ok: true, app: 'holly-computer', ...info });
       }
       if (!url.pathname.startsWith('/v1/') && !url.pathname.startsWith('/api/')) return serveAsset(url, res);
-      if (!tokenOk(req, url, token)) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Computer.' });
+      if (!tokenOk(req, url, [token, home?.account?.accessKey].filter(Boolean))) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Computer.' });
       if (url.pathname.startsWith('/v1/')) return await computerApi(req, res, url);
       return await remoteApi(req, res, url);
     } catch (err) {

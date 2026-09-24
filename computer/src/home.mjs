@@ -7,6 +7,12 @@
 // The app behind the server can change (linked, unlinked, reloaded after
 // another device changed the account); `onSwap` hands the new one over, and
 // phones reload their state from it.
+//
+// While it's linked, this computer tells the account where the account's
+// devices can reach it (convex/devices.ts `report`): its tunnel or
+// --public-url address and its access key (computer/src/account.mjs). The app
+// on every device signed in to the account connects with them by itself
+// (src/main.js), and follows it to its new address after a restart.
 
 import { existsSync, renameSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
@@ -19,6 +25,10 @@ import { CloudDB, inactive } from '../../src/account/cloud-db.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** How often a linked computer tells the account it's still running. The
+ * app takes one it hasn't heard from in a while to be off (src/remote/remote-app.js). */
+const REPORT_EVERY = 5 * 60_000;
+
 export class BotHome {
   constructor({ dataDir, account, computer, log = console }) {
     this.dataDir = dataDir;
@@ -27,6 +37,9 @@ export class BotHome {
     this.log = log;
     this.app = null;
     this.busy = null; // a link, unlink or reload under way
+    this.address = null; // where the account's devices can reach this computer (setAddress)
+    this.reporting = Promise.resolve();
+    this.closing = false;
     this.onSwap = () => {};
     account.onEnded = () => this.linkEnded();
   }
@@ -46,11 +59,50 @@ export class BotHome {
   /** Starts the app from wherever the bots are kept. */
   async open() {
     this.app = await this.build(this.account.linked ? await this.openAccount() : await NodeDB.open(this.localDir()));
-    const renew = () => this.account.renewIfDue().catch((err) => this.log.warn?.(`  Renewing the link to your Holly Bot account: ${err.message}`));
+    // A renewed link is a new computer to the account, which doesn't know where it is yet.
+    const renew = () => this.account.renewIfDue()
+      .then((renewed) => renewed && this.report())
+      .catch((err) => this.log.warn?.(`  Renewing the link to your Holly Bot account: ${err.message}`));
     renew();
     this.renewTimer = setInterval(renew, 24 * 60 * 60 * 1000);
     this.renewTimer.unref();
+    this.reportTimer = setInterval(() => this.report(), REPORT_EVERY);
+    this.reportTimer.unref();
     return this.app;
+  }
+
+  /** Where the account's devices can reach this computer: its tunnel or
+   * --public-url address, or null (none, or the tunnel closed). Only https
+   * will do: the Holly Bot site can't call a plain-http address. */
+  setAddress(url) {
+    if (this.closing) return this.reporting;
+    this.address = /^https:\/\//i.test(url || '') ? url.replace(/\/+$/, '') : null;
+    return this.report();
+  }
+
+  /**
+   * Tells the account where its devices can reach this computer, while it's
+   * linked: the address and the access key, or no address (convex/devices.ts
+   * `report`). One at a time, in order, so the account ends up with the
+   * latest. Never throws; says once when it can't.
+   */
+  report({ stopping = false } = {}) {
+    const send = async () => {
+      if (!this.account.linked || (this.closing && !stopping)) return;
+      const url = stopping ? '' : this.address || '';
+      const access = url ? this.account.accessKey || '' : '';
+      try {
+        await this.account.authed('mutation', 'devices:report', { url, access, ...(stopping ? { stopping } : {}) });
+        this.reportFailed = false;
+      } catch (err) {
+        // A ConvexError carries the server's own words in `data`.
+        const why = typeof err?.data === 'string' ? err.data : err?.message;
+        if (!this.reportFailed && !stopping) this.log.warn?.(`  Couldn't tell your Holly Bot account where this computer is (${why}). Trying again in a few minutes.`);
+        this.reportFailed = true;
+      }
+    };
+    this.reporting = this.reporting.then(send, send);
+    return this.reporting;
   }
 
   /** The account's storage. At startup it waits for the server if it can't
@@ -147,7 +199,9 @@ export class BotHome {
     this.busy = null;
     this.log.log?.('\n  This computer keeps its bots in your Holly Bot account now.');
     if (aside) this.log.log?.(`  What it kept before is set aside in ${aside}. Delete it once you've checked your bots are all there.`);
+    if (this.address) this.log.log?.('  Holly Bot on any device signed in to your account connects to this computer by itself.');
     this.log.log?.('');
+    this.report();
     return this.status();
   }
 
@@ -234,7 +288,11 @@ export class BotHome {
 
   async close() {
     clearInterval(this.renewTimer);
+    clearInterval(this.reportTimer);
     clearTimeout(this.reloadTimer);
+    // The account's devices stop trying to reach it (as long as the server answers soon).
+    this.closing = true;
+    await Promise.race([this.report({ stopping: true }), sleep(3000)]);
     const app = this.app;
     if (!app) return;
     app.stopScheduler();

@@ -5,7 +5,13 @@
 // the app's (src/account/account.js): a one-hour JWT, renewed with a refresh
 // token that changes each time. The session lasts a year and is renewed well
 // before; unlinking, from here or from the app, or deleting the account ends it.
+//
+// The same file keeps the access key the account's devices reach this
+// computer with (computer/src/home.mjs tells the account). It's made when the
+// computer is linked and goes when it's unlinked, so a device that got it from
+// the account can't reach the computer after that.
 
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { ConvexHttpClient } from '../../vendor/convex.js';
@@ -34,6 +40,8 @@ function msLeft(jwt) {
 
 const isAuthError = (err) => /unauthenticated|invalidauthheader|oidc|expired|not signed in/i.test(err?.message || '');
 
+const newAccessKey = () => randomBytes(32).toString('base64url');
+
 export class AccountLink {
   constructor(file, { url = CONVEX_URL, name = 'Holly Computer', log = console } = {}) {
     this.file = file;
@@ -58,6 +66,20 @@ export class AccountLink {
     return this.state?.userId ?? null;
   }
 
+  /** The key the account's devices reach this computer with, besides the
+   * pairing token (computer/src/server.mjs), or null while it isn't linked. */
+  get accessKey() {
+    return this.state?.access ?? null;
+  }
+
+  /** Makes the access key when this link has none yet (linked before 1.8.0),
+   * or a new one with `renew` (--new-token). Only at startup, before anything
+   * uses the session: it saves the state a refresh would save too. */
+  async keepAccessKey({ renew = false } = {}) {
+    if (this.state && (renew || !this.state.access)) await this.save({ ...this.state, access: newAccessKey() });
+    return this.accessKey;
+  }
+
   call(kind, name, args = {}, token = null) {
     const client = new ConvexHttpClient(this.url, { logger: false });
     if (token) client.setAuth(token);
@@ -80,7 +102,7 @@ export class AccountLink {
     const tokens = result?.tokens;
     const userId = userIdOf(tokens?.token);
     if (!userId) throw new Error("That link didn't work. Open Holly Bot and try again.");
-    await this.save({ url: this.url, userId, token: tokens.token, refreshToken: tokens.refreshToken, linkedAt: Date.now() });
+    await this.save({ url: this.url, userId, token: tokens.token, refreshToken: tokens.refreshToken, linkedAt: Date.now(), access: newAccessKey() });
     return userId;
   }
 
@@ -134,12 +156,13 @@ export class AccountLink {
     await this.save(null);
   }
 
-  /** Links itself again once the session is getting old, then ends the old one. */
+  /** Links itself again once the session is getting old, then ends the old
+   * one. True when it did (the account knows it as a new computer). */
   async renewIfDue() {
-    if (!this.state || Date.now() - this.state.linkedAt < RENEW_AFTER) return;
+    if (!this.state || Date.now() - this.state.linkedAt < RENEW_AFTER) return false;
     const oldToken = await this.token();
     const old = this.state;
-    if (!oldToken || !old) return;
+    if (!oldToken || !old) return false;
     const { code, hash } = await makeLinkCode();
     await this.authed('mutation', 'devices:createLink', { codeHash: hash });
     const result = await this.call('action', 'auth:signIn', { provider: 'device', params: { code, name: this.name } });
@@ -147,5 +170,6 @@ export class AccountLink {
     await this.save({ ...old, token: result.tokens.token, refreshToken: result.tokens.refreshToken, linkedAt: Date.now() });
     await this.call('action', 'auth:signOut', {}, oldToken).catch(() => {});
     this.log.log?.('  Renewed this computer\'s link to your Holly Bot account.');
+    return true;
   }
 }

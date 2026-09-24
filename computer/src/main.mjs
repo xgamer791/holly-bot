@@ -163,8 +163,10 @@ export async function main(argv = process.argv.slice(2)) {
   const computer = new LocalComputer({ workspace, dataDir, headlessBrowser: args.headlessBrowser, name: cfg.name });
   await computer.start();
   // Linked to a Holly Bot account, the bots are kept in the account; until
-  // then, in the data folder (computer/src/home.mjs).
+  // then, in the data folder (computer/src/home.mjs). The key the account's
+  // devices reach this computer with changes with the pairing token.
   const account = new AccountLink(join(dataDir, 'account.json'), { name: cfg.name });
+  await account.keepAccessKey({ renew: args.newToken });
   const home = new BotHome({ dataDir, account, computer });
   const app = await home.open();
 
@@ -202,7 +204,7 @@ export async function main(argv = process.argv.slice(2)) {
     try {
       const bin = await ensureCloudflared(dataDir);
       console.log('  Opening a secure tunnel…');
-      const t = await startQuickTunnel(port, { bin });
+      const t = await startQuickTunnel(port, { bin, onClose: () => home.setAddress(null) });
       publicUrl = t.url;
       process.on('exit', () => t.stop());
       if (!t.connected) console.log('  The tunnel is slow to connect. If your phone can\'t open the link, this network may block Cloudflare Tunnel — try --lan on the same Wi-Fi.');
@@ -210,6 +212,8 @@ export async function main(argv = process.argv.slice(2)) {
       console.log(`  Tunnel failed: ${err.message}`);
     }
   }
+  // Linked, it tells the account where the account's devices can reach it.
+  home.setAddress(publicUrl);
   const lan = args.host === '0.0.0.0' ? lanAddress() : null;
   // A public address opens the Holly Bot site (always the current build, with
   // sign-in), connected to this computer. A Wi-Fi address is opened directly,
@@ -219,6 +223,7 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`  On your phone, scan or open:\n    ${phone}\n`);
     console.log(qrText(phone).split('\n').map((l) => `    ${l}`).join('\n'));
     if (!publicUrl) console.log('\n  Wi-Fi links skip Holly Bot sign-in; start with --tunnel to sign in on your phone.');
+    else if (account.linked) console.log('\n  Or just open Holly Bot on any device signed in to your account: it connects to this computer by itself.');
   } else {
     console.log('  To control your bots from your phone, restart with --tunnel (from anywhere) or --lan (same Wi-Fi).');
   }

@@ -17,7 +17,7 @@ export function ConnectProblem({ conn, error, onRetry }) {
   return html`
     <div class="app mobile"><div class="pane-list"><div class="home-scroll">
       <div class="empty-home" style="padding-top:80px">
-        <${Avatar} shape="cloud" color="white" size=${96} expression="sleepy" />
+        <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${96} expression="sleepy" />
         <h2>Can't reach your computer</h2>
         <p>Your bots live on ${conn?.name ? `“${conn.name}”` : 'your Holly Computer'}. Make sure it's on and Holly Computer is running${/trycloudflare/.test(conn?.url || '') ? ' (tunnel links change each time it restarts — scan the new QR code)' : ''}.</p>
         <p style="color:var(--red);font-size:14px">${error}</p>

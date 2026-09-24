@@ -38,7 +38,6 @@ function hollyServer() {
       subscription: { plan: 'starter', interval: 'month', status: 'active', periodEnd: Date.now() + 30 * 86_400_000 },
       server: { status: 'ready' },
     }),
-    'servers:connection': () => null,
     'devices:list': () => [],
     'data:version': () => version,
     'data:list': ({ store, group }) => ({ page: [...records.values()].filter((r) => r.store === store && (group === undefined || r.group === group)).map(rowOf), isDone: true, continueCursor: '' }),

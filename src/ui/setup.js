@@ -89,7 +89,7 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
       <div class="hello">
         <div class="hello-canvas">
           <div class="hello-hero device">
-            <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} expression="sleepy" />
+            <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${72} expression="sleepy" />
             <h1 class="device-title">Your computer couldn't be set up</h1>
             <p class="device-text">${server.error || 'Something went wrong while setting it up.'}</p>
             <p class="device-text">Your subscription is active and nothing is lost. Try again, and if it keeps happening, write to <a href=${`mailto:${SUPPORT}`}>${SUPPORT}</a>.</p>
@@ -113,7 +113,7 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
     <div class="hello">
       <div class="hello-canvas">
         <div class="hello-hero device">
-          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} activity="working" />
+          <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${72} activity="working" />
           <h1 class="device-title">Setting up your computer…</h1>
           <p class="device-text">${plan ? `Your own server, with ${plan.cpu} CPU and ${plan.memoryGb} GB RAM, in Chicago.` : 'Your own server, in Chicago.'} It takes a few minutes, and carries on if you close Holly Bot.</p>
           <ol class="setup-steps" aria-label="Progress">

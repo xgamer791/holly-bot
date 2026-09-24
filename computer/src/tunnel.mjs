@@ -57,8 +57,9 @@ export async function ensureCloudflared(dataDir, { log = console } = {}) {
  * Start `cloudflared tunnel --url http://localhost:<port>`. Resolves with the
  * public https URL once the tunnel is connected (connected: false if the URL
  * came but no connection did within 25s — a firewall may be blocking it).
+ * `onClose` runs if the tunnel closes after that.
  */
-export function startQuickTunnel(port, { log = console, bin = 'cloudflared', connectTimeoutMs = 25000 } = {}) {
+export function startQuickTunnel(port, { log = console, bin = 'cloudflared', connectTimeoutMs = 25000, onClose = () => {} } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`], { windowsHide: true });
     let url = null;
@@ -88,8 +89,12 @@ export function startQuickTunnel(port, { log = console, bin = 'cloudflared', con
     child.on('error', (err) => !done && reject(err));
     child.on('exit', (code) => {
       clearTimeout(waitTimer);
-      if (!done) reject(new Error(`cloudflared exited (${code})`));
-      else log.warn?.('  Tunnel closed — restart Holly Computer to get a new link.');
+      if (!done) {
+        reject(new Error(`cloudflared exited (${code})`));
+        return;
+      }
+      log.warn?.('  Tunnel closed — restart Holly Computer to get a new link.');
+      onClose();
     });
     setTimeout(() => !done && !url && reject(new Error('Timed out waiting for the tunnel address')), 45000);
   });

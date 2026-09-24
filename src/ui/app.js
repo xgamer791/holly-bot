@@ -141,7 +141,7 @@ export function Root({ app }) {
   // When a Holly Computer runs them (this app controls it, or it's linked to
   // the account), it runs routines 24/7 instead.
   useEffect(() => {
-    if (app.remote || app.routinesOnComputer?.length) return undefined;
+    if (app.remote || app.linkedComputers?.length) return undefined;
     app.startScheduler({
       lock: navigator.locks?.request ? (fn) => navigator.locks.request('holly-routines', { ifAvailable: true }, (l) => (l ? fn() : null)) : null,
     });
@@ -170,7 +170,7 @@ export function Root({ app }) {
           <${HomeScreen} activeThreadId=${route.threadId} />
           ${inChat
             ? html`<${ChatScreen} key=${route.threadId} threadId=${route.threadId} wide=${wide} />`
-            : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="white" size=${84} live /><p>Pick a bot or create a new one.</p></div></div>`}
+            : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${84} live /><p>Pick a bot or create a new one.</p></div></div>`}
         </div>
         ${app.remote && html`<${ConnectionBanner} />`}
         <button class="edge-handle" aria-label="Open activity" onClick=${() => setDrawer(true)}>

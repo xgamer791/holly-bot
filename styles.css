@@ -578,8 +578,6 @@ button.row:active { background: var(--surface-2); }
    (spinner, icons, focus rings) in light colors too. */
 html.signed-out, html.signed-out body { background: #fff; color-scheme: light; }
 html.signed-out #boot { background: #fff !important; }
-html.signed-out #boot path { fill: #111113; }
-html.signed-out #boot line { stroke: #fff; }
 .hello {
   --bg: #fff; --surface: #fff; --surface-2: #f2f3f5; --border: #e3e5e9; --border-strong: #c9cdd4;
   --text: #111113; --text-2: #2c2c2e; --muted: #5f6570; --dim: #a1a1a6; --red: #d64545;

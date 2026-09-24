@@ -79,7 +79,7 @@ const NO_NEXT = { nextServerId: undefined, nextServerIp: undefined, nextServerPl
 
 /** What the app shows about the server (billing:status). `step` says how far
  * a new server has got: creating, starting (made, waiting for its address)
- * or installing (setting up Holly). `reachable`: the app can connect to it. */
+ * or installing (setting up Holly). */
 export function serverView(row: Doc<"subscribers">) {
   const step = row.serverStatus !== "provisioning" ? undefined : !row.serverId ? "creating" : !row.serverIp ? "starting" : "installing";
   return {
@@ -89,7 +89,6 @@ export function serverView(row: Doc<"subscribers">) {
     error: row.serverError,
     ip: row.serverIp,
     plan: planOfServer(row.serverPlan)?.id,
-    reachable: !!(row.serverUrl && row.serverPairingToken),
   };
 }
 
@@ -708,18 +707,6 @@ export const destroy = internalAction({
 });
 
 // ----- the app ----------------------------------------------------------------
-
-/** Where the app reaches the subscriber's server: its address and pairing
- * token, once it's running. */
-export const connection = query({
-  args: {},
-  returns: v.union(v.null(), v.object({ url: v.string(), token: v.string(), name: v.string() })),
-  handler: async (ctx) => {
-    const row = await subscriberOf(ctx, await requireUserId(ctx));
-    if (!row || !hasAccess(row) || !["ready", "resizing"].includes(row.serverStatus) || !row.serverUrl || !row.serverPairingToken) return null;
-    return { url: row.serverUrl, token: row.serverPairingToken, name: SERVERS.name };
-  },
-});
 
 /**
  * The app's "Try again" when setting up the server failed (or never

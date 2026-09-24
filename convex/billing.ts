@@ -95,7 +95,6 @@ const statusInfo = v.object({
       error: v.optional(v.string()),
       ip: v.optional(v.string()),
       plan: v.optional(v.string()),
-      reachable: v.boolean(),
     }),
   ),
 });

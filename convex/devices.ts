@@ -11,6 +11,11 @@ import { requireUserId } from "./lib/auth";
 // trades it for a session of its own on the account (the `device` sign-in in
 // convex/auth.ts, which calls redeem). From then on the computer keeps its
 // bots in the account, the way the app does, and runs them from there.
+//
+// While it runs, the computer says where the account's devices can reach it
+// (report), so the app on any device signed in to the account connects to it
+// by itself (src/main.js), and finds it again at its new address after it
+// restarts.
 
 /** How long a link code can be used. */
 const LINK_MS = 10 * 60 * 1000;
@@ -101,19 +106,70 @@ export const redeem = internalMutation({
   },
 });
 
-/** The computers linked to the signed-in account. `server`: the subscriber's
- * own server, which Holly Bot links and unlinks itself (convex/servers.ts). */
+/** The computers linked to the signed-in account, with where the account's
+ * devices can reach each one while it runs. `server`: the subscriber's own
+ * server, which Holly Bot links and unlinks itself (convex/servers.ts). */
 export const list = query({
   args: {},
-  returns: v.array(v.object({ id: v.id("devices"), name: v.string(), linkedAt: v.number(), server: v.boolean() })),
+  returns: v.array(v.object({
+    id: v.id("devices"),
+    name: v.string(),
+    linkedAt: v.number(),
+    url: v.optional(v.string()),
+    access: v.optional(v.string()),
+    seenAt: v.optional(v.number()),
+    stoppedAt: v.optional(v.number()),
+    server: v.boolean(),
+  })),
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
     const linked = [];
     for (const device of devices) {
-      if (await ctx.db.get(device.sessionId)) linked.push({ id: device._id, name: device.name, linkedAt: device.linkedAt, server: !!device.serverKey });
+      if (!(await ctx.db.get(device.sessionId))) continue;
+      const { _id, name, linkedAt, url, access, seenAt, stoppedAt } = device;
+      linked.push({ id: _id, name, linkedAt, url, access, seenAt, stoppedAt, server: !!device.serverKey });
     }
     return linked;
+  },
+});
+
+/** A public https address, as the app will call it: no query, no fragment,
+ * no trailing slash (Holly Computer's tunnel, or its --public-url). */
+const ADDRESS = /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~%-]+)*$/;
+/** The computer's access key: random, base64url. */
+const ACCESS = /^[A-Za-z0-9_-]{32,128}$/;
+
+/**
+ * A linked computer says where the account's devices can reach it
+ * (computer/src/home.mjs): its address and access key, or `url: ""` when it
+ * has no address they can reach (no tunnel, or the tunnel closed). It says
+ * so as it starts, every few minutes while it runs, and once more with
+ * `stopping` as it stops. Only a linked computer's own session can, and only
+ * for itself; it needs no subscription, like the rest of devices:*.
+ */
+export const report = mutation({
+  args: { url: v.string(), access: v.string(), stopping: v.optional(v.boolean()) },
+  returns: v.null(),
+  handler: async (ctx, { url, access, stopping }) => {
+    const userId = await requireUserId(ctx);
+    const sessionId = await getAuthSessionId(ctx);
+    const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
+    const device = devices.find((row) => row.sessionId === sessionId);
+    if (!device) throw new ConvexError("Only a linked Holly Computer can say where it is");
+    if (stopping) {
+      await ctx.db.patch(device._id, { url: undefined, access: undefined, stoppedAt: Date.now() });
+      return null;
+    }
+    if (url && (url.length > 300 || !ADDRESS.test(url))) throw new ConvexError("That address isn't a public https address");
+    if (url && !ACCESS.test(access)) throw new ConvexError("Bad access key");
+    await ctx.db.patch(device._id, {
+      url: url || undefined,
+      access: url ? access : undefined,
+      seenAt: Date.now(),
+      stoppedAt: undefined,
+    });
+    return null;
   },
 });
 
