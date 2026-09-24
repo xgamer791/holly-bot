@@ -20,13 +20,12 @@ export interface Plan {
   note?: string;
 }
 
-/** A year paid up front is the plan's own price ($49, $99 or $179 a month);
- * month to month costs 20% more. Smallest to largest: a later plan is an
- * upgrade. */
+/** Month to month ($60, $120 or $200), or a year paid up front for less
+ * ($490, $990 or $1,790). Smallest to largest: a later plan is an upgrade. */
 export const PLANS: Plan[] = [
-  { id: "starter", name: "Starter", price: { month: 5880, year: 58800 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot" },
-  { id: "pro", name: "Pro", price: { month: 11880, year: 118800 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8 },
-  { id: "ultra", name: "Ultra", price: { month: 21480, year: 214800 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16 },
+  { id: "starter", name: "Starter", price: { month: 6000, year: 49000 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot" },
+  { id: "pro", name: "Pro", price: { month: 12000, year: 99000 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8 },
+  { id: "ultra", name: "Ultra", price: { month: 20000, year: 179000 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16 },
 ];
 
 /** Where subscribers' servers run, and how they're found at Vultr. */

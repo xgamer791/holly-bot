@@ -7,7 +7,7 @@ import { Icon } from './icons.js';
 // only for an account with an active subscription, so src/main.js shows this
 // instead of the app right after an account is created, and whenever its
 // subscription isn't active. Plans are the server's (convex/lib/plans.ts),
-// paid yearly or month to month (20% more) through Stripe Checkout
+// paid month to month or, for less, yearly, through Stripe Checkout
 // (convex/billing.ts). Back from paying, it waits for Stripe's word, then
 // hands over to setting up the subscriber's computer (src/ui/setup.js). A
 // payment that didn't go through leads to Stripe's billing portal instead.
@@ -17,7 +17,7 @@ const EVERY = { month: 'Monthly', year: 'Yearly' };
 const NEEDS = ['past_due', 'unpaid', 'incomplete', 'paused'];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** $49, $1,790 or $40.83. */
+/** $60, $1,790 or $40.83. */
 export function money(cents) {
   const digits = cents % 100 ? 2 : 0;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(cents / 100);
@@ -234,9 +234,9 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
               </span>
               ${p.note && html`<span class="sub-note">${p.note}</span>`}
               <span class="sub-price" key=${every}>
-                <b>${money(every === 'year' ? Math.round(p.price.year / 12) : p.price.month)}</b>
-                <span>/month</span>
-                ${every === 'year' && html`<span>${money(p.price.year)} a year</span>`}
+                <b>${money(p.price[every])}</b>
+                <span>/${every}</span>
+                ${every === 'year' && html`<span>${money(Math.round(p.price.year / 12))} a month</span>`}
               </span>
               <span class="sub-specs">
                 <span><${Icon.cpu} size=${15} /> ${p.cpu} CPU</span>

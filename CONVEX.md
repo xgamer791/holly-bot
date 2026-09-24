@@ -72,11 +72,11 @@ People connect them in Settings → Plugins, and bots use them through tools (`s
 
 Holly Bot opens only for an account with an active subscription whose computer is ready. Right after an account is created, and whenever its subscription isn't active, the app shows the subscription page instead of the app (`subscribed()` in `src/main.js`, `src/ui/subscribe.js`); once paid, it shows the computer being set up (`src/ui/setup.js`) until it's ready. The server enforces the subscription too, so a copy of the app with the check taken out gets nowhere.
 
-| Plan | Paid yearly | Month to month (+20%) | Dedicated server (Vultr) |
-|------|-------------|------------------------|--------------------------|
-| Starter (best for 1 bot) | $588 a year ($49 a month) | $58.80 a month | `vc2-2c-4gb`: 2 CPU, 4 GB RAM |
-| Pro | $1,188 a year ($99 a month) | $118.80 a month | `vc2-4c-8gb`: 4 CPU, 8 GB RAM |
-| Ultra | $2,148 a year ($179 a month) | $214.80 a month | `vc2-6c-16gb`: 6 CPU, 16 GB RAM |
+| Plan | Paid yearly | Month to month | Dedicated server (Vultr) |
+|------|-------------|----------------|--------------------------|
+| Starter (best for 1 bot) | $490 a year | $60 a month | `vc2-2c-4gb`: 2 CPU, 4 GB RAM |
+| Pro | $990 a year | $120 a month | `vc2-4c-8gb`: 4 CPU, 8 GB RAM |
+| Ultra | $1,790 a year | $200 a month | `vc2-6c-16gb`: 6 CPU, 16 GB RAM |
 
 - **Plans** live in `convex/lib/plans.ts`: names, prices, server sizes, the region (`ord`, Chicago) and the operating system (Ubuntu 24.04). The page shows them as `billing:status` hands them out.
 - **Prices at Stripe** are the ones you make, named by six variables: `STRIPE_PRICE_STARTER_MONTHLY`, `STRIPE_PRICE_STARTER_YEARLY`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_YEARLY`, `STRIPE_PRICE_ULTRA_MONTHLY` and `STRIPE_PRICE_ULTRA_YEARLY`. Checkout reads the price from Stripe first and refuses one that isn't exactly what `convex/lib/plans.ts` says (amount, USD, every month or year), and the log says which variable is off, so nobody is charged a different amount than the page shows. A subscription's plan is found from its price id.
@@ -176,7 +176,7 @@ Then run Deploy Convex from the Actions tab (or push a change under `convex/`). 
 
 Nobody gets past the subscription page until this is done, you included; until then, it says subscriptions aren't set up yet. Start with Stripe's test mode (test cards like `4242 4242 4242 4242` pay for nothing) and `VULTR_DRY_RUN=true` (no servers are made), then switch each to the real thing.
 
-1. **Prices.** In Stripe, Product catalog → Add product, one for each plan (Holly Bot Starter, Pro, Ultra), each with two recurring prices in USD: yearly and monthly, exactly as in the table under Subscriptions (Starter: $588 every year and $58.80 every month; Pro: $1,188 and $118.80; Ultra: $2,148 and $214.80). Put each price's id (`price_…`) in its variable: `STRIPE_PRICE_STARTER_YEARLY`, `STRIPE_PRICE_STARTER_MONTHLY`, and so on.
+1. **Prices.** In Stripe, Product catalog → Add product, one for each plan (Holly Bot Starter, Pro, Ultra), each with two recurring prices in USD: yearly and monthly, exactly as in the table under Subscriptions (Starter: $490 every year and $60 every month; Pro: $990 and $120; Ultra: $1,790 and $200). Put each price's id (`price_…`) in its variable: `STRIPE_PRICE_STARTER_YEARLY`, `STRIPE_PRICE_STARTER_MONTHLY`, and so on.
 2. **Secret key.** Developers → API keys → Secret key (`sk_test_…`) as `STRIPE_SECRET_KEY`. A restricted key works too, if it can write Customers, Checkout Sessions, Customer portal and Subscriptions and read Prices.
 3. **Webhook.** Developers → Webhooks → Add endpoint:
    - URL `https://impressive-ferret-800.convex.site/stripe/webhook`
