@@ -1,8 +1,7 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireUserId, signedInUserId } from "./lib/auth";
 import { BATCH_ROWS, deleteRow, takeBatch } from "./lib/records";
 
 /** The signed-in person as the app shows them, or null when signed out. The
@@ -20,7 +19,7 @@ export const viewer = query({
     }),
   ),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await signedInUserId(ctx);
     if (!userId) return null;
     const user = await ctx.db.get(userId);
     if (!user) return null;
