@@ -43,10 +43,48 @@ export function HomeScreen({ activeThreadId }) {
           <input autofocus placeholder="Search bots and chats" value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} />
           ${query && html`<button aria-label="Clear" onClick=${() => setQuery('')}><${Icon.x} size="16" /></button>`}
         </div>`}
+        <${ComputerNotice} />
         ${!threads.length && !q && html`<${EmptyHome} />`}
         ${!threads.length && q && html`<div class="empty-home"><p>No bots match “${query}”.</p></div>`}
         ${threads.map((t) => html`<${ThreadRow} key=${t.id} thread=${t} active=${t.id === activeThreadId} />`)}
       </div>
+    </div>`;
+}
+
+const DISMISSED = 'holly.dismissedNotices';
+
+function dismissedNotices() {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What to do about the account's computer when the bots can't run there
+ * (noticeAbout in src/main.js), in a slim row at the top of the list rather
+ * than over the app. Put away, it stays away until there's something else
+ * to say.
+ */
+function ComputerNotice() {
+  const app = useApp();
+  const notice = app.computerNotice;
+  const [hidden, setHidden] = useState(() => !!notice?.key && dismissedNotices().includes(notice.key));
+  if (!notice || hidden) return null;
+  const dismiss = () => {
+    setHidden(true);
+    if (!notice.key) return;
+    try {
+      localStorage.setItem(DISMISSED, JSON.stringify([...dismissedNotices().filter((key) => key !== notice.key), notice.key].slice(-10)));
+    } catch { /* storage blocked: it's back next time the app opens */ }
+  };
+  return html`
+    <div class="list-notice" role="status">
+      <${Icon.monitor} size="18" />
+      <span>${notice.text}</span>
+      ${notice.action && html`<button class="list-notice-action" onClick=${notice.action.onClick}>${notice.action.label}</button>`}
+      <button class="list-notice-close" aria-label="Dismiss" onClick=${dismiss}><${Icon.x} size="16" /></button>
     </div>`;
 }
 

@@ -352,17 +352,21 @@ async function openComputer() {
   return false;
 }
 
-/** A banner for the bots running here although the account has a computer,
- * when there's something to do about it (a computer that's off needs none). */
+/** How to set up, update or start Holly Computer (the README). */
+const howToComputer = { label: 'How', onClick: () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener') };
+
+/** A word for the bots running here although the account has a computer,
+ * when there's something to do about it (a computer that's off needs none),
+ * shown at the top of the bot list (src/ui/home.js). `key` names a notice
+ * that, once put away, stays away; a computer out of reach can come back. */
 function noticeAbout(list) {
-  const readme = () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener');
   const find = (state) => list.find((c) => c.state === state);
   let pc = find('unreachable');
-  if (pc) return { text: `Can't reach ${pc.name} · Your bots run in this app for now · Tap to retry`, onClick: () => location.reload() };
+  if (pc) return { text: `Can't reach ${pc.name}, so your bots run in this app for now.`, action: { label: 'Retry', onClick: () => location.reload() } };
   pc = find('old');
-  if (pc) return { text: `Update Holly Computer on ${pc.name} so your bots can use it · Tap for how`, onClick: readme };
+  if (pc) return { key: `${pc.id}:old`, text: `Update Holly Computer on ${pc.name} so your bots can use it.`, action: howToComputer };
   pc = find('hidden');
-  if (pc) return { text: `Start Holly Computer on ${pc.name} with --tunnel so your bots can use it · Tap for how`, onClick: readme };
+  if (pc) return { key: `${pc.id}:hidden`, text: `Start Holly Computer on ${pc.name} with --tunnel so your bots can use it.`, action: howToComputer };
   return null;
 }
 
@@ -491,7 +495,7 @@ function computerAccountStep(app, conn) {
   if (!signInWorksHere() || !account.signedIn) return false;
   const link = app.server?.account;
   if (!link) {
-    banner('Update Holly Computer to keep its bots in your account', () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener'));
+    app.computerNotice = { key: `${app.server?.name || conn.name || conn.url}:no-account`, text: 'Update Holly Computer to keep its bots in your account.', action: howToComputer };
     return false;
   }
   if (link.linked && link.userId === account.userId) return false;
@@ -531,9 +535,9 @@ async function bootLocal(db) {
     // A computer linked to the account runs the routines, so this app
     // doesn't, and its bots know the computer is there (src/core/prompts.js).
     app.linkedComputers = computers;
+    app.computerNotice = computerNotice;
   }
   mount(app);
-  if (db.cloud && computerNotice) banner(computerNotice.text, computerNotice.onClick);
   app.start().catch((err) => console.warn('startup services', err));
 }
 
