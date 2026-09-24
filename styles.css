@@ -570,6 +570,10 @@ html.signed-out #boot line { stroke: #fff; }
 .hello-hero.device { gap: 14px; text-align: center; }
 .device-title { margin: 6px 0 0; font-size: 24px; line-height: 30px; font-weight: 600; }
 .device-text { max-width: 400px; margin: 0; color: var(--text-2); font-size: 16px; line-height: 23px; }
+.hello-warning { max-width: 400px; margin: 4px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text-2);
+  font-size: 14px; line-height: 20px; text-align: left; }
+.hello-warning b { color: var(--text); }
+.hello-warning code { font-size: 13px; }
 
 .hello-canvas.auth { animation: hello-push .3s cubic-bezier(.22, 1, .36, 1); }
 @keyframes hello-push { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }

@@ -191,6 +191,8 @@ export async function main(argv = process.argv.slice(2)) {
   } else {
     console.log('  To control your bots from your phone, restart with --tunnel (from anywhere) or --lan (same Wi-Fi).');
   }
+  console.log('\n  Keep these links private, like a password: anyone who has one can control this computer and see your');
+  console.log('  bots, chats and files. If a link gets out, restart with --new-token and the old links stop working.');
   const awake = args.awake && args.port !== 0 ? keepAwake() : null;
   if (awake?.active) console.log('\n  Keeping this computer awake while Holly Computer runs (start with --allow-sleep to turn that off).');
   console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');

@@ -308,6 +308,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect }) {
           <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} />
           <h1 class="device-title">Keep your bots in your account</h1>
           <p class="device-text">Link <b>${name}</b> to your account${who ? html` (<b>${who}</b>)` : ''}. Its bots, chats, memories and keys move into your account, and ${name} keeps running your bots around the clock.</p>
+          <p class="hello-warning" role="note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with <code>--new-token</code> and the old links stop working.</p>
           ${busy && html`<p class="hello-note" role="status">Moving your bots into your account. This can take a minute.</p>`}
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>

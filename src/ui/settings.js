@@ -528,6 +528,7 @@ function ComputerPage() {
       ${app.server?.account?.linked && html`
         <div class="group-label">Your account</div>
         <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them.`} /><//>`}
+      <div class="group-note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</div>
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
       ${app.server?.account?.linked && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         if (!(await ui.confirm({ title: `Unlink ${name}?`, message: `Your bots stay in your account, and this device switches to them. ${name} stops running them until you link it again.`, confirmText: 'Unlink', danger: true }))) return;
@@ -596,6 +597,7 @@ function ComputerPage() {
           }}>${cmd}</button>
         </div>`)}
       <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer${app.db?.cloud ? ', then tap Add to My Account' : ''}. That's it.</p>
+      <p><b>Keep that link private, like a password.</b> Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</p>
       <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
     </div>
     <div class="group-label">Or connect manually</div>

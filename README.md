@@ -40,6 +40,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
    ```
 3. Scan the QR code it prints with your phone, sign in, and tap **Add to My Account** to link the computer. That's it. The code opens the Holly Bot site connected to your computer, so your phone always runs the current app. (Before this version, Holly Computer's links opened the copy of the app built into it. If you're still running an older Holly Computer, run the command above again.)
 
+- The link and QR code work like a password: anyone who has them can control your computer and see your bots, chats and files, and a Wi-Fi link opens it without signing in. Keep them private. If one gets out, restart with `--new-token` and the old links stop working. The app says so where you link the computer and in Settings → Bot Computer.
 - `--tunnel` gives you a private https address that works from anywhere, through Cloudflare's free quick tunnels. The first run downloads `cloudflared` from Cloudflare's GitHub releases. The address changes each time Holly Computer restarts; scan the new QR code when it does.
 - `--lan` lets phones on the same Wi-Fi connect instead.
 - `--public-url https://…` uses your own permanent address, for example a named Cloudflare Tunnel or Tailscale Funnel pointing at the port.
