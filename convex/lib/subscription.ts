@@ -5,7 +5,8 @@ import { requireUserId } from "./auth";
 
 // Whether an account's subscription lets it use Holly Bot (convex/billing.ts
 // keeps what Stripe says about it in `subscribers`). Holly Bot's server keeps
-// and uses an account's data only while it does: see requireSubscriber.
+// and uses an account's data only while it does, or while the account is
+// exempt: see requireSubscriber.
 
 /** What the server says to an account without a subscription. The app and
  * Holly Computer know it by "active subscription" (src/account/cloud-db.js):
@@ -25,6 +26,17 @@ export const ENDED = new Set(["canceled", "incomplete_expired"]);
  * Stripe since, no longer counts (the app asks Stripe as soon as the period
  * ends: see needsCheck). */
 const LATE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Accounts that use Holly Bot without a subscription: the owner's, while they
+ * test it. Each is the SHA-256 (hex) of the account's email address in lower
+ * case, so the addresses aren't in this public code; make one with
+ * `printf %s you@example.com | sha256sum`. These accounts skip the
+ * subscription page and keep their data like a subscriber, but get no server.
+ */
+const EXEMPT = new Set([
+  "434633ce2df27abbb930fa08014a267046ef87c349456af49eefacaa07b51600", // the owner, while testing
+]);
 
 type State = Pick<Doc<"subscribers">, "livemode" | "subscriptionStatus" | "currentPeriodEnd" | "cancelAt">;
 
@@ -69,9 +81,22 @@ export function subscriberOf(ctx: QueryCtx | MutationCtx, userId: Id<"users">): 
   return ctx.db.query("subscribers").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
 }
 
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Whether the account uses Holly Bot without a subscription (EXEMPT), by
+ * its email address as Google or Apple verified it. */
+export async function isExempt(ctx: QueryCtx | MutationCtx, userId: Id<"users">): Promise<boolean> {
+  const user = await ctx.db.get(userId);
+  const email = user?.email?.trim().toLowerCase();
+  return !!email && user?.emailVerificationTime !== undefined && EXEMPT.has(await sha256(email));
+}
+
 /**
- * requireUserId, for an account whose subscription lets it use Holly Bot.
- * Everything that keeps or uses an account's data starts here
+ * requireUserId, for an account whose subscription lets it use Holly Bot (or
+ * that's exempt). Everything that keeps or uses an account's data starts here
  * (convex/data.ts, and connecting and running Gmail, Outlook and GitHub in
  * convex/connectors.ts). Signing in and out, the subscription itself,
  * deleting the account, unlinking a computer and disconnecting a service
@@ -79,6 +104,6 @@ export function subscriberOf(ctx: QueryCtx | MutationCtx, userId: Id<"users">): 
  */
 export async function requireSubscriber(ctx: QueryCtx | MutationCtx): Promise<Id<"users">> {
   const userId = await requireUserId(ctx);
-  if (!hasAccess(await subscriberOf(ctx, userId))) throw new ConvexError(INACTIVE);
+  if (!hasAccess(await subscriberOf(ctx, userId)) && !(await isExempt(ctx, userId))) throw new ConvexError(INACTIVE);
   return userId;
 }

@@ -7,13 +7,14 @@ import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
 import { PLANS, planById, priceVariable, type Interval, type Plan, type PlanId } from "./lib/plans";
 import { StripeError, call, subscriptionState, verifySignature, type SubscriptionState } from "./lib/stripe";
-import { ENDED, hasAccess, liveMode, needsCheck, subscriberOf } from "./lib/subscription";
+import { ENDED, hasAccess, isExempt, liveMode, needsCheck, subscriberOf } from "./lib/subscription";
 import { planServer, serverView } from "./servers";
 
 // Subscriptions. Holly Bot opens only for an account whose subscription is
-// active (or past due, while Stripe tries the card again): the app sends
-// everyone else to its subscription page (src/main.js), and the server keeps
-// and uses an account's data only for them (convex/lib/subscription.ts).
+// active (or past due, while Stripe tries the card again), or that's exempt
+// (the owner's, while testing): the app sends everyone else to its
+// subscription page (src/main.js), and the server keeps and uses an account's
+// data only for them (convex/lib/subscription.ts).
 // People pick a plan and pay on Stripe Checkout (mode=subscription), and
 // manage it in Stripe's billing portal. Each subscriber's record in
 // `subscribers` also holds their dedicated server (convex/servers.ts).
@@ -67,12 +68,14 @@ const planInfo = v.object({
 /**
  * What the app knows about the account's subscription and server. `active`:
  * it may use Holly Bot (paid up, or `pastDue` while Stripe tries the card
- * again). `ready`: Stripe is set up. `check`: a paid period should have ended
- * by now without word from Stripe, so ask it (`sync`).
+ * again, or `exempt`: it needs no subscription, and has no server). `ready`:
+ * Stripe is set up. `check`: a paid period should have ended by now without
+ * word from Stripe, so ask it (`sync`).
  */
 const statusInfo = v.object({
   active: v.boolean(),
   pastDue: v.boolean(),
+  exempt: v.boolean(),
   ready: v.boolean(),
   check: v.boolean(),
   plans: v.array(planInfo),
@@ -110,10 +113,12 @@ async function describe(ctx: QueryCtx, userId: Id<"users">): Promise<Status> {
   const now = Date.now();
   const row = await subscriberOf(ctx, userId);
   const sub = inMode(row)?.stripeSubscriptionId ? inMode(row) : null;
-  const active = hasAccess(row, now);
+  const paid = hasAccess(row, now);
+  const exempt = !paid && (await isExempt(ctx, userId));
   return {
-    active,
-    pastDue: active && row?.subscriptionStatus === "past_due",
+    active: paid || exempt,
+    pastDue: paid && row?.subscriptionStatus === "past_due",
+    exempt,
     ready: configured(),
     check: needsCheck(row, now),
     plans: PLANS.map(({ id, name, note, cpu, memoryGb, price }) => ({ id, name, note, cpu, memoryGb, price: { ...price } })),

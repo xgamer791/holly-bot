@@ -80,6 +80,12 @@ function SubscriptionGroup({ acct }) {
     sub=${server.error || [size && `${size.cpu} CPU, ${size.memoryGb} GB RAM`, server.ip].filter(Boolean).join(' · ') || null}
     onClick=${server.status === 'error' ? retry : null} />`;
   const sub = status?.subscription;
+  // An account that needs no subscription (the owner's, while testing).
+  if (status?.exempt && !sub) {
+    return html`<${Group}>
+      <${Row} title="Subscription" value="Not needed" sub="This account uses Holly Bot without a plan while it's being tested." />
+    <//>`;
+  }
   const plan = status?.plans?.find((p) => p.id === sub?.plan);
   const when = sub?.endsAt ? `Ends ${longDate(sub.endsAt)}` : sub?.periodEnd ? `Renews ${longDate(sub.periodEnd)}` : '';
   const detail = [{ month: 'Monthly', year: 'Yearly' }[sub?.interval], when].filter(Boolean).join(' · ');

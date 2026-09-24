@@ -55,7 +55,7 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
           // The subscription ended meanwhile: back to the subscription page.
           if (!next.active) return location.reload();
           setStatus(next);
-          if (next.pastDue || ['ready', 'resizing'].includes(next.server?.status)) return onReady(next);
+          if (next.exempt || next.pastDue || ['ready', 'resizing'].includes(next.server?.status)) return onReady(next);
         } catch { /* offline for a moment: ask again */ }
       }
     })();

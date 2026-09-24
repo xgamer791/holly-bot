@@ -130,9 +130,10 @@ async function subscribed() {
 
 /** Whether the app can open: the subscriber's computer is ready (or being
  * resized), or they're past due, keeping what they have while Stripe tries
- * their card again. */
+ * their card again, or the account needs no subscription (exempt, the owner's
+ * while testing), and so has no computer to wait for. */
 function usable(status) {
-  return status.pastDue || ['ready', 'resizing'].includes(status.server?.status);
+  return status.exempt || status.pastDue || ['ready', 'resizing'].includes(status.server?.status);
 }
 
 function showSubscribe(status, back) {
