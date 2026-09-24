@@ -3,9 +3,10 @@ import { THINKING_KEYS } from '../core/constants.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
 // expressions. All geometry lives in a 100×100 viewBox. While a bot works it
-// plays its own thinking animation (body motion + eyes + little extras), and
-// an animated avatar blinks every few seconds. With Reduce Motion on, a
-// working bot fades gently instead of moving (styles.css), and still blinks.
+// plays its own thinking animation (body motion + eyes + little extras). A
+// `live` one idles: it glances around and bobs gently. Either way it blinks
+// every few seconds. With Reduce Motion on, a working bot fades gently
+// instead of moving and an idle one holds still (styles.css); both still blink.
 
 export const SHAPES = {
   circle: { label: 'Circle', d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
@@ -159,7 +160,8 @@ function Extras({ anim, def, clipId }) {
 /**
  * <Avatar shape color size expression rest live working anim status />
  * - rest: the expression it settles on when it isn't animating (default 'downLeft')
- * - live: slowly cycles expressions and blinks (use for big / focused avatars)
+ * - live: idles when not working: glances around, bobs gently and blinks
+ *   (use for big / focused avatars, and the bot above a chat)
  * - working: plays the bot's thinking animation `anim` (see THINKING) and blinks
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
  * - eyeColor: for a dark body on a light page (the welcome screen)
@@ -248,7 +250,8 @@ export function Avatar({
   const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
   const dotSize = Math.max(8, Math.round(size * 0.3));
-  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${blink ? 'blinking' : ''} ${className}`;
+  const idle = live && !working && !expression;
+  const cls = `avatar ${working ? `is-working think-${style}` : ''} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
 
   return html`
     <span class=${cls} style=${`width:${size}px;height:${size}px`}
@@ -268,15 +271,16 @@ export function Avatar({
     </span>`;
 }
 
-/** Stacked mini-avatars for group chats; `isBusy(agent)` animates the ones at work. */
-export function AvatarStack({ agents, size = 40, rest, isBusy }) {
+/** Stacked mini-avatars for group chats; `isBusy(agent)` animates the ones at
+ * work, and `live` makes the rest idle (see Avatar). */
+export function AvatarStack({ agents, size = 40, rest, isBusy, live = false }) {
   const shown = agents.slice(0, 3);
   const inner = Math.round(size * (shown.length > 1 ? 0.62 : 1));
   return html`
     <span class="avatar-stack" style=${`width:${size}px;height:${size}px`}>
       ${shown.map((a, i) => html`
         <span key=${a.id} class="avatar-stack-item" style=${stackPos(i, shown.length, size, inner)}>
-          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} working=${!!isBusy?.(a)} anim=${thinkingOf(a)} />
+          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} live=${live} working=${!!isBusy?.(a)} anim=${thinkingOf(a)} />
         </span>`)}
     </span>`;
 }

@@ -104,6 +104,9 @@ svg { display: block; }
 .avatar.is-working.think-float .av-body { animation: av-float 2s ease-in-out infinite; }
 .avatar.is-working.think-nod .av-body { animation: av-nod .8s ease-in-out infinite; transform-origin: 50px 95px; }
 .avatar.is-working.think-twirl .av-body { animation: av-twirl 2.2s cubic-bezier(.55, 0, .3, 1) infinite; }
+/* Idle (a `live` avatar that isn't working): a slow, gentle bob. */
+.avatar.is-live .av-body { animation: av-idle 3.6s ease-in-out infinite; transform-origin: 50px 92px; }
+@keyframes av-idle { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3.5px) scale(1.015, 1.03); } }
 .av-thought { transform-box: fill-box; transform-origin: center; opacity: 0; animation: av-thought 2.1s ease-in-out infinite; }
 .av-thought.t2 { animation-delay: .35s; }
 .av-thought.t3 { animation-delay: .7s; }

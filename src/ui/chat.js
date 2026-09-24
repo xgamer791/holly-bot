@@ -51,7 +51,8 @@ export function ChatScreen({ threadId, wide }) {
   const title = threadTitle(app, thread);
   const isGroup = thread.kind === 'group';
   const isChannel = thread.kind === 'agents';
-  // The bot in the header animates whenever it's thinking or doing a task,
+  // The bot in the header is never frozen: it idles (glances, bobs, blinks),
+  // and plays its thinking animation whenever it's thinking or doing a task,
   // in this chat or anywhere else (a routine, a job for another bot).
   const face = isChannel ? agents[1] : agent;
   const faceBusy = busy || (!!face && app.runtime.isAgentBusy(face.id));
@@ -89,8 +90,8 @@ export function ChatScreen({ threadId, wide }) {
         ${wide ? html`<span></span>` : html`<button class="circle-btn" aria-label="Back" onClick=${() => ui.navigate('#/')}><${Icon.back} /></button>`}
         <button class="name-pill" onClick=${openProfile} aria-label=${`${title} settings`}>
           ${isGroup
-            ? html`<${AvatarStack} agents=${agents} size=${30} isBusy=${agentBusy} />`
-            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} working=${faceBusy} anim=${thinkingOf(face)} status=${faceBusy ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
+            ? html`<${AvatarStack} agents=${agents} size=${30} isBusy=${agentBusy} live />`
+            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live working=${faceBusy} anim=${thinkingOf(face)} status=${faceBusy ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
           <span class="name">${title}</span>
           ${isGroup && html`<span class="sub">${agents.length}</span>`}
         </button>
