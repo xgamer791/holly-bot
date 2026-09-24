@@ -202,10 +202,11 @@ function Extras({ anim, def, clipId }) {
  *   THINKING); 'working' plays the working animation (see botActivity)
  * - working: the same as activity="thinking" (for previews of a style)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
+ * - eyeColor: for the Holly cloud's white eyes
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,
-  activity = null, anim = 'hop', status, className = '', title, onClick,
+  activity = null, anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
 }) {
   const mode = activity === 'working' || activity === 'thinking' ? activity : working ? 'thinking' : null;
   const [expr, setExpr] = useState(expression || rest);
@@ -302,7 +303,7 @@ export function Avatar({
           ${mode === 'thinking' && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
           ${eyes.map((eye, i) => html`
             <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, shut)}`}>
-              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke="#121212" stroke-width="7.2" stroke-linecap="round" />
+              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColor} stroke-width="7.2" stroke-linecap="round" />
             </g>`)}
         </g>
         ${mode && html`<${Extras} anim=${mode === 'working' ? 'working' : style} def=${def} clipId=${clipId.current} />`}

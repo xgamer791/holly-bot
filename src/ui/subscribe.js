@@ -146,7 +146,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
       <div class="hello">
         <div class="hello-canvas">
           <div class="hello-hero device">
-            <${Avatar} shape="cloud" color="blue" size=${72} activity="working" />
+            <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${72} activity="working" />
             <h1 class="device-title">${waiting === 'slow' ? 'Still waiting for Stripe' : 'Setting up your subscription'}</h1>
             <p class="device-text">${waiting === 'slow'
               ? "Stripe hasn't confirmed your payment yet. Holly Bot opens as soon as it does."
@@ -185,7 +185,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
       <div class="hello">
         <div class="hello-canvas">
           <div class="hello-hero device">
-            <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
+            <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${72} expression="sleepy" />
             <h1 class="device-title">${title}</h1>
             <p class="device-text">${text}</p>
             ${error && html`<p class="auth-error" role="alert">${error}</p>`}
@@ -216,7 +216,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
     <div class="hello">
       <div class="hello-canvas sub-canvas">
         <header class="sub-head">
-          <${Avatar} shape="cloud" color="blue" size=${64} live />
+          <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${64} live />
           <h1 class="sub-title">Choose your plan</h1>
           <p class="sub-lead">Every plan runs your bots on a dedicated server of their own.</p>
         </header>

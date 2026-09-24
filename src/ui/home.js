@@ -96,7 +96,7 @@ function EmptyHome() {
   const hasKey = app.providers.readyProviders().length > 0;
   return html`
     <div class="empty-home">
-      <${Avatar} shape="cloud" color="blue" size=${96} live />
+      <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${96} live />
       <h2>Make your first bot</h2>
       <p>Each bot gets its own name, look, personality and long-term memory — and your bots can talk to each other.</p>
       ${!hasKey && html`<p>Bring your own key. DeepSeek is the default brain (smart and cheap); Claude, OpenAI, Grok, Gemini, OpenRouter and others work too. Your key stays ${app.remote ? 'on your computer' : app.db?.cloud ? 'in your account' : 'in this browser'}.</p>`}
