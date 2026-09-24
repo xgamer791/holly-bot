@@ -17,17 +17,31 @@ Do not point Forge (`polished-ram-883` / `zealous-partridge-60`) or Macronaut at
 
 ## What's on it
 
-Accounts: [Convex Auth](https://labs.convex.dev/auth) with Sign in with Apple and Sign in with Google.
+Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with Apple and Sign in with Google, and everything the app keeps for each account.
 
 - `convex/auth.ts`: the two providers, and the allow-list of places a sign-in may return to (the live site and `http://localhost`).
 - `convex/http.ts`: the OAuth routes, `/api/auth/signin/*` and `/api/auth/callback/*`, on `https://impressive-ferret-800.convex.site`.
-- `convex/account.ts`: `account:viewer` (who is signed in) and `account:signInOptions` (which sign-in buttons are set up, so the app can say what's missing).
-- `convex/schema.ts`: Convex Auth's tables (`users`, `authAccounts`, `authSessions`, …) and the `meta` table.
-- `convex/health.ts`: `health:ping` and `health:upsertMeta`, from the scaffold.
+- `convex/account.ts`: `account:viewer` (who is signed in), `account:signInOptions` (which sign-in buttons are set up, so the app can say what's missing) and `account:deleteAccount` (Settings → Delete Account).
+- `convex/data.ts`: the app's storage, below.
+- `convex/schema.ts`: Convex Auth's tables (`users`, `authAccounts`, `authSessions`, …), `records`, `blobs`, `heads`, `claims` and `meta`.
+- `convex/health.ts`: `health:ping`, and `health:upsertMeta` (internal: dashboard or `npx convex run` only).
+- `convex/uploads.ts` and `convex/crons.ts`: the daily sweep of unclaimed uploads.
 
-The account holds a name and an email from Apple or Google, nothing else. Bots, chats, memories and API keys stay in the browser or on Holly Computer.
+The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
-The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
+## The app's data
+
+Everything the app keeps (bots, chats, messages, memories, files, routines, tasks, activity, settings and API keys) is one `records` row per record, owned by an account. The app core runs on `src/account/cloud-db.js`, which has the same interface as the IndexedDB wrapper it used before (`src/core/db.js`).
+
+- **Isolation.** Every function in `convex/data.ts` gets the account from the verified session (`requireUserId` in `convex/lib/auth.ts`; the session must still exist, so signing out or deleting the account cuts off its tokens at once) and reads and writes only through indexes that start with that account. The client never names an account. Uploads are claimed by the account whose record first refers to them (`blobs`), and only that account can get a download URL.
+- **Records** hold the app's JSON as a string (`data`), plus `group` and `sort` so the app can load one chat's messages or one bot's memories at a time, newest first. A record over ~800 KB of JSON goes to file storage (`overflow`), as do files' contents and long texts.
+- **Uploads** that no record claims within a day (the app closed mid-save, or an upload URL used for nothing) are deleted by a daily sweep (`convex/uploads.ts`, scheduled in `convex/crons.ts`).
+- **Writes** go through `data:apply`, in order and in batches, from an outbox the app keeps on the device (IndexedDB `holly-outbox-<userId>`) until the server has them, so nothing is lost offline or when the app closes.
+- **Several devices.** `heads` counts each account's writes. A device that sees the count move without its own writes knows another device changed the account and reloads when nothing would be lost (`src/main.js`). `claims` makes a routine's scheduled run happen on one device only.
+- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
+- **Before accounts** (1.2.0 and older) the app kept everything in the browser's IndexedDB (`holly`), shared by whoever used the browser. The first account to sign in on such a browser is asked to add it to the account or delete it (`src/account/device-data.js`); either way it leaves the browser.
+
+Holly Computer keeps its bots on the computer it runs on (`computer/src/node-db.mjs`), not in the account.
 
 ## Setting up sign-in (once)
 
@@ -63,7 +77,7 @@ Then set `AUTH_APPLE_ID` (the Services ID) and `AUTH_APPLE_SECRET` as repository
 
 ### 4. Check
 
-Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). While neither works, the screen offers "Continue without an account", so nobody is locked out of their bots during setup.
+Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works.
 
 Sessions last 30 days (Convex Auth's default). `node scripts/convex-auth-keys.mjs` with a deploy key for the deployment rotates the signing keys, which signs everyone out.
 

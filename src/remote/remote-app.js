@@ -438,21 +438,59 @@ export class RemoteApp {
 
 // ----- connection storage ---------------------------------------------------------
 
+// Which Holly Computer this device controls belongs to the Holly Bot account
+// that paired it, so another account signing in here never inherits it. Where
+// there are no accounts (Wi-Fi links, browser automation), it's per device.
 const KEY = 'holly.connection';
+const PENDING = 'holly.connection.pending';
+let scope = '';
 
-export function savedConnection() {
+function readJson(key) {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || 'null');
+    return JSON.parse(localStorage.getItem(key) || 'null');
   } catch {
     return null;
   }
 }
 
-export function saveConnection(conn) {
+function writeJson(key, value) {
   try {
-    if (conn) localStorage.setItem(KEY, JSON.stringify(conn));
-    else localStorage.removeItem(KEY);
+    if (value) localStorage.setItem(key, JSON.stringify(value));
+    else localStorage.removeItem(key);
   } catch { /* storage blocked */ }
+}
+
+/** From now on, connections are the signed-in account's. */
+export function useConnectionsOf(userId) {
+  scope = userId ? `:${userId}` : '';
+}
+
+export function savedConnection() {
+  return readJson(KEY + scope);
+}
+
+export function saveConnection(conn) {
+  writeJson(KEY + scope, conn);
+}
+
+/** A pairing link opened before signing in, held for whoever signs in next (for an hour). */
+export function holdConnection(conn) {
+  writeJson(PENDING, { conn, at: Date.now() });
+}
+
+export function takeHeldConnection() {
+  const held = readJson(PENDING);
+  writeJson(PENDING, null);
+  return held && Date.now() - held.at < 60 * 60 * 1000 ? held.conn : null;
+}
+
+/** The connection this device saved before Holly Bot had accounts. */
+export function deviceConnection() {
+  return readJson(KEY);
+}
+
+export function forgetDeviceConnection() {
+  writeJson(KEY, null);
 }
 
 /** Pairing links: #connect=<base64url JSON {url, token}> (url '' = this same server). */

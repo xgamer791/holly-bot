@@ -43,7 +43,9 @@ export class FileStore {
   }
 
   async list(agentId, prefix = '') {
-    const rows = await this.db.query('files', 'byAgent', range.only(agentId));
+    // Only names and sizes are needed, so storage that fetches contents over
+    // the network (src/account/cloud-db.js) can leave them out.
+    const rows = await this.db.query('files', 'byAgent', range.only(agentId), { contents: false });
     const pre = prefix ? normalizePath(prefix) + '/' : '';
     return rows
       .filter((f) => !pre || f.path.startsWith(pre))

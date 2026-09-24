@@ -10,8 +10,13 @@
 
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
+import type * as data from "../data.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as lib_records from "../lib/records.js";
+import type * as uploads from "../uploads.js";
 
 import type {
   ApiFromModules,
@@ -22,8 +27,13 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   auth: typeof auth;
+  crons: typeof crons;
+  data: typeof data;
   health: typeof health;
   http: typeof http;
+  "lib/auth": typeof lib_auth;
+  "lib/records": typeof lib_records;
+  uploads: typeof uploads;
 }>;
 
 /**

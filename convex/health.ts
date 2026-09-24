@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const ping = query({
@@ -13,7 +13,8 @@ export const ping = query({
   },
 });
 
-export const upsertMeta = mutation({
+// Internal: callable from the dashboard or `npx convex run`, never from the internet.
+export const upsertMeta = internalMutation({
   args: {
     key: v.string(),
     value: v.string(),

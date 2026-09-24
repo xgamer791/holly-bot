@@ -15,6 +15,7 @@ export const CONVEX_URL = 'https://impressive-ferret-800.convex.cloud';
 export const SITE = 'https://xgamer791.github.io/holly-bot/';
 const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
+const NOTICE_KEY = 'holly.notice';
 
 /** Where the app asks you to sign in: the Holly Bot site and localhost
  * (Holly Computer's own page, local development), the only places Google and
@@ -55,14 +56,27 @@ function isNetworkError(err) {
   return err?.name === 'TypeError' && /fetch|network|load failed|terminated/i.test(err.message || '');
 }
 
+function claims(jwt) {
+  try {
+    return JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
+
+/** The account a session JWT belongs to (its subject is `userId|sessionId`). */
+function userIdOf(jwt) {
+  return (jwt && claims(jwt)?.sub?.split('|')[0]) || null;
+}
+
 /** Milliseconds until a JWT expires (0 when it can't be read). */
 function msLeft(jwt) {
-  try {
-    const payload = JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload.exp * 1000 - Date.now();
-  } catch {
-    return 0;
-  }
+  const exp = claims(jwt)?.exp;
+  return exp ? exp * 1000 - Date.now() : 0;
+}
+
+function isAuthError(err) {
+  return /unauthenticated|invalidauthheader|oidc|expired|not signed in/i.test(err?.message || '');
 }
 
 const queues = {};
@@ -76,6 +90,24 @@ function exclusive(name, fn) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A message for the welcome screen after the next reload (the app reloads
+ * into it when the account is deleted). */
+export function noticeAfterReload(text) {
+  try {
+    sessionStorage.setItem(NOTICE_KEY, text);
+  } catch { /* storage blocked */ }
+}
+
+export function takeNotice() {
+  try {
+    const text = sessionStorage.getItem(NOTICE_KEY);
+    sessionStorage.removeItem(NOTICE_KEY);
+    return text;
+  } catch {
+    return null;
+  }
+}
 
 /** Turns a failed call into something a person can act on. */
 export function friendlyError(err) {
@@ -106,6 +138,11 @@ class Account {
 
   get signedIn() {
     return !!read(this.keys.jwt);
+  }
+
+  /** The signed-in account's id. */
+  get userId() {
+    return userIdOf(read(this.keys.jwt));
   }
 
   on(fn) {
@@ -211,20 +248,30 @@ class Account {
     });
   }
 
+  /** Calls a function as the signed-in account, refreshing the session once if
+   * the server turns the token down. Throws when nobody is signed in, or, with
+   * `as`, when the session is no longer that account's (someone signed in as
+   * another account in another tab), so one account's data is never sent as
+   * another's. */
+  async authed(kind, name, args = {}, { as = null } = {}) {
+    const check = (token) => {
+      if (!token || (as && userIdOf(token) !== as)) throw new Error('Not signed in');
+      return token;
+    };
+    const token = check(await this.token());
+    try {
+      return await this.call(kind, name, args, token);
+    } catch (err) {
+      if (!isAuthError(err)) throw err;
+      return this.call(kind, name, args, check(await this.token({ force: true })));
+    }
+  }
+
   /** Loads who is signed in from the database and keeps it for the next
    * launch, so Settings can show it offline. Signs out if the account is gone. */
   async refreshUser() {
-    let token = await this.token();
-    if (!token) return null;
-    let user;
-    try {
-      user = await this.call('query', 'account:viewer', {}, token);
-    } catch (err) {
-      if (!/unauthenticated|invalidauthheader|oidc|expired/i.test(err?.message || '')) throw err;
-      token = await this.token({ force: true });
-      if (!token) return null;
-      user = await this.call('query', 'account:viewer', {}, token);
-    }
+    if (!this.signedIn) return null;
+    const user = await this.authed('query', 'account:viewer');
     if (!user) {
       this.store(null);
       return null;
@@ -233,6 +280,16 @@ class Account {
     write(USER_KEY, JSON.stringify(user));
     this.emit();
     return user;
+  }
+
+  /** Deletes the account and everything in it on the server (the server works
+   * in batches), then signs this device out. */
+  async deleteAccount() {
+    const as = this.userId;
+    let done = false;
+    for (let i = 0; i < 5000 && !done; i++) ({ done } = await this.authed('mutation', 'account:deleteAccount', {}, { as }));
+    if (!done) throw new Error('Deleting your account is taking longer than expected. Try again.');
+    this.store(null);
   }
 
   /** Ends the session on the server if it answers within a few seconds, and

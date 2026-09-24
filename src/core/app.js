@@ -39,6 +39,24 @@ export const DEFAULT_SETTINGS = {
   onboarded: false,
 };
 
+/** A reply still marked as streaming when nothing is writing it was cut off
+ * when the app closed: marks it stopped. True when `m` changed. */
+function markInterrupted(m) {
+  if (m.status !== 'streaming') return false;
+  m.status = 'stopped';
+  m.error = null;
+  for (const s of m.steps || []) {
+    if (!s.endedAt) s.endedAt = now();
+    for (const c of s.toolCalls || []) {
+      if (!c.result && !c.pending && c.approval?.status !== 'pending') {
+        c.status = 'error';
+        c.result = { content: 'Interrupted (the app was closed).', isError: true };
+      }
+    }
+  }
+  return true;
+}
+
 export class App {
   /**
    * @param {object} db   IndexedDB wrapper (browser) or NodeDB (Holly Computer)
@@ -79,6 +97,9 @@ export class App {
   async load() {
     const kv = await this.db.get('kv', 'settings');
     if (kv?.value) this.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), kv.value);
+    // Usage counts are kept apart from the rest of the settings (saveUsageSoon).
+    const usage = await this.db.get('kv', 'usage');
+    if (usage?.value) this.settings.usage = usage.value;
     for (const a of await this.db.all('agents')) this.agents.set(a.id, a);
     for (const t of await this.db.all('threads')) this.threads.set(t.id, t);
     for (const t of await this.db.all('tasks')) this.tasks.set(t.id, t);
@@ -101,14 +122,20 @@ export class App {
 
   /**
    * Run due routines every 30s (and right away). `lock` lets a browser make sure
-   * only one tab runs them; Holly Computer runs them 24/7.
+   * only one tab runs them; Holly Computer runs them 24/7. Storage shared by
+   * several devices (an account's) is asked first whether this device is up to
+   * date, then for each run, so only one device does it.
    */
   startScheduler({ lock } = {}) {
     if (this.schedulerTimer) return;
     const tick = async () => {
       const run = async () => {
         const due = await this.routines.due();
-        for (const r of due) this.runtime.runRoutine(r).catch((err) => console.warn('routine failed', err));
+        if (!due.length || (this.db.fresh && !(await this.db.fresh()))) return;
+        for (const r of due) {
+          if (this.db.claim && !(await this.db.claim(`routine:${r.id}`, r.nextRunAt))) continue;
+          this.runtime.runRoutine(r).catch((err) => console.warn('routine failed', err));
+        }
       };
       try {
         if (lock) await lock(run);
@@ -129,24 +156,12 @@ export class App {
   }
 
   async repairInterruptedMessages() {
+    // Account storage (src/account/cloud-db.js) would load every chat for
+    // this; there each chat is checked as it opens instead (loadMessages).
+    if (this.db.cloud) return;
     for (const t of this.threads.values()) {
       const msgs = await this.db.query('messages', 'byThread', range.prefix([t.id]), { direction: 'prev', limit: 4 });
-      for (const m of msgs) {
-        if (m.status === 'streaming') {
-          m.status = 'stopped';
-          m.error = null;
-          for (const s of m.steps || []) {
-            if (!s.endedAt) s.endedAt = now();
-            for (const c of s.toolCalls || []) {
-              if (!c.result && !c.pending && c.approval?.status !== 'pending') {
-                c.status = 'error';
-                c.result = { content: 'Interrupted (the app was closed).', isError: true };
-              }
-            }
-          }
-          await this.db.put('messages', m);
-        }
-      }
+      for (const m of msgs) if (markInterrupted(m)) await this.db.put('messages', m);
     }
   }
 
@@ -215,6 +230,7 @@ export class App {
   async saveSettings(patch) {
     this.settings = { ...this.settings, ...patch };
     await this.db.put('kv', { key: 'settings', value: this.settings });
+    if (patch.usage) await this.db.put('kv', { key: 'usage', value: this.settings.usage });
     if (patch.computer) this.computer.configure(this.settings.computer);
     this.emit('settings');
   }
@@ -246,10 +262,12 @@ export class App {
     this.saveUsageSoon();
   }
 
+  /** Usage is saved as its own record, so counting a call never writes the
+   * settings (keys, profile) back over a newer copy from another device. */
   saveUsageSoon() {
     clearTimeout(this.usageTimer);
     this.usageTimer = setTimeout(() => {
-      this.db.put('kv', { key: 'settings', value: this.settings }).catch(() => {});
+      this.db.put('kv', { key: 'usage', value: this.settings.usage }).catch(() => {});
       this.emit('settings');
     }, 1500);
   }
@@ -455,6 +473,9 @@ export class App {
   async loadMessages(threadId) {
     if (this.messageCache.has(threadId)) return this.messageCache.get(threadId);
     const rows = await this.db.query('messages', 'byThread', range.prefix([threadId]));
+    if (this.db.cloud && !this.runtime.isThreadBusy(threadId)) {
+      for (const m of rows.slice(-4)) if (markInterrupted(m)) await this.db.put('messages', m);
+    }
     this.messageCache.set(threadId, rows);
     return rows;
   }

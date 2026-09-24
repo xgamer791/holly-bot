@@ -5,13 +5,13 @@
 // or stalls. Requests skip the browser's HTTP cache (GitHub Pages lets it keep
 // a file for 10 minutes), so the server always gets asked.
 
-const CACHE = 'holly-v5';
+const CACHE = 'holly-v6';
 const WAIT_MS = 8000;
 // Only the app's own files are cached. Everything else — notably Holly
 // Computer's /api and /v1 calls when the app is served by it — goes straight
 // to the network.
-const APP_FILE = /(\/|\/index\.html|\/styles\.css|\/manifest\.webmanifest|\/(src|vendor|icons)\/[^?#]+)$/;
-const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './vendor/convex.js', './src/main.js', './icons/icon.svg'];
+const APP_FILE = /(\/|\/index\.html|\/(privacy|terms)\.html|\/styles\.css|\/manifest\.webmanifest|\/(src|vendor|icons)\/[^?#]+)$/;
+const SHELL = ['./', './index.html', './privacy.html', './terms.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './vendor/convex.js', './src/main.js', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' }))))

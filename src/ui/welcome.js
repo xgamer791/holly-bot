@@ -7,6 +7,9 @@ import { Icon } from './icons.js';
 // screens on a plain white page. A stacked wordmark with two identical actions
 // docked underneath, then Sign In and Create Account pages that sign in with
 // Apple or Google. Each screen is a hash route, so the phone's back gesture works.
+// Holly Bot needs an account: everything it keeps lives in the account.
+// After signing in, the same white page asks what to do with anything this
+// device kept from before accounts, and says so when the account can't load.
 
 const SCREENS = ['welcome', 'sign-in', 'create-account'];
 const PROVIDERS = { apple: 'Apple', google: 'Google' };
@@ -35,10 +38,9 @@ function GoogleLogo() {
  * Apple and Google, worded for signing in or signing up (the backend does the
  * same either way: the first sign-in creates the account). Asks the server
  * which of the two are set up, so a missing one says so here instead of
- * opening an error page. When neither can work right now (not set up yet, or
- * the server can't be reached), offers to carry on without an account.
+ * opening an error page, and offers to ask again when the server can't be reached.
  */
-function ProviderButtons({ signUp, from, notice, onSkip }) {
+function ProviderButtons({ signUp, from, notice }) {
   const [options, setOptions] = useState(null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(notice || null);
@@ -99,11 +101,22 @@ function ProviderButtons({ signUp, from, notice, onSkip }) {
     ${unavailable && html`
       <div class="auth-unavailable">
         <p>${unavailable}</p>
-        <button class="auth-skip" onClick=${onSkip}>Continue without an account</button>
-      </div>`}`;
+        <button class="auth-skip" onClick=${() => {
+          setOptions(null);
+          check();
+        }}>Try again</button>
+      </div>`}
+    <${LegalNote} />`;
 }
 
-function MoreOptions({ onClose, onSkip }) {
+/** The agreement people make by signing in, with both documents a tap away. */
+function LegalNote() {
+  return html`<p class="auth-legal">By continuing, you agree to Holly Bot's
+    <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and
+    <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
+}
+
+function MoreOptions({ onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     addEventListener('keydown', onKey);
@@ -114,14 +127,14 @@ function MoreOptions({ onClose, onSkip }) {
     <section class="hello-sheet" role="dialog" aria-modal="true" aria-label="More options">
       <div class="hello-grabber"></div>
       <h2>More options</h2>
-      <${ProviderButtons} from="sign-in" onSkip=${onSkip} />
+      <${ProviderButtons} from="sign-in" />
       <button class="hello-sheet-cancel" onClick=${onClose}>Cancel</button>
     </section>`;
 }
 
 /** Wordmark in the middle, Create Account and Sign In docked at the bottom,
- * then More options. */
-function WelcomeScreen({ go, onSkip }) {
+ * then More options. `notice` says what just happened (an account deleted). */
+function WelcomeScreen({ go, notice }) {
   const [more, setMore] = useState(false);
   return html`
     <div class="hello-canvas">
@@ -131,6 +144,7 @@ function WelcomeScreen({ go, onSkip }) {
           <span class="w-holly" aria-hidden="true">HOLLY</span>
           <span class="w-bot" aria-hidden="true">bot</span>
         </h1>
+        ${notice && html`<p class="hello-note" role="status">${notice}</p>`}
       </div>
       <div class="hello-dock">
         <div class="hello-ctas">
@@ -139,13 +153,13 @@ function WelcomeScreen({ go, onSkip }) {
         </div>
         <button class="hello-more" onClick=${() => setMore(true)}>More options</button>
       </div>
-      ${more && html`<${MoreOptions} onClose=${() => setMore(false)} onSkip=${onSkip} />`}
+      ${more && html`<${MoreOptions} onClose=${() => setMore(false)} />`}
     </div>`;
 }
 
 /** Sign In and Create Account: a back chevron and a centred title, then the
  * sign-in buttons and a link across to the other page. */
-function AuthScreen({ screen, notice, back, go, onSkip }) {
+function AuthScreen({ screen, notice, back, go }) {
   const signUp = screen === 'create-account';
   return html`
     <div class="hello-canvas auth">
@@ -158,7 +172,7 @@ function AuthScreen({ screen, notice, back, go, onSkip }) {
         <p class="auth-lead">${signUp
           ? "Holly Bot uses your Apple or Google account, so there's no new password to remember."
           : 'Welcome back. Use the Apple or Google account you signed up with.'}</p>
-        <${ProviderButtons} signUp=${signUp} from=${screen} notice=${notice} onSkip=${onSkip} />
+        <${ProviderButtons} signUp=${signUp} from=${screen} notice=${notice} />
         <button class="auth-switch" onClick=${() => go(signUp ? 'sign-in' : 'create-account', { replace: true })}>
           <span>${signUp ? 'Already have an account? ' : "Don't have an account? "}</span>
           <u>${signUp ? 'Sign In.' : 'Create Account.'}</u>
@@ -169,10 +183,9 @@ function AuthScreen({ screen, notice, back, go, onSkip }) {
 
 /**
  * The signed-out app. `start` is the screen to open on, `notice` a message for
- * it (a sign-in that didn't finish). `onSkip` carries on without an account,
- * which is only offered while sign-in can't work.
+ * it (a sign-in that didn't finish, an account just deleted).
  */
-export function WelcomeFlow({ start = 'welcome', notice = null, onSkip }) {
+export function WelcomeFlow({ start = 'welcome', notice = null }) {
   const [view, setView] = useState({ screen: start, notice });
 
   useEffect(() => {
@@ -194,7 +207,101 @@ export function WelcomeFlow({ start = 'welcome', notice = null, onSkip }) {
   return html`
     <div class="hello">
       ${view.screen === 'welcome'
-        ? html`<${WelcomeScreen} go=${go} onSkip=${onSkip} />`
-        : html`<${AuthScreen} key=${view.screen} screen=${view.screen} notice=${view.notice} back=${back} go=${go} onSkip=${onSkip} />`}
+        ? html`<${WelcomeScreen} go=${go} notice=${view.notice} />`
+        : html`<${AuthScreen} key=${view.screen} screen=${view.screen} notice=${view.notice} back=${back} go=${go} />`}
+    </div>`;
+}
+
+/** Who is signed in, for the screens below: a name, an email, or neither. */
+function signedInAs() {
+  const user = account.user;
+  return user?.email || user?.name || '';
+}
+
+function count(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * Right after signing in on a device that kept bots and chats from before
+ * Holly Bot had accounts (`found`: { bots, chats, computer }). They go into
+ * the account that just signed in or are deleted; either way they leave the
+ * device, so they're never offered to another account. Deleting asks twice.
+ * Signing out first lets someone pick a different account for them.
+ */
+export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
+  const [busy, setBusy] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState(null);
+  const parts = [
+    found.bots && count(found.bots, 'bot', 'bots'),
+    found.chats && count(found.chats, 'chat', 'chats'),
+    !found.bots && !found.chats && found.settings && 'your settings and keys',
+    found.computer && 'a link to your Holly Computer',
+  ].filter(Boolean);
+  const what = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0] || 'settings';
+  const run = (name, fn) => async () => {
+    setBusy(name);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      console.error(err);
+      setError(String(err?.message || err));
+      setBusy(null);
+    }
+  };
+  const remove = () => {
+    if (!confirming) return setConfirming(true);
+    return run('delete', onDelete)();
+  };
+  const who = signedInAs();
+  return html`
+    <div class="hello">
+      <div class="hello-canvas">
+        <div class="hello-hero device">
+          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} />
+          <h1 class="device-title">Found on this device</h1>
+          <p class="device-text">This device has ${what} from before Holly Bot had accounts.
+            Add them to your account${who ? html` (<b>${who}</b>)` : ''} to keep them, or delete them. Either way they're removed from this device.</p>
+          ${error && html`<p class="auth-error" role="alert">${error}</p>`}
+        </div>
+        <div class="hello-dock">
+          <div class="hello-ctas">
+            <button class="hello-cta" disabled=${!!busy} onClick=${run('add', onAdd)}>
+              ${busy === 'add' ? html`<span class="spinner"></span>` : 'Add to My Account'}
+            </button>
+            <button class=${`hello-cta secondary${confirming ? ' danger' : ''}`} disabled=${!!busy} onClick=${remove}>
+              ${busy === 'delete' ? html`<span class="spinner"></span>` : confirming ? 'Tap Again to Delete Them' : 'Delete from This Device'}
+            </button>
+          </div>
+          <button class="hello-more" disabled=${!!busy} onClick=${run('sign-out', onSignOut)}>Use a Different Account</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** The account couldn't be loaded (offline, or the server had a problem). */
+export function ProblemScreen({ message, onRetry, onSignOut }) {
+  const [busy, setBusy] = useState(false);
+  return html`
+    <div class="hello">
+      <div class="hello-canvas">
+        <div class="hello-hero device">
+          <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} expression="sleepy" />
+          <h1 class="device-title">Couldn't load your account</h1>
+          <p class="device-text">${message}</p>
+        </div>
+        <div class="hello-dock">
+          <div class="hello-ctas">
+            <button class="hello-cta" disabled=${busy} onClick=${async () => {
+              setBusy(true);
+              await onRetry();
+              setBusy(false);
+            }}>${busy ? html`<span class="spinner"></span>` : 'Try Again'}</button>
+          </div>
+          ${onSignOut && html`<button class="hello-more" disabled=${busy} onClick=${onSignOut}>Sign Out</button>`}
+        </div>
+      </div>
     </div>`;
 }

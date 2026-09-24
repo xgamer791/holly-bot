@@ -24,7 +24,7 @@ function collect(dir, list = []) {
 }
 
 const files = [
-  ...['index.html', 'styles.css', 'manifest.webmanifest', 'sw.js'].map((f) => join(root, f)),
+  ...['index.html', 'privacy.html', 'terms.html', 'styles.css', 'manifest.webmanifest', 'sw.js'].map((f) => join(root, f)),
   ...collect(join(root, 'icons')),
   ...collect(join(root, 'vendor')),
   ...collect(join(root, 'src')),

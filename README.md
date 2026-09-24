@@ -6,17 +6,21 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 
 ## Your account
 
-The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. Your account lives in Holly Bot's own Convex database and holds only your name and email. Your bots, chats, memories and API keys don't go there: they stay in your browser or on your computer.
+The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. You need an account, and everything Holly Bot keeps for you lives in it, in Holly Bot's own Convex database: bots, chats, memories, files, routines, settings and API keys. The server only ever hands an account its own data. Sign in on another device and your bots are there.
 
-- Settings shows who you're signed in as. Sign Out takes you back to the welcome screen and leaves everything on the device.
-- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
-- Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md). Until sign-in is set up, the sign-in screen offers to continue without an account.
+- Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. **Delete Account** erases the account and everything in it.
+- A browser that kept bots in it before accounts (1.2.0 and older) asks the first account to sign in there whether to add them to that account or delete them. Either way they leave the browser.
+- Open on two devices at once? Each notices the other's changes and reloads when nothing would be lost. A routine runs once, on whichever device gets to it first.
+- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots. Bots on Holly Computer live on that computer, not in your account.
+- [Privacy Policy](https://xgamer791.github.io/holly-bot/privacy.html) and [Terms of Service](https://xgamer791.github.io/holly-bot/terms.html) (`privacy.html`, `terms.html`), linked from the sign-in screens and Settings.
+- Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md).
 
 ## Two ways to run your bots
 
-| | In the browser | On your computer (Holly Computer) |
+| | In the app | On your computer (Holly Computer) |
 |---|---|---|
-| Where bots run | This browser tab | Your PC, Mac or Linux box, around the clock |
+| Where bots run | The app, while it's open | Your PC, Mac or Linux box, around the clock |
+| Where they're kept | Your Holly Bot account | That computer |
 | What they can use | Web search and page reading (with a search key), a Python/JavaScript sandbox, their own drive, memory | Everything on the left, plus the shell, your files, a real Chrome browser, and the screen, mouse and keyboard |
 | Your phone | Is the app | Is the remote control: chat, approve actions, watch and tap the live screen |
 
@@ -54,9 +58,9 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Also supported: DeepSeek V4 Pro, Anthropic Claude, OpenAI, xAI Grok (with live web and X search), Google Gemini, OpenRouter, Groq, Mistral, Ollama and any OpenAI-compatible endpoint. Each bot can use a different model.
 - **Backup if it fails:** choose a second provider in Settings → API Keys. When the main one is down, rate limited or out of credit, the reply is retried once on the backup.
 - Where keys live:
-  - Browser mode: only in your browser.
+  - In the app: in your Holly Bot account, so they're on every device you sign in on.
   - Holly Computer: only on the computer. They are never sent back to your phone.
-  - Requests go straight to the provider. Holly Bot's own server (Convex) only keeps your account, never your keys or chats.
+  - Requests go straight from the app (or the computer) to the provider. Holly Bot's server stores your keys but never calls a provider with them.
 
 ## What bots can do
 
@@ -85,7 +89,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 ## Development
 
-No build step for the app: it's a static PWA (Preact + htm, vendored ES modules, IndexedDB).
+No build step for the app: it's a static PWA (Preact + htm, vendored ES modules), keeping its data in the account on Convex.
 
 ```sh
 npm install
@@ -101,8 +105,8 @@ Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
 - `src/ui`: the interface.
 - `src/remote`: the phone-side remote-control client.
-- `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend.
-- `convex`: that backend (accounts). `.github/workflows/convex.yml` deploys it.
+- `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
+- `convex`: that backend (accounts and everything in them). `.github/workflows/convex.yml` deploys it.
 - `computer/src`: Holly Computer.
   - `server.mjs`: HTTP API and long-poll events.
   - `desktop.mjs`: screen, mouse and keyboard.
@@ -113,7 +117,7 @@ GitHub Pages serves the `main` branch root.
 
 ## Convex backend
 
-Separate Convex project `holly-bot` (not Forge). It holds accounts: Sign in with Apple and Google, through Convex Auth. A push to `main` that changes `convex/` deploys it to production.
+Separate Convex project `holly-bot` (not Forge). It holds accounts (Sign in with Apple and Google, through Convex Auth) and everything in them. A push to `main` that changes `convex/` deploys it to production.
 
 - Prod: `https://impressive-ferret-800.convex.cloud`
 - Dev: `https://useful-wildebeest-212.convex.cloud`

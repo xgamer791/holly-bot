@@ -32,7 +32,7 @@ export function ConnectProblem({ conn, error, onRetry }) {
         <button class="btn" style="margin-top:6px" onClick=${() => {
           saveConnection(null);
           location.reload();
-        }}>Use bots in this browser instead</button>
+        }}>Use bots in this app instead</button>
       </div>
     </div></div></div>`;
 }

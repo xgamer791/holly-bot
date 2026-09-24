@@ -9,8 +9,8 @@ import { APP_NAME, APP_VERSION } from '../core/constants.js';
 import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
-import { RemoteApp, saveConnection } from '../remote/remote-app.js';
-import { account, signInWorksHere } from '../account/account.js';
+import { RemoteApp, savedConnection, saveConnection } from '../remote/remote-app.js';
+import { account, noticeAfterReload, signInWorksHere, takeNotice } from '../account/account.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
@@ -25,17 +25,20 @@ function useAccount() {
     if (here && account.signedIn) account.refreshUser().catch((err) => console.warn('account', err));
     return off;
   }, []);
-  return { here, signedIn: here && account.signedIn, user: account.user };
+  return { signedIn: here && account.signedIn, user: account.user };
 }
 
-/** Who is signed in, or a way back to the sign-in screens for someone who
- * carried on without an account. Where sign-in is skipped (Holly Computer's
- * Wi-Fi links, browser automation) neither shows. */
+/** Where this app keeps bots, chats and keys, for the wording around Settings. */
+function home(app) {
+  if (app.remote) return { in: 'on your computer', from: 'from your computer' };
+  if (app.db?.cloud) return { in: 'in your account', from: 'from your account' };
+  return { in: 'in this browser', from: 'from this browser' };
+}
+
+/** Who is signed in. Where there are no accounts (Holly Computer's Wi-Fi
+ * links, browser automation) it doesn't show. */
 function AccountGroup({ acct }) {
-  if (!acct.here) return null;
-  if (!acct.signedIn) {
-    return html`<${Group}><${Row} title="Sign In" sub="Use your Apple or Google account." onClick=${() => location.reload()} /><//>`;
-  }
+  if (!acct.signedIn) return null;
   const user = acct.user || {};
   const via = (user.providers || []).map((p) => SIGN_IN_WITH[p] || p).join(' and ');
   const detail = [user.name && user.email, via && `Signed in with ${via}`].filter(Boolean).join(' · ');
@@ -135,20 +138,17 @@ function MainPage({ go, onClose }) {
       <${Row} title="Send Feedback" onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')} />
     <//>
     <${Group}>
-      ${acct.signedIn ? html`<${Row} title="Sign Out" sub="Signs you out of your Holly Bot account. Bots, chats, memories and keys stay on this device." danger onClick=${async () => {
-        if (!(await ui.confirm({ title: 'Sign out?', message: "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay on this device.", confirmText: 'Sign Out', danger: true }))) return;
-        await account.signOut();
-      }} />` : html`<${Row} title="Sign Out" sub=${`Removes your API keys from this device${acct.here ? ' and goes back to the welcome screen' : ''}. Bots and memories stay.`} danger onClick=${async () => {
-        if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed from this browser. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
+      ${acct.signedIn ? html`
+        <${Row} title="Sign Out" sub=${app.remote ? 'Your bots stay on your computer.' : 'Your bots, chats, memories and keys stay in your account.'} danger onClick=${() => signOut(app, ui)} />
+        <${Row} title="Delete Account" sub="Permanently deletes your account and everything in it." danger onClick=${() => deleteAccount(app, ui)} />`
+      : html`<${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
+        if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
         const services = {};
         for (const [id, p] of Object.entries(s.services || {})) services[id] = { ...p, apiKey: '' };
         await set({ providers, services, computer: { url: s.computer?.url || '', token: '' } });
         app.computer.connected = false;
-        // On the Holly Bot site, signed out means the welcome screen (someone
-        // who carried on without an account lands back on it).
-        if (acct.here) return location.reload();
         ui.toast('Signed out — keys removed');
         onClose();
       }} />`}
@@ -158,6 +158,58 @@ function MainPage({ go, onClose }) {
       <div class="n">${APP_NAME}</div>
       <div class="v">${APP_VERSION} · bring your own key</div>
     </div>`;
+}
+
+/** Signs out of the account, leaving nothing of it on this device: unsent
+ * changes go up first (for a few seconds), and the link to a Holly Computer is
+ * forgotten here (opening its link again reconnects). */
+async function signOut(app, ui) {
+  const message = app.remote
+    ? "You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer."
+    : "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.";
+  if (!(await ui.confirm({ title: 'Sign out?', message, confirmText: 'Sign Out', danger: true }))) return;
+  ui.toast('Signing out…');
+  if (!app.remote) {
+    app.stopScheduler();
+    app.runtime.stopAll();
+  }
+  await app.db?.close?.({ forget: true });
+  saveConnection(null);
+  await account.signOut(); // src/main.js reloads into the welcome screen
+}
+
+/**
+ * Settings → Delete Account (App Store guideline 5.1.1(v)): erases the account
+ * and everything in it on Holly Bot's server (convex/account.ts), and what
+ * this device kept for it. Storage stops first, so nothing is written after.
+ */
+async function deleteAccount(app, ui) {
+  const computer = app.remote ? " Bots on your Holly Computer aren't part of your account: they stay on that computer until you delete them there." : '';
+  if (!(await ui.confirm({
+    title: 'Delete your account?',
+    message: `This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys. It can't be undone.${computer}`,
+    confirmText: 'Delete Account',
+    danger: true,
+  }))) return;
+  ui.toast('Deleting your account…');
+  const conn = savedConnection();
+  try {
+    if (!app.remote) {
+      app.stopScheduler();
+      app.runtime.stopAll();
+    }
+    await app.db?.discard?.();
+    saveConnection(null);
+    noticeAfterReload('Your account and everything in it have been deleted.');
+    await account.deleteAccount(); // src/main.js reloads into the welcome screen
+  } catch (err) {
+    console.error('delete account', err);
+    takeNotice();
+    if (conn) saveConnection(conn);
+    ui.toast("Your account couldn't be deleted. Check your connection and try again.", { error: true });
+    // This app stopped saving to the account; reload to start it again.
+    if (app.db?.cloud) setTimeout(() => location.reload(), 4000);
+  }
 }
 
 function ProfilePage() {
@@ -188,7 +240,7 @@ function UsagePage() {
       <${Row} title="Balance" value=${balance?.length ? balance.map((b) => `${b.currency === 'USD' ? '$' : b.currency === 'CNY' ? '¥' : `${b.currency} `}${b.total.toFixed(2)}`).join(' · ') : balance === null ? '—' : '…'} />
       <${Row} title="Price right now" sub="Off-peak is half price. Peak: 01–04 and 06–10 UTC on weekdays." value=${deepseekPeak() ? 'Peak' : 'Off-peak'} />
     <//>`}
-    <p class="hint" style="font-size:14px;margin:4px">Tracked ${app.remote ? 'on your computer' : 'on this device'} since ${app.settings.usage?.since ? new Date(app.settings.usage.since).toLocaleDateString() : 'first use'}. Costs are estimates from public list prices — your provider's dashboard is the source of truth.</p>
+    <p class="hint" style="font-size:14px;margin:4px">Tracked ${home(app).in} since ${app.settings.usage?.since ? new Date(app.settings.usage.since).toLocaleDateString() : 'first use'}. Costs are estimates from public list prices — your provider's dashboard is the source of truth.</p>
     <div class="group" style="padding:6px 14px">
       <table class="usage-table">
         <thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Est.</th></tr></thead>
@@ -220,7 +272,9 @@ function KeysPage({ go }) {
   return html`
     <p class="hint" style="font-size:14.5px;margin:2px 4px 6px">${app.remote
       ? html`Keys are stored on your computer (${app.computer.info?.hostname || 'Holly Computer'}) and never sent back to this device. Your bots call the providers from there.`
-      : 'Your keys are stored only in this browser and sent straight to each provider — never to any Holly server (there isn\'t one).'} DeepSeek V4.1 Flash is the default for every bot; add others to give specific bots a different brain.</p>
+      : app.db?.cloud
+        ? 'Your keys are kept in your Holly Bot account, and this app sends them straight to each provider when a bot works. Holly Bot never uses them for anything else.'
+        : 'Your keys are stored only in this browser and sent straight to each provider.'} DeepSeek V4.1 Flash is the default for every bot; add others to give specific bots a different brain.</p>
     <${Group}>
       ${PROVIDER_ORDER.map((id) => {
         const p = PROVIDERS[id];
@@ -291,7 +345,7 @@ function ProviderPage({ provider: id, back }) {
   return html`
     ${def.noKey ? html`<${Group}><${Row} title="Enabled" toggle=${!!cur.enabled} onToggle=${(v) => save({ enabled: v })} /><//>
       <p class="hint" style="font-size:14px">Ollama must allow this site: set <span class="kbd">OLLAMA_ORIGINS=*</span> before <span class="kbd">ollama serve</span>. Works when this page and Ollama are on the same computer (or via a tunnel).</p>`
-    : html`<${Field} label="API key" hint=${html`Stored only on this device. ${def.keyUrl ? html`<a href=${def.keyUrl} target="_blank" rel="noopener">Get a ${def.label} key ↗</a>` : ''}`}>
+    : html`<${Field} label="API key" hint=${html`${app.remote ? 'Stored on your computer.' : app.db?.cloud ? 'Kept in your account.' : 'Stored only on this device.'} ${def.keyUrl ? html`<a href=${def.keyUrl} target="_blank" rel="noopener">Get a ${def.label} key ↗</a>` : ''}`}>
         <div style="display:flex;gap:8px">
           <input class="input mono" type=${show ? 'text' : 'password'} autocomplete="off" autocapitalize="off" spellcheck="false" placeholder=${def.keyHint || 'API key'} value=${key}
             onInput=${(e) => setKey(e.currentTarget.value)} onBlur=${() => key.trim() !== (cur.apiKey || '') && save({ apiKey: key.trim() })} />
@@ -448,7 +502,7 @@ function ComputerPage() {
       ${info.notes?.length > 0 && html`<div class="group-note">${info.notes.join(' ')}</div>`}
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
       <button class="btn block danger" style="margin-top:10px" onClick=${async () => {
-        if (!(await ui.confirm({ title: 'Disconnect from your computer?', message: 'Your bots stay on the computer. This app will switch to bots that live in this browser.', confirmText: 'Disconnect', danger: true }))) return;
+        if (!(await ui.confirm({ title: 'Disconnect from your computer?', message: `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`, confirmText: 'Disconnect', danger: true }))) return;
         saveConnection(null);
         location.reload();
       }}>Disconnect this device</button>`;
@@ -462,7 +516,7 @@ function ComputerPage() {
       await remote.connect();
       remote.close();
       if (app.listAgents().length && !remote.agents.size
-        && await ui.confirm({ title: 'Copy your bots to the computer?', message: 'Move the bots, chats and memories from this browser to your computer so they can keep working there.', confirmText: 'Copy them', cancelText: 'Start fresh' })) {
+        && await ui.confirm({ title: 'Copy your bots to the computer?', message: `Copy the bots, chats and memories ${home(app).from} to your computer so they can keep working there.`, confirmText: 'Copy them', cancelText: 'Start fresh' })) {
         const data = await app.exportData({ includeKeys: true });
         await remote.rpc('data.import', data);
       }
@@ -621,7 +675,7 @@ function DataPage() {
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
-      if (!(await ui.confirm({ title: 'Replace everything?', message: 'Importing replaces all bots, chats, memories and settings on this device with the backup.', confirmText: 'Import', danger: true }))) return;
+      if (!(await ui.confirm({ title: 'Replace everything?', message: `Importing replaces all bots, chats, memories and settings ${home(app).in} with the backup.`, confirmText: 'Import', danger: true }))) return;
       try {
         await app.importData(JSON.parse(await file.text()));
         ui.toast('Backup restored');
@@ -638,11 +692,13 @@ function DataPage() {
       <${Row} title="Export backup" sub="All bots, chats, memories, files, routines and settings" onClick=${exportNow} />
       <${Row} title="Import backup" onClick=${importNow} />
     <//>
-    <div class="group-note">Use a backup to move Holly Bot to another device or browser. Treat exports that include keys like passwords.</div>
+    <div class="group-note">${app.db?.cloud
+      ? 'Everything is kept in your account, on every device you sign in on. A backup is a copy of your own.'
+      : 'Use a backup to move Holly Bot to another device or browser.'} Treat exports that include keys like passwords.</div>
     <${Group}>
       <${Row} title="Pause all routines" onClick=${async () => ui.toast(`Paused ${await app.routines.setAllEnabled(false)} routines`)} />
       <${Row} title="Erase all data" danger onClick=${async () => {
-        if (await ui.confirm({ title: 'Erase everything?', message: 'Deletes all bots, chats, memories, files, routines and keys from this browser.', confirmText: 'Erase', danger: true })) {
+        if (await ui.confirm({ title: 'Erase everything?', message: `Deletes all bots, chats, memories, files, routines and keys ${home(app).from}. Your account stays.`, confirmText: 'Erase', danger: true })) {
           await app.resetAll();
           ui.navigate('#/');
           ui.toast('All data erased');
@@ -667,17 +723,28 @@ function HelpPage() {
   </div>`;
 }
 
+/** privacy.html or terms.html (the same pages the sign-in screens link to),
+ * shown inside Settings. */
+function LegalPage({ file, title }) {
+  const [body, setBody] = useState(null);
+  useEffect(() => {
+    fetch(file)
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`${res.status}`))))
+      .then((text) => setBody(new DOMParser().parseFromString(text, 'text/html').querySelector('main')?.innerHTML || ''))
+      .catch(() => setBody(''));
+  }, [file]);
+  if (body === null) return html`<div style="display:flex;justify-content:center;padding:40px"><span class="spinner"></span></div>`;
+  return html`
+    ${body
+      ? html`<div class="bubble plain-bot legal-body" style="max-width:100%;line-height:1.5" dangerouslySetInnerHTML=${{ __html: body }}></div>`
+      : html`<p class="hint">The ${title} couldn't be loaded here.</p>`}
+    <p style="text-align:center"><a href=${file} target="_blank" rel="noopener">Open in the browser ↗</a></p>`;
+}
+
 function PrivacyPage() {
-  return html`<div class="bubble plain-bot" style="max-width:100%;line-height:1.5">
-    <p><b>Holly Bot has no server.</b> Everything — API keys, bots, chats, memories, files and routines — is stored in your browser's local storage (IndexedDB) on this device.</p>
-    <p>When a bot works, your browser sends the conversation directly to the AI provider you chose, using your key, under that provider's privacy terms. Optional services you configure (search APIs, MCP servers, your Bot Computer, a CORS proxy) receive only what they need to do their job.</p>
-    <p>Nothing is collected, tracked or sold by Holly Bot. Clearing site data or using Settings → Data & Backup → Erase removes everything.</p>
-  </div>`;
+  return html`<${LegalPage} file="privacy.html" title="Privacy Policy" />`;
 }
 
 function TermsPage() {
-  return html`<div class="bubble plain-bot" style="max-width:100%;line-height:1.5">
-    <p>Holly Bot is open-source software provided “as is”, without warranty of any kind. You are responsible for your API keys, the costs they incur, and the actions your bots take — especially with a Bot Computer connected. Keep Auto-review on unless you trust the bot's actions.</p>
-    <p>AI output can be wrong. Verify important information. Use of each AI provider is subject to that provider's terms.</p>
-  </div>`;
+  return html`<${LegalPage} file="terms.html" title="Terms of Service" />`;
 }

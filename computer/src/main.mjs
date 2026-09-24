@@ -86,7 +86,7 @@ function assetLoader() {
   }
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
   return (path) => {
-    if (path.includes('..') || !/^(index\.html|styles\.css|manifest\.webmanifest|sw\.js|icons\/|vendor\/|src\/)/.test(path)) return null;
+    if (path.includes('..') || !/^(index\.html|privacy\.html|terms\.html|styles\.css|manifest\.webmanifest|sw\.js|icons\/|vendor\/|src\/)/.test(path)) return null;
     const file = join(root, path);
     return existsSync(file) ? { type: typeOf(path), body: readFileSync(file) } : null;
   };

@@ -559,7 +559,17 @@ html.signed-out #boot line { stroke: #fff; }
 .hello-cta, .auth-btn { width: 100%; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 17px; line-height: 22px; font-weight: 600; transition: opacity .15s; }
 .hello-cta { background: var(--text); color: #fff; }
 .hello-cta:active, .auth-btn:active { opacity: .85; }
+.hello-cta:disabled { opacity: .5; }
+.hello-cta .spinner { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+.hello-cta.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); }
+.hello-cta.secondary .spinner { border-color: var(--border); border-top-color: var(--text); }
+.hello-cta.secondary.danger { color: var(--red); border-color: var(--red); }
 .hello-more { align-self: center; min-height: 44px; padding: 0 12px; font-size: 15px; line-height: 20px; }
+.hello-more:disabled { opacity: .5; }
+.hello-note { max-width: 320px; margin: 0; text-align: center; color: var(--muted); font-size: 15px; line-height: 21px; }
+.hello-hero.device { gap: 14px; text-align: center; }
+.device-title { margin: 6px 0 0; font-size: 24px; line-height: 30px; font-weight: 600; }
+.device-text { max-width: 400px; margin: 0; color: var(--text-2); font-size: 16px; line-height: 23px; }
 
 .hello-canvas.auth { animation: hello-push .3s cubic-bezier(.22, 1, .36, 1); }
 @keyframes hello-push { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
@@ -580,6 +590,8 @@ html.signed-out #boot line { stroke: #fff; }
 .auth-skip { min-height: 44px; font-size: 15px; font-weight: 600; text-decoration: underline; }
 .auth-switch { min-height: 44px; padding: 12px 0; text-align: center; font-size: 15px; line-height: 20px; color: var(--muted); }
 .auth-switch u { color: var(--text); font-weight: 600; }
+.auth-legal { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
+.auth-legal a { color: var(--text); text-decoration: underline; }
 
 .hello-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(17, 17, 19, .35); animation: fade .2s ease-out; }
 .hello-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;
@@ -588,3 +600,15 @@ html.signed-out #boot line { stroke: #fff; }
 .hello-grabber { align-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--border-strong); }
 .hello-sheet h2 { margin: 2px 0 4px; text-align: center; font-size: 17px; line-height: 22px; font-weight: 600; }
 .hello-sheet-cancel { align-self: center; min-height: 44px; padding: 0 16px; font-size: 15px; font-weight: 600; }
+
+/* Settings → Privacy Policy and Terms of Service: the body of privacy.html and terms.html. */
+.legal-body h1 { display: none; }
+.legal-body h2 { margin: 18px 0 4px; font-size: 16px; line-height: 22px; }
+.legal-body p { margin: 0 0 10px; }
+.legal-body .updated { color: var(--muted); font-size: 13px; }
+.legal-body a { color: inherit; text-decoration: underline; }
+
+/* Another device changed the account (src/main.js reloads when it's safe). */
+.stale-banner { position: fixed; top: calc(var(--safe-top) + 10px); left: 50%; transform: translateX(-50%); z-index: 90; max-width: calc(100vw - 32px);
+  min-height: 36px; padding: 8px 16px; border-radius: 18px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .25); font-size: 14px; line-height: 20px; font-weight: 600; animation: fade .2s ease-out; }
