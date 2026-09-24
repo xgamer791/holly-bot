@@ -165,12 +165,14 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
   const lan = args.host === '0.0.0.0' ? lanAddress() : null;
-  const phoneBase = publicUrl ? `${publicUrl}/` : lan ? `http://${lan}:${port}/` : null;
-  if (phoneBase) {
-    const phone = link(phoneBase, '', cfg.token);
+  // A public address opens the Holly Bot site (always the current build, with
+  // sign-in), connected to this computer. A Wi-Fi address is opened directly,
+  // and Apple and Google can't send a sign-in back to it, so it goes without.
+  const phone = publicUrl ? link(PAGES_URL, publicUrl, cfg.token) : lan ? link(`http://${lan}:${port}/`, '', cfg.token) : null;
+  if (phone) {
     console.log(`  On your phone, scan or open:\n    ${phone}\n`);
     console.log(qrText(phone).split('\n').map((l) => `    ${l}`).join('\n'));
-    if (publicUrl) console.log(`\n  (Or use the installed app: ${link(PAGES_URL, publicUrl, cfg.token)})`);
+    if (!publicUrl) console.log('\n  Wi-Fi links skip Holly Bot sign-in; start with --tunnel to sign in on your phone.');
   } else {
     console.log('  To control your bots from your phone, restart with --tunnel (from anywhere) or --lan (same Wi-Fi).');
   }

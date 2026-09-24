@@ -12,19 +12,20 @@ import { ConvexHttpClient } from '../../vendor/convex.js';
 // Storage keys match Convex Auth's own, so a session survives switching clients.
 
 export const CONVEX_URL = 'https://impressive-ferret-800.convex.cloud';
-const SITE = 'https://xgamer791.github.io/holly-bot/';
+export const SITE = 'https://xgamer791.github.io/holly-bot/';
 const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
 
-/** Where the app asks you to sign in: the Holly Bot site. Google and Apple can
- * only send people back there or to localhost (convex/auth.ts), so Holly
- * Computer's tunnel and LAN links, which its pairing token already protects,
- * skip it. So do its own localhost page and local development, unless the URL
- * opts in with ?signin. */
+/** Where the app asks you to sign in: the Holly Bot site and localhost
+ * (Holly Computer's own page, local development), the only places Google and
+ * Apple can send people back to (convex/auth.ts). Holly Computer's tunnel
+ * address hands over to the site instead (src/main.js). A Wi-Fi address can't
+ * finish a sign-in, so there the pairing token alone protects the app. Browser
+ * automation on localhost (the e2e scripts) skips it unless the URL has ?signin. */
 export function signInWorksHere(loc = location) {
   if (`${loc.origin}${loc.pathname}`.startsWith(SITE)) return true;
   const local = loc.protocol === 'http:' && (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1');
-  return local && /[?&]signin\b/.test(loc.search);
+  return local && (!navigator.webdriver || /[?&]signin\b/.test(loc.search));
 }
 
 function read(key) {

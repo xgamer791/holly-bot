@@ -69,7 +69,11 @@ Sessions last 30 days (Convex Auth's default). `node scripts/convex-auth-keys.mj
 
 ## Where the app asks you to sign in
 
-On the Holly Bot site. Holly Computer's links skip it: Google and Apple can only send you back to the Holly Bot site or localhost, and the tunnel and LAN links are protected by the pairing token anyway. Holly Computer's own page on the computer and local development (`npm run serve`) skip it too, unless the URL has `?signin` (for working on the sign-in screens: `http://localhost:8080/?signin`).
+On the Holly Bot site and on `http://localhost` (Holly Computer's own page on the computer, `npm run serve`): the only places Google and Apple can send you back to.
+
+- Holly Computer's QR code for a tunnel or `--public-url` address is a link to the site with the pairing in the `#connect=` fragment, so the phone signs in there and runs the current build. An older link to the tunnel address itself hands over to the site the same way (`handOverToSite` in `src/main.js`).
+- Wi-Fi (`--lan`) links can't sign in, because a sign-in can't come back to a LAN address and the site can't call plain-http addresses. The pairing token alone protects them.
+- Browser automation on localhost (the e2e scripts) skips sign-in unless the URL has `?signin`.
 
 ## Local wiring
 

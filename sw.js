@@ -1,9 +1,12 @@
-// Holly Bot service worker: offline app shell (stale-while-revalidate for this
-// site's own files) and notification clicks. API calls are never cached.
-// Copies are always checked with the server: GitHub Pages lets the browser
-// reuse a file for 10 minutes, which would otherwise keep an update away.
+// Holly Bot service worker: offline app shell and notification clicks. API
+// calls are never cached.
+// Network first, so every open runs the current build, from old links and
+// installed home-screen apps too. The saved copy is for when the network fails
+// or stalls. Requests skip the browser's HTTP cache (GitHub Pages lets it keep
+// a file for 10 minutes), so the server always gets asked.
 
-const CACHE = 'holly-v4';
+const CACHE = 'holly-v5';
+const WAIT_MS = 8000;
 // Only the app's own files are cached. Everything else — notably Holly
 // Computer's /api and /v1 calls when the app is served by it — goes straight
 // to the network.
@@ -31,17 +34,21 @@ self.addEventListener('fetch', (event) => {
   if (/\/(api|v1)\//.test(url.pathname)) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
+    // Pages are saved without their query, so a sign-in return (?code=…) isn't kept.
+    const key = req.mode === 'navigate' ? `${url.origin}${url.pathname}` : req;
     const network = fetch(req, { cache: 'no-cache' }).catch(() => fetch(req)).then((res) => {
-      if (res.ok && res.type === 'basic') cache.put(req, res.clone()).catch(() => {});
+      if (res.ok && res.type === 'basic') cache.put(key, res.clone()).catch(() => {});
       return res;
     }).catch(() => null);
-    if (cached) {
+    const fresh = await Promise.race([network, new Promise((resolve) => setTimeout(resolve, WAIT_MS, null))]);
+    if (fresh?.ok || fresh?.type === 'opaqueredirect') return fresh;
+    const saved = await cache.match(key);
+    if (saved) {
       event.waitUntil(network);
-      return cached;
+      return saved;
     }
-    const res = await network;
-    if (res) return res;
+    const late = fresh || (await network);
+    if (late) return late;
     if (req.mode === 'navigate') return (await cache.match('./index.html')) || Response.error();
     return Response.error();
   })());

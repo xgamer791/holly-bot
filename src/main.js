@@ -4,7 +4,7 @@ import { Root } from './ui/app.js';
 import { RemoteApp, savedConnection, saveConnection, takeConnectLink } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
 import { WelcomeFlow, screenFromHash } from './ui/welcome.js';
-import { account, signInWorksHere } from './account/account.js';
+import { account, signInWorksHere, SITE } from './account/account.js';
 
 // Boot. First your Holly Bot account: signed out, you get the welcome screens
 // (Sign in with Apple or Google). Then two ways to run:
@@ -16,6 +16,7 @@ const root = document.getElementById('app');
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
   if (link) saveConnection(link);
+  if (handOverToSite()) return;
   if (signInWorksHere()) {
     const unfinished = await account.finishSignIn();
     if (!account.signedIn) await welcome(unfinished?.from, unfinished?.error);
@@ -27,6 +28,25 @@ async function boot() {
   const conn = savedConnection();
   if (conn) return bootRemote(conn);
   return bootLocal();
+}
+
+/** A Holly Computer tunnel (or --public-url) address serves the build that
+ * Holly Computer was started with, and Google and Apple can't send anyone back
+ * to it. So it hands over to the Holly Bot site: always the current build,
+ * with sign-in, connected to the same computer. The pairing token rides in
+ * the #fragment, which browsers never send to GitHub. */
+function handOverToSite() {
+  if (location.protocol !== 'https:' || signInWorksHere()) return false;
+  const conn = savedConnection();
+  const target = new URL(SITE);
+  if (conn?.token) {
+    const payload = JSON.stringify({ url: conn.url || location.origin, token: conn.token, name: conn.name || '' });
+    let bytes = '';
+    for (const byte of new TextEncoder().encode(payload)) bytes += String.fromCharCode(byte);
+    target.hash = `connect=${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+  }
+  location.replace(target.href);
+  return true;
 }
 
 /** The welcome screens, on white. Signing in leaves for Google or Apple and

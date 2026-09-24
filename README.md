@@ -9,7 +9,7 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. Your account lives in Holly Bot's own Convex database and holds only your name and email. Your bots, chats, memories and API keys don't go there: they stay in your browser or on your computer.
 
 - Settings shows who you're signed in as. Sign Out takes you back to the welcome screen and leaves everything on the device.
-- Holly Computer's links (tunnel, Wi-Fi and its own page on the computer) don't ask you to sign in. Apple and Google can only send you back to the Holly Bot site, and those links are protected by their pairing token.
+- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
 - Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md). Until sign-in is set up, the sign-in screen offers to continue without an account.
 
 ## Two ways to run your bots
@@ -33,7 +33,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
    ```powershell
    iwr https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs -OutFile holly-computer.mjs; node holly-computer.mjs --tunnel
    ```
-3. Scan the QR code it prints with your phone. That's it.
+3. Scan the QR code it prints with your phone and sign in. That's it. The code opens the Holly Bot site connected to your computer, so your phone always runs the current app. (Before this version, Holly Computer's links opened the copy of the app built into it. If you're still running an older Holly Computer, run the command above again.)
 
 - `--tunnel` gives you a private https address that works from anywhere, through Cloudflare's free quick tunnels. The first run downloads `cloudflared` from Cloudflare's GitHub releases. The address changes each time Holly Computer restarts; scan the new QR code when it does.
 - `--lan` lets phones on the same Wi-Fi connect instead.

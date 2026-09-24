@@ -29,8 +29,8 @@ function useAccount() {
 }
 
 /** Who is signed in, or a way back to the sign-in screens for someone who
- * carried on without an account. Pages that skip sign-in (Holly Computer's
- * links, local development) show neither. */
+ * carried on without an account. Where sign-in is skipped (Holly Computer's
+ * Wi-Fi links, browser automation) neither shows. */
 function AccountGroup({ acct }) {
   if (!acct.here) return null;
   if (!acct.signedIn) {

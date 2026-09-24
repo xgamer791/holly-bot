@@ -24,11 +24,14 @@
     <svg viewBox="0 0 100 100" width="84" height="84" aria-label="Loading Holly Bot"><path d="M27 82C14 82 5 74 5 63C5 53 12 46 22 45C22 32 33 22 46 23C53 15 67 14 75 23C85 25 92 33 91 43C97 47 99 54 97 62C95 74 86 82 74 82C68 88 58 89 50 84C43 88 33 88 27 82Z" fill="#fff"/><line x1="36.5" y1="67" x2="31" y2="50.8" stroke="#121212" stroke-width="7.2" stroke-linecap="round"/><line x1="54.5" y1="62" x2="49" y2="45.8" stroke="#121212" stroke-width="7.2" stroke-linecap="round"/></svg>
   </div>
   <script>
-    // Signed out on the Holly Bot site (src/account/account.js): start on the
-    // welcome screen's white rather than flashing the dark splash first. Only
-    // Holly Bot's own session counts: Macronaut shares this origin's storage.
+    // Signed out where the app asks you to sign in (src/account/account.js):
+    // start on the welcome screen's white rather than flashing the dark splash
+    // first. Only Holly Bot's own session counts: Macronaut shares the site's
+    // storage.
     try {
-      if (location.origin === 'https://xgamer791.github.io' && !/[?&]code=/.test(location.search)
+      const signInHere = location.origin === 'https://xgamer791.github.io'
+        || (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(location.origin) && !navigator.webdriver);
+      if (signInHere && !/[?&]code=/.test(location.search)
         && !localStorage.getItem('__convexAuthJWT_httpsimpressiveferret800convexcloud')) {
         document.documentElement.classList.add('signed-out');
         document.querySelector('meta[name="theme-color"]').content = '#ffffff';
