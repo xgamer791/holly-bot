@@ -7,6 +7,7 @@ import { routineTools } from './routine-tools.js';
 import { computerTools } from './computer-tools.js';
 import { imageTools } from './image-tools.js';
 import { skillTools } from './skill-tools.js';
+import { connectorTools } from './connector-tools.js';
 import { mcpResultToTool, mcpToolName } from '../mcp.js';
 import { truncate } from '../util.js';
 
@@ -20,6 +21,7 @@ export const BUILTIN_TOOLS = [
   ...routineTools,
   ...imageTools,
   ...computerTools,
+  ...connectorTools,
   ...skillTools,
 ];
 
@@ -109,6 +111,13 @@ export function coerceArgs(schema, args) {
     else if (def.type === 'number' && v.trim() && !Number.isNaN(Number(v))) out[key] = Number(v);
     else if (def.type === 'boolean' && (v === 'true' || v === 'false')) out[key] = v === 'true';
     else if (def.type === 'array' && v.trim().startsWith('[')) {
+      try {
+        out[key] = JSON.parse(v);
+      } catch { /* leave */ }
+    } else if (def.type === 'array' && def.items?.type === 'string') {
+      // "a@x.com, b@y.com" for ["a@x.com", "b@y.com"]
+      out[key] = v.split(',').map((item) => item.trim()).filter(Boolean);
+    } else if (def.type === 'object' && v.trim().startsWith('{')) {
       try {
         out[key] = JSON.parse(v);
       } catch { /* leave */ }

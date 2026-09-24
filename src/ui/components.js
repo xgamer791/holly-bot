@@ -103,6 +103,7 @@ export function Dialog({ title, message, confirmText = 'OK', cancelText = 'Cance
         <h3>${title}</h3>
         ${message && html`<p>${message}</p>`}
         ${input && html`<input ref=${ref} class="input" style="margin-bottom:16px" value=${value} placeholder=${input.placeholder || ''}
+          type=${input.type || 'text'} autocomplete="off" autocapitalize="off" spellcheck=${false}
           onInput=${(e) => setValue(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && onResult(value)} />`}
         <div class="btn-row">
           ${cancelText && html`<button class="btn" onClick=${() => onResult(null)}>${cancelText}</button>`}

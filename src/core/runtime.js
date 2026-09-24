@@ -1,5 +1,6 @@
 import { uid, now, truncate, estimateTokens, errorMessage, isAbort, normalizeName } from './util.js';
 import { toolsForAgent, validateArgs, coerceArgs } from './tools/index.js';
+import { CONNECTOR_READS } from './tools/connector-tools.js';
 import { buildSystemPrompt, buildMessageContext } from './prompts.js';
 import { extractAndApply, summarizeHistory, synthesizeProfile, reflect } from './memory/extract.js';
 import { MAX_TOOL_STEPS } from './constants.js';
@@ -11,7 +12,7 @@ import { extractJson } from './util.js';
 // runs background memory work. Everything is persisted as it happens, so a
 // paused turn can resume after a reload.
 
-const PARALLEL_SAFE = new Set(['recall', 'search_history', 'web_search', 'fetch_url', 'message_agent', 'list_files', 'read_file', 'list_agents']);
+const PARALLEL_SAFE = new Set(['recall', 'search_history', 'web_search', 'fetch_url', 'message_agent', 'list_files', 'read_file', 'list_agents', ...CONNECTOR_READS]);
 const GROUP_MAX_HOPS = 8;
 
 export class Runtime {
@@ -264,6 +265,8 @@ export class Runtime {
     try {
       cfg = app.providers.resolve(agent);
       const serverTools = app.providers.serverToolsFor(cfg, agent);
+      // Gmail, Outlook or GitHub connected (or disconnected) on another device since.
+      await app.refreshConnections({ maxAge: 60_000 });
       tools = toolsForAgent(app, agent, { nativeSearch: serverTools.includes('web_search') });
       if (!msg.turn) {
         if (!resumeFrom) await this.attachContext(agent, thread, msg, controller.signal);
@@ -516,10 +519,11 @@ export class Runtime {
       call.label = safeLabel(tool, args);
       const risk = typeof tool.risk === 'function' ? tool.risk(args) : tool.risk || 'low';
       const turnApproved = tool.approvalScope === 'turn' && (msg.turn?.approved || []).includes(tool.name);
-      const needsReview = risk === 'high' && app.settings.autoReview !== false && !agent.alwaysAllow?.[tool.name] && !turnApproved;
+      // `alwaysAsk`: can't be undone (deleting a repository), so it asks whatever Auto-review and Always allow say.
+      const needsReview = tool.alwaysAsk || (risk === 'high' && app.settings.autoReview !== false && !agent.alwaysAllow?.[tool.name] && !turnApproved);
       if (needsReview && call.approval?.status !== 'approved') {
         call.status = 'waiting';
-        call.approval = { status: 'pending', summary: tool.approval ? tool.approval(args) : call.label, requestedAt: now() };
+        call.approval = { status: 'pending', summary: tool.approval ? tool.approval(args, { app, agent }) : call.label, requestedAt: now() };
         return 'paused';
       }
       call.status = 'running';

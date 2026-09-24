@@ -10,7 +10,7 @@ import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import { RemoteApp, savedConnection, saveConnection } from '../remote/remote-app.js';
-import { account, noticeAfterReload, signInWorksHere, takeNotice } from '../account/account.js';
+import { account, noticeAfterReload, signInWorksHere, takeNotice, SITE } from '../account/account.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
@@ -98,11 +98,11 @@ function MainPage({ go, onClose }) {
     <//>
     <${Group}>
       <${Row} title="API Keys" sub=${ready.length ? `Bring your own key · ${ready.map((id) => PROVIDERS[id].label.split(' ')[0]).join(', ')}` : 'Bring your own key — add one to start'} onClick=${() => go('keys')} />
-      <${Row} title="Plugins" sub="Tools and skills for Holly Bot" onClick=${() => go('plugins')} />
+      <${Row} title="Plugins" sub="Gmail, Outlook, GitHub, tools and skills" onClick=${() => go('plugins')} />
     <//>
     <div class="group-label">Bot</div>
     <${Group}>
-      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions." toggle=${s.autoReview !== false} onToggle=${(v) => set({ autoReview: v })} />
+      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending email and publishing repositories." toggle=${s.autoReview !== false} onToggle=${(v) => set({ autoReview: v })} />
       <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
         onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
       <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />
@@ -398,6 +398,8 @@ function PluginsPage() {
   const services = s.services || {};
   const setService = (id, apiKey) => app.saveSettings({ services: { ...services, [id]: { ...(services[id] || {}), apiKey } } });
   return html`
+    <${ConnectedAccounts} />
+
     <div class="group-label">MCP servers</div>
     <div class="group">
       ${servers.map((srv) => {
@@ -476,6 +478,103 @@ function SkillEditor({ skill, onSave, onCancel, onDelete }) {
       <button class="btn small primary" disabled=${!name.trim() || !instructions.trim()} onClick=${() => onSave({ ...skill, name: name.trim(), description: description.trim(), instructions })}>Save</button>
     </div>
   </div>`;
+}
+
+const CONNECTORS = [
+  { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: 'Bots read, search and send your email' },
+  { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: 'Bots read, search and send your email' },
+  { id: 'github', label: 'GitHub', icon: Icon.code, does: 'Bots create, edit and delete your repositories' },
+];
+
+/** The server's words from a failed call (a ConvexError's data), or `fallback`. */
+function serverSays(err, fallback) {
+  return typeof err?.data === 'string' ? err.data : fallback;
+}
+
+/**
+ * Gmail, Outlook and GitHub, connected to the account for its bots
+ * (convex/connectors.ts). Connecting leaves for the service's consent screen,
+ * which sends the person back to the app (src/main.js finishes it there).
+ * GitHub also takes a token the person made.
+ */
+function ConnectedAccounts() {
+  const app = useApp();
+  const ui = useUi();
+  const signedIn = account.signedIn && signInWorksHere();
+  const { data: ready, error: readyError, reload: reloadReady } = useAsync(() => (signedIn ? account.authed('query', 'connectors:available') : Promise.resolve(null)), [signedIn]);
+  const { data: list, error: listError, reload } = useAsync(() => (signedIn ? account.authed('query', 'connectors:list') : Promise.resolve([])), [signedIn]);
+  const [busy, setBusy] = useState('');
+  if (!signedIn) {
+    return html`<div class="group-label">Connected accounts</div>
+      <div class="group-note" style="margin-top:0">Connect Gmail, Outlook and GitHub for your bots in Holly Bot at ${SITE.replace(/^https:\/\//, '')}, signed in to your account.</div>`;
+  }
+  const changed = () => {
+    reload();
+    app.refreshConnections?.();
+  };
+  const connect = async (c) => {
+    setBusy(c.id);
+    try {
+      const returnTo = `${location.origin}${location.pathname}`;
+      location.assign(await account.authed('action', 'connectors:start', { service: c.id, returnTo }));
+    } catch (err) {
+      setBusy('');
+      ui.toast(serverSays(err, `Couldn't start connecting ${c.label}. Check your connection and try again.`), { error: true });
+    }
+  };
+  const useToken = async () => {
+    const token = await ui.prompt({
+      title: 'Connect GitHub with a token',
+      message: 'Make a token on GitHub (Settings → Developer settings → Personal access tokens). A fine-grained token needs Administration, Contents and Metadata set to Read and write for the repositories bots may use; a classic token needs the repo and delete_repo scopes. Paste it here.',
+      placeholder: 'github_pat_…',
+      confirmText: 'Connect',
+      type: 'password',
+    });
+    if (!token?.trim()) return;
+    setBusy('github');
+    try {
+      const done = await account.authed('action', 'connectors:connectToken', { token: token.trim() });
+      ui.toast(`GitHub connected: ${done.account}`);
+      changed();
+    } catch (err) {
+      ui.toast(serverSays(err, "Couldn't connect GitHub. Try again."), { error: true });
+    } finally {
+      setBusy('');
+    }
+  };
+  const disconnect = async (c, conn) => {
+    if (!(await ui.confirm({ title: `Disconnect ${c.label}?`, message: `Your bots stop using ${conn.account}${c.id === 'github' && conn.via === 'token' ? '. To cancel the token itself, delete it on GitHub' : ', and Holly Bot gives up its access'}.`, confirmText: 'Disconnect', danger: true }))) return;
+    setBusy(c.id);
+    try {
+      await account.authed('action', 'connectors:disconnect', { service: c.id });
+      changed();
+    } catch (err) {
+      ui.toast(serverSays(err, `Couldn't disconnect ${c.label}. Try again.`), { error: true });
+    } finally {
+      setBusy('');
+    }
+  };
+  return html`
+    <div class="group-label">Connected accounts</div>
+    <${Group}>
+      ${CONNECTORS.map((c) => {
+        const conn = (list || []).find((x) => x.service === c.id);
+        const oauth = !!ready?.[c.id];
+        const can = oauth || (c.id === 'github' && !!ready?.githubToken);
+        const icon = html`<${c.icon} size="20" />`;
+        if (busy === c.id) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="…" />`;
+        if (conn) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${`${conn.account} · ${c.does.replace(/^Bots /, 'bots ')}`} value="Disconnect" onClick=${() => disconnect(c, conn)} />`;
+        if ((!ready && readyError) || (!list && listError)) {
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub="Couldn't reach Holly Bot's server" value="Retry" onClick=${() => { reloadReady(); reload(); }} />`;
+        }
+        if (!ready || !list) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="…" />`;
+        if (!can) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub="Not set up on Holly Bot's server yet" />`;
+        return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="Connect" onClick=${() => (oauth ? connect(c) : useToken())} />`;
+      })}
+      ${ready?.github && ready?.githubToken && !(list || []).some((x) => x.service === 'github') && busy !== 'github'
+        && html`<${Row} title="Connect GitHub with a token instead" sub="A personal access token you made on GitHub" onClick=${useToken} />`}
+    <//>
+    <div class="group-note">Bots use them when you ask. With Auto-review on, they ask you before sending an email or making a repository public, and deleting a repository always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.</div>`;
 }
 
 /** Computers linked to the account (convex/devices.ts), each with Unlink. */
@@ -763,6 +862,8 @@ function HelpPage() {
     <p>Tap a bot's name → Memories to see, edit, pin or delete what it knows. Core memory is always in view; long-term memories are recalled when relevant; older chat is summarized automatically.</p>
     <h3>Tools</h3>
     <p>Web search, a Python/JavaScript sandbox, files, image generation, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
+    <h3>Email and GitHub</h3>
+    <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out; deleting a repository always asks.</p>
     <h3>Install as an app</h3>
     <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>

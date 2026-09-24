@@ -27,6 +27,7 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 - `convex/health.ts`: `health:ping`, and `health:upsertMeta` (internal: dashboard or `npx convex run` only).
 - `convex/uploads.ts` and `convex/crons.ts`: the daily sweep of unclaimed uploads.
 - `convex/devices.ts`: linking Holly Computer to an account (below).
+- `convex/connectors.ts`: Gmail, Outlook and GitHub connected to an account for its bots (below), with `convex/lib/oauth.ts`, `mail.ts`, `github.ts` and `seal.ts`.
 
 The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
@@ -50,6 +51,17 @@ A linked Holly Computer keeps its bots in the account with the same storage the 
 - **Moving in.** Linking copies everything in the computer's folder into the account (the account's own settings win; API keys and plugins only the computer had are added), waits until the server has all of it, and only then runs from the account. The old folder is set aside as `<data>/data-before-account-<time>`.
 - **Unlinking.** Settings → Bot Computer: from the computer itself (it ends its session and forgets the account's files) or from any signed-in device (`devices:unlink` ends the computer's session; the computer notices within a minute). Deleting the account ends it too. The bots stay in the account either way.
 - **Routines.** While a computer is linked, it runs the routines and the app doesn't.
+
+## Gmail, Outlook and GitHub
+
+People connect them in Settings → Plugins, and bots use them through tools (`src/core/tools/connector-tools.js`) that call `connectors:run`. The tokens never leave the server.
+
+- **Connecting.** `connectors:start` saves a one-time state and PKCE verifier (ten minutes) and returns the service's consent screen. The service sends the person back to `https://impressive-ferret-800.convex.site/connectors/<service>/callback`, which trades the code for tokens at once and holds them as a claim (ten minutes) for the account that started it. It then sends the browser back to the app with `?connect=<claim>`, and the app claims it (`connectors:claim`, `src/main.js`) as the signed-in account. A consent screen someone else sent you to can't put your mailbox in their account: their claim goes to your browser, and your account can't claim theirs. A refused, stale or unfinished claim is thrown away with its tokens, and an hourly sweep clears the rest (`convex/crons.ts`).
+- **GitHub without an app.** `connectors:connectToken` takes a personal access token, checks it with GitHub, and keeps it the same way. It works as soon as `CONNECTORS_KEY` exists.
+- **At rest.** Tokens are sealed with AES-256-GCM under `CONNECTORS_KEY` and bound to the account and service (`convex/lib/seal.ts`), so a sealed value copied to another row won't open. Only actions open them. Nothing a browser can call returns them: `connectors:list` gives the service, the account's address or username, and when it was connected.
+- **Using them.** `connectors:run` runs one operation for the signed-in account (Gmail and Outlook: search, read, send; GitHub: repositories, files, and any REST call). It renews Google and Microsoft tokens a minute before they run out, and once more if the service turns one down. A connection that can't be renewed asks the person to connect again.
+- **Disconnecting** (`connectors:disconnect`) deletes the row and asks Google to revoke its grant or GitHub its token. Microsoft has no endpoint for that: its refresh token just stops being used. A GitHub token the person made is theirs to delete. `account:deleteAccount` does the same for every connection.
+- **Tests.** `npm run test:convex` runs these functions on convex-test with Google, Microsoft and GitHub stood in (`tests/convex`). `npm test` covers the API code and the bot tools, and `tests/e2e/connectors.e2e.mjs` covers the screens.
 
 ## Setting up sign-in (once)
 
@@ -83,7 +95,34 @@ In the [Apple Developer portal](https://developer.apple.com/account/resources/id
 
 Then set `AUTH_APPLE_ID` (the Services ID) and `AUTH_APPLE_SECRET` as repository secrets, like Google's. The secret is not the `.p8` key: it's a JWT signed with it (the guide has a generator). Apple caps it at six months, so twice a year make a new one, update the repository secret and run Deploy Convex; Apple sign-in stops working when it lapses.
 
-### 4. Check
+### 4. Gmail, Outlook and GitHub for bots
+
+The deploy workflow creates `CONNECTORS_KEY` the first time (`scripts/convex-connectors-key.mjs --if-missing`). From then on, GitHub can be connected with a personal access token. Leave the key alone: a new one disconnects everyone. For the Connect buttons, set up each service's OAuth app, then add its two repository secrets. The workflow copies them to the deployment like the sign-in ones. A service without them shows as "Not set up on Holly Bot's server yet".
+
+**Gmail** (`CONNECT_GOOGLE_ID`, `CONNECT_GOOGLE_SECRET`), in the Google Cloud project that has Holly Bot's consent screen:
+
+1. APIs & Services → Library: enable the **Gmail API**.
+2. Google Auth Platform → Data access: add the scopes `https://www.googleapis.com/auth/gmail.readonly` and `https://www.googleapis.com/auth/gmail.send`.
+3. Credentials: open the sign-in Web client (or make a second one) and add the authorized redirect URI `https://impressive-ferret-800.convex.site/connectors/gmail/callback`.
+4. Set the two secrets to that client's ID and secret. They can be the same values as `AUTH_GOOGLE_*`. Setting them is what turns on Connect: the sign-in client alone doesn't, so the button never leads to a Google error page.
+5. While the app's publishing status is **Testing**, only the test users listed there (up to 100) can connect, and Google ends their connections after 7 days. For everyone, publish the app and pass Google's verification. `gmail.readonly` is a restricted scope, so it also needs a yearly security assessment (CASA). Allow a few weeks. The privacy policy already has the Limited Use statement Google asks for.
+
+**Outlook** (`CONNECT_MICROSOFT_ID`, `CONNECT_MICROSOFT_SECRET`), in the [Microsoft Entra admin center](https://entra.microsoft.com) → App registrations → New registration:
+
+1. Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**. Redirect URI (Web): `https://impressive-ferret-800.convex.site/connectors/outlook/callback`.
+2. API permissions → Microsoft Graph → Delegated: `offline_access`, `User.Read`, `Mail.Read`, `Mail.Send`. Personal accounts need no admin consent. A work or school tenant may need its admin to allow Holly Bot.
+3. Certificates & secrets → New client secret. Set `CONNECT_MICROSOFT_ID` to the Application (client) ID and `CONNECT_MICROSOFT_SECRET` to the secret's **Value**. Client secrets expire (24 months at most), so renew it and the repository secret before then.
+4. Branding → publisher verification removes the "unverified" label people see when they connect.
+
+**GitHub** (`CONNECT_GITHUB_ID`, `CONNECT_GITHUB_SECRET`: GitHub doesn't allow secret names that start with `GITHUB_`), under GitHub → Settings → Developer settings → OAuth Apps → New OAuth App:
+
+1. Homepage URL `https://xgamer791.github.io/holly-bot/`, Authorization callback URL `https://impressive-ferret-800.convex.site/connectors/github/callback`.
+2. Generate a client secret and set the two secrets.
+3. Organizations that restrict OAuth apps have to approve Holly Bot before bots can reach their repositories.
+
+Then run Deploy Convex from the Actions tab (or push a change under `convex/`). The buttons turn on as soon as it finishes.
+
+### 5. Check
 
 Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works.
 

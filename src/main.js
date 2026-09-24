@@ -28,6 +28,8 @@ import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/devi
 const root = document.getElementById('app');
 /** A Holly Computer link opened just before this sign-in. */
 let adopted = null;
+/** What to say once the app opens (how connecting a service went). */
+let notice = null;
 
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
@@ -42,6 +44,7 @@ async function boot() {
   account.on(() => account.userId !== me && location.reload());
   account.refreshUser().catch((err) => console.warn('account', err));
   useConnectionsOf(me);
+  notice = await finishConnecting();
   adopted = takeHeldConnection();
   if (adopted) saveConnection(adopted);
   registerServiceWorker();
@@ -270,6 +273,36 @@ async function linkedComputers() {
   }
 }
 
+const SERVICES = { gmail: 'Gmail', outlook: 'Outlook', github: 'GitHub' };
+
+/**
+ * Back from Gmail, Outlook or GitHub after Connect in Settings → Plugins: the
+ * service sent the person here with ?connect=<claim>, and the connection it
+ * approved joins this account only now, as this app claims it
+ * (convex/connectors.ts). ?connect_error says why it didn't happen. Either
+ * way the address is cleaned up, and the result is shown once the app opens.
+ */
+async function finishConnecting() {
+  const url = new URL(location.href);
+  const claim = url.searchParams.get('connect');
+  const failed = url.searchParams.get('connect_error');
+  if (!claim && !failed) return null;
+  const label = SERVICES[url.searchParams.get('service')] || 'That service';
+  for (const name of ['connect', 'connect_error', 'service']) url.searchParams.delete(name);
+  history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  const page = 'plugins';
+  if (failed === 'cancelled') return { page, text: `${label} wasn't connected.` };
+  if (failed === 'permissions') return { page, error: true, text: `${label} wasn't connected: bots need every permission it asked for. Connect again and leave them all ticked.` };
+  if (failed) return { page, error: true, text: `Connecting ${label} didn't work. Try again.` };
+  try {
+    const done = await account.authed('mutation', 'connectors:claim', { claim });
+    if (done.error) return { page, error: true, text: done.error };
+    return { page, text: `${SERVICES[done.service] || 'It'} is connected: ${done.account}` };
+  } catch (err) {
+    return { page, error: true, text: typeof err?.data === 'string' ? err.data : "Couldn't finish connecting. Try again." };
+  }
+}
+
 /** A small notice at the top of the app that does something when tapped. */
 function banner(text, onClick) {
   const button = document.createElement('button');
@@ -280,6 +313,8 @@ function banner(text, onClick) {
 }
 
 function mount(app) {
+  app.startupNotice = notice;
+  notice = null;
   render(null, root);
   document.documentElement.classList.remove('signed-out');
   render(html`<${Root} app=${app} />`, root);

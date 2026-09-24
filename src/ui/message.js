@@ -6,6 +6,7 @@ import { Markdown } from './markdown.js';
 import { copyText } from './components.js';
 import { formatBytes, truncate } from '../core/util.js';
 import { finalText } from '../core/runtime.js';
+import { BUILTIN_TOOLS } from '../core/tools/index.js';
 import { speak } from './speech.js';
 
 const LETTERS = 'ABCDEFGH';
@@ -272,6 +273,8 @@ function QuestionCard({ call, msg }) {
 function ApprovalCard({ call, msg }) {
   const app = useApp();
   const agent = app.getAgent(msg.authorId);
+  // Deleting a repository asks every time, so there's no Always allow for it.
+  const always = !BUILTIN_TOOLS.find((t) => t.name === call.name)?.alwaysAsk;
   const decide = (d) => {
     haptic(app, 'heavy');
     app.runtime.approve(msg.id, call.id, d);
@@ -283,7 +286,7 @@ function ApprovalCard({ call, msg }) {
       <div class="cmd">${call.approval.summary}</div>
       <div class="btn-row">
         <button class="btn" onClick=${() => decide('deny')}>Deny</button>
-        <button class="btn" onClick=${() => decide('always')}>Always allow</button>
+        ${always && html`<button class="btn" onClick=${() => decide('always')}>Always allow</button>`}
         <button class="btn primary" style="flex:1" onClick=${() => decide('approve')}>Approve</button>
       </div>
     </div>`;

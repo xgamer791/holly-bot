@@ -82,11 +82,14 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - Code sandbox (in the browser).
   - Files, image generation and scheduled routines.
   - MCP plugins, including local stdio servers through Holly Computer.
+  - Gmail and Outlook: bots search and read your email and send or reply as you, when you ask.
+  - GitHub: bots list, create, change and delete your repositories, read and write their files, and make any other GitHub request (issues, pull requests, branches…).
+  - Connect them in Settings → Plugins. The tokens stay encrypted on Holly Bot's server ([CONVEX.md](CONVEX.md#gmail-outlook-and-github)).
 - **Computer:**
   - Shell and files.
   - A real browser: pages come back as text with clickable element refs, and new tabs, dialogs and downloads are handled.
   - The screen, mouse and keyboard.
-- **Safety:** with Auto-review on, risky actions wait for your approval on the phone. That covers shell commands that change things, taking over the mouse and keyboard or the browser (once per task), and MCP calls.
+- **Safety:** with Auto-review on, risky actions wait for your approval on the phone. That covers shell commands that change things, taking over the mouse and keyboard or the browser (once per task), MCP calls, sending email (you see exactly what goes out), and making a repository public. Deleting a repository always asks.
 - **Voice mode, question cards and an activity drawer**, in a design that follows Grok Bot.
 
 ## Development
@@ -97,7 +100,8 @@ No build step for the app: it's a static PWA (Preact + htm, vendored ES modules)
 npm install
 npm run serve            # http://localhost:8080
 npm test                 # unit and integration tests (includes a real Chromium and an Xvfb desktop when available)
-npm run test:e2e         # browser walkthroughs: xAI, DeepSeek, and the remote-control flow against Holly Computer
+npm run test:convex      # the Convex functions on convex-test (connecting Gmail, Outlook and GitHub)
+npm run test:e2e         # browser walkthroughs: xAI, DeepSeek, connecting accounts, and the remote-control flow against Holly Computer
 npm run computer -- --no-open   # run Holly Computer from source
 npm run build:computer   # rebuild computer/holly-computer.mjs (commit the result)
 npm run check            # syntax check everything and confirm the bundle is current

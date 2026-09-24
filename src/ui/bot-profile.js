@@ -10,7 +10,7 @@ import { TOOL_GROUPS } from '../core/constants.js';
 export function BotProfileSheet({ agentId, onClose }) {
   const app = useApp();
   const ui = useUi();
-  useTopics(['agents', `memory:${agentId}`, 'routines', 'plugins', 'settings', 'computer']);
+  useTopics(['agents', `memory:${agentId}`, 'routines', 'plugins', 'settings', 'computer', 'connections']);
   const agent = app.getAgent(agentId);
   const [editLook, setEditLook] = useState(false);
   const [preview, play] = usePreview();
@@ -91,6 +91,10 @@ function toolSub(app, key, g) {
   if (key === 'computer' && !app.computer.connected) return `${g.description} (not connected)`;
   if (key === 'images' && !app.providers.imageProvider()) return `${g.description} (needs an xAI or OpenAI key)`;
   if (key === 'plugins' && !app.plugins.list().some((p) => p.status === 'ok')) return `${g.description} (none connected)`;
+  if ((key === 'email' || key === 'github') && app.connection) {
+    const accounts = (key === 'email' ? ['gmail', 'outlook'] : ['github']).map((s) => app.connection(s)?.account).filter(Boolean);
+    return accounts.length ? `${g.description} · ${accounts.join(', ')}` : `${g.description} (connect ${key === 'email' ? 'Gmail or Outlook' : 'GitHub'} in Settings → Plugins)`;
+  }
   return g.description;
 }
 

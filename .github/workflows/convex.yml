@@ -12,6 +12,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/convex-auth-keys.mjs'
+      - 'scripts/convex-connectors-key.mjs'
       - '.github/workflows/convex.yml'
   workflow_dispatch:
 
@@ -64,6 +65,11 @@ jobs:
       - name: Create the session signing keys if the deployment has none
         run: node scripts/convex-auth-keys.mjs --if-missing
 
+      # The key Gmail, Outlook and GitHub connections are sealed with. Made
+      # once; a new one would disconnect everyone.
+      - name: Create the connections key if the deployment has none
+        run: node scripts/convex-connectors-key.mjs --if-missing
+
       # Optional: the Google and Apple credentials can live here as repository
       # secrets, or be set in the Convex dashboard. A secret that isn't set here
       # leaves the deployment's own value alone.
@@ -75,6 +81,27 @@ jobs:
           AUTH_APPLE_SECRET: ${{ secrets.AUTH_APPLE_SECRET }}
         run: |
           for name in AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET AUTH_APPLE_ID AUTH_APPLE_SECRET; do
+            if [ -n "${!name}" ]; then
+              printf '%s' "${!name}" | npx convex env set "$name"
+            else
+              echo "$name is not a repository secret; keeping the deployment's value."
+            fi
+          done
+
+      # Optional: the OAuth apps behind Connect in Settings → Plugins
+      # (CONVEX.md). Without them, Gmail and Outlook show as not set up, and
+      # GitHub can still be connected with a token. GitHub doesn't allow
+      # secret names starting with GITHUB_, hence CONNECT_GITHUB_*.
+      - name: Copy connector apps to the deployment
+        env:
+          CONNECT_GOOGLE_ID: ${{ secrets.CONNECT_GOOGLE_ID }}
+          CONNECT_GOOGLE_SECRET: ${{ secrets.CONNECT_GOOGLE_SECRET }}
+          CONNECT_MICROSOFT_ID: ${{ secrets.CONNECT_MICROSOFT_ID }}
+          CONNECT_MICROSOFT_SECRET: ${{ secrets.CONNECT_MICROSOFT_SECRET }}
+          CONNECT_GITHUB_ID: ${{ secrets.CONNECT_GITHUB_ID }}
+          CONNECT_GITHUB_SECRET: ${{ secrets.CONNECT_GITHUB_SECRET }}
+        run: |
+          for name in CONNECT_GOOGLE_ID CONNECT_GOOGLE_SECRET CONNECT_MICROSOFT_ID CONNECT_MICROSOFT_SECRET CONNECT_GITHUB_ID CONNECT_GITHUB_SECRET; do
             if [ -n "${!name}" ]; then
               printf '%s' "${!name}" | npx convex env set "$name"
             else

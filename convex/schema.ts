@@ -75,6 +75,53 @@ export default defineSchema({
     linkedAt: v.number(),
   }).index("by_user", ["userId"]),
 
+  /**
+   * Services connected to an account for its bots: Gmail, Outlook, GitHub
+   * (convex/connectors.ts). The tokens are sealed with CONNECTORS_KEY
+   * (convex/lib/seal.ts) and only opened inside actions; nothing a browser
+   * can call returns them. `via` is "oauth", or "token" for a GitHub token.
+   */
+  connections: defineTable({
+    userId: v.id("users"),
+    service: v.string(),
+    account: v.string(),
+    scopes: v.array(v.string()),
+    via: v.string(),
+    sealed: v.string(),
+    connectedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user_service", ["userId", "service"]),
+
+  /** A connection under way: the state sent to the service, its PKCE
+   * verifier and where to come back to. Ten minutes, used once. */
+  connectorStates: defineTable({
+    userId: v.id("users"),
+    service: v.string(),
+    state: v.string(),
+    verifier: v.string(),
+    returnTo: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_state", ["state"])
+    .index("by_user", ["userId"])
+    .index("by_expiry", ["expiresAt"]),
+
+  /** A connection the service approved, waiting for the app it was started
+   * from to claim it (connectors:claim): it only joins the account that
+   * started it, when that account's app asks. Ten minutes, used once. */
+  connectorClaims: defineTable({
+    userId: v.id("users"),
+    service: v.string(),
+    account: v.string(),
+    scopes: v.array(v.string()),
+    sealed: v.string(),
+    claim: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_claim", ["claim"])
+    .index("by_user", ["userId"])
+    .index("by_expiry", ["expiresAt"]),
+
   meta: defineTable({
     key: v.string(),
     value: v.string(),

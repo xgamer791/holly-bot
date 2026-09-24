@@ -1,5 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { requireUserId } from "./lib/auth";
 import { BATCH_ROWS, deleteRow, takeBatch } from "./lib/records";
@@ -55,8 +56,8 @@ export const signInOptions = query({
 
 /**
  * Settings → Delete Account. Erases every record and upload the account owns,
- * its change count and routine claims, then its sessions, sign-in methods and
- * the user itself, so the next sign-in
+ * its change count and routine claims, its linked computers and connected
+ * services, then its sessions, sign-in methods and the user itself, so the next sign-in
  * with the same Apple or Google account starts from nothing. Convex bounds the
  * work one mutation may do, so this goes in batches and the app repeats it
  * until `done`.
@@ -93,6 +94,23 @@ export const deleteAccount = mutation({
     }
     for (const link of await ctx.db.query("deviceLinks").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       await ctx.db.delete(link._id);
+    }
+    // Connected services: the rows go now, and Google and GitHub are asked to
+    // take the access back once they're gone (convex/connectors.ts).
+    for (const conn of await ctx.db.query("connections").withIndex("by_user_service", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(conn._id);
+      await ctx.scheduler.runAfter(0, internal.connectors.revokeLater, {
+        service: conn.service,
+        sealed: conn.sealed,
+        bound: `${userId}:${conn.service}`,
+        via: conn.via,
+      });
+    }
+    for (const pending of await ctx.db.query("connectorClaims").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(pending._id);
+    }
+    for (const state of await ctx.db.query("connectorStates").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(state._id);
     }
 
     const sessions = await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", userId)).collect();

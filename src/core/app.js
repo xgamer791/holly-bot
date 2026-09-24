@@ -39,6 +39,17 @@ export const DEFAULT_SETTINGS = {
   onboarded: false,
 };
 
+/** `promise`, or an AbortError as soon as `signal` fires. The work itself
+ * carries on (a server call can't be taken back); the caller just stops waiting. */
+function untilAborted(promise, signal) {
+  return new Promise((resolve, reject) => {
+    const stop = () => reject(new DOMException('Stopped', 'AbortError'));
+    if (signal.aborted) return stop();
+    signal.addEventListener('abort', stop, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
+}
+
 /** A reply still marked as streaming when nothing is writing it was cut off
  * when the app closed: marks it stopped. True when `m` changed. */
 function markInterrupted(m) {
@@ -117,6 +128,7 @@ export class App {
   async start() {
     if (this.computer.configured) this.computer.connect().then(() => this.emit('computer')).catch(() => this.emit('computer'));
     this.plugins.refresh().catch((err) => console.warn('plugins', err));
+    this.refreshConnections();
     await this.repairInterruptedMessages();
   }
 
@@ -609,6 +621,54 @@ export class App {
   /** Look up a tool by name even if it is not in the current list (e.g. resumed after settings changed). */
   findToolAnywhere(name, agent) {
     return BUILTIN_TOOLS.find((t) => t.name === name) || this.plugins.toolsFor(agent).find((t) => t.name === name) || null;
+  }
+
+  // ----- connected services (Gmail, Outlook, GitHub) -----------------------------
+
+  /** The account's connection to a service ({service, account, via}), or null.
+   * Only storage that is the account's (CloudDB) has any (convex/connectors.ts). */
+  connection(service) {
+    return this.connections?.find((c) => c.service === service) || null;
+  }
+
+  /** Loads the account's connections, when the ones held are older than
+   * `maxAge`. Never throws, and waits at most a few seconds: a turn goes ahead
+   * with what's known. */
+  refreshConnections({ maxAge = 0 } = {}) {
+    if (!this.db?.cloud || typeof this.db.call !== 'function') return Promise.resolve([]);
+    if (maxAge && this.connectionsAt && Date.now() - this.connectionsAt < maxAge) return Promise.resolve(this.connections);
+    if (!this.connectionsLoading) {
+      this.connectionsLoading = this.db.call('query', 'connectors:list')
+        .then((list) => {
+          const changed = JSON.stringify(list) !== JSON.stringify(this.connections || []);
+          this.connections = list;
+          this.connectionsAt = Date.now();
+          if (changed) this.emit('connections');
+        })
+        .catch((err) => console.warn('connections', err?.message || err))
+        .finally(() => { this.connectionsLoading = null; });
+    }
+    let timer;
+    const waited = new Promise((resolve) => { timer = setTimeout(resolve, 4000); });
+    return Promise.race([this.connectionsLoading, waited]).then(() => {
+      clearTimeout(timer);
+      return this.connections || [];
+    });
+  }
+
+  /** Asks the server to do `op` on a connected service for a bot (convex/connectors.ts `run`). */
+  async connector(service, op, args = {}, { signal } = {}) {
+    if (!this.db?.cloud || typeof this.db.call !== 'function') throw new Error('Connected accounts need you signed in to your Holly Bot account.');
+    const call = this.db.call('action', 'connectors:run', { service, op, args });
+    try {
+      return await (signal ? untilAborted(call, signal) : call);
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+      // A ConvexError carries the server's own words in `data`.
+      const text = typeof err?.data === 'string' ? err.data : '';
+      if (/isn't connected|needs connecting again/.test(text)) this.refreshConnections();
+      throw text ? new Error(text) : err;
+    }
   }
 
   // ----- notifications ------------------------------------------------------

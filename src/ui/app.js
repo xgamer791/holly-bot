@@ -85,7 +85,7 @@ export function Root({ app }) {
       return new Promise((resolve) => setDialog({ ...opts, onResult: (v) => { setDialog(null); resolve(!!v); } }));
     },
     prompt(opts) {
-      return new Promise((resolve) => setDialog({ ...opts, input: { value: opts.value || '', placeholder: opts.placeholder }, onResult: (v) => { setDialog(null); resolve(v); } }));
+      return new Promise((resolve) => setDialog({ ...opts, input: { value: opts.value || '', placeholder: opts.placeholder, type: opts.type }, onResult: (v) => { setDialog(null); resolve(v); } }));
     },
     async openFile(fileId) {
       const f = await app.files.getById(fileId);
@@ -119,6 +119,16 @@ export function Root({ app }) {
       } catch { /* unsupported */ }
     });
   }), []);
+
+  // Something to say once the app is open, such as how connecting Gmail,
+  // Outlook or GitHub went (src/main.js), and where to look.
+  useEffect(() => {
+    const notice = app.startupNotice;
+    if (!notice) return;
+    app.startupNotice = null;
+    if (notice.page) ui.openSheet('settings', { page: notice.page });
+    ui.toast(notice.text, { error: !!notice.error });
+  }, []);
 
   // Service worker notification clicks → open the chat.
   useEffect(() => {
