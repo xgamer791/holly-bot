@@ -196,7 +196,14 @@ svg { display: block; }
 .search-bar { margin: 4px 16px 8px; display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 12px; height: 42px; }
 .search-bar input { flex: 1; background: none; border: 0; outline: none; font-size: 17px; }
 .search-bar svg { width: 18px; height: 18px; color: var(--muted); }
-.row-bot { display: flex; align-items: center; gap: 14px; padding: 14px 20px; width: 100%; text-align: left; position: relative; }
+.row-bot { display: flex; align-items: center; gap: 14px; padding: 14px 20px; width: 100%; text-align: left; position: relative;
+  background: var(--bg); touch-action: pan-y; transition: transform .25s cubic-bezier(.3, .9, .4, 1); }
+.row-bot.dragging { transition: none; }
+/* Swipe a row left to show Delete behind it (src/ui/home.js). */
+.swipe-row { position: relative; overflow: hidden; }
+.swipe-delete { position: absolute; top: 0; right: 0; bottom: 0; width: 88px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: var(--red-strong); color: #fff; font-size: 13px; font-weight: 600; visibility: hidden; }
+.swipe-row.shifted .swipe-delete { visibility: visible; }
 .row-bot:active, .row-bot.active { background: var(--surface); }
 .row-bot .meta { flex: 1; min-width: 0; }
 .row-bot .line1 { display: flex; align-items: baseline; gap: 10px; }

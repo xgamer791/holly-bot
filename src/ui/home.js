@@ -1,5 +1,5 @@
 import { html, useState, useRef } from '../../vendor/preact.js';
-import { useApp, useUi, useTopics } from './hooks.js';
+import { useApp, useUi, useTopics, haptic } from './hooks.js';
 import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
@@ -12,6 +12,7 @@ export function HomeScreen({ activeThreadId }) {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(null);
+  const [swiped, setSwiped] = useState(null); // the row swiped open to show Delete
   const plusRef = useRef(null);
 
   const q = query.trim().toLowerCase();
@@ -38,7 +39,7 @@ export function HomeScreen({ activeThreadId }) {
         { label: 'New Bot', onClick: () => ui.openSheet('createBot') },
         { label: 'New Group Chat', onClick: () => ui.openSheet('newGroup') },
       ]} />`}
-      <div class="home-scroll">
+      <div class="home-scroll" onScroll=${() => swiped && setSwiped(null)}>
         ${searching && html`<div class="search-bar"><${Icon.search} />
           <input autofocus placeholder="Search bots and chats" value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} />
           ${query && html`<button aria-label="Clear" onClick=${() => setQuery('')}><${Icon.x} size="16" /></button>`}
@@ -46,7 +47,7 @@ export function HomeScreen({ activeThreadId }) {
         <${ComputerNotice} />
         ${!threads.length && !q && html`<${EmptyHome} />`}
         ${!threads.length && q && html`<div class="empty-home"><p>No bots match “${query}”.</p></div>`}
-        ${threads.map((t) => html`<${ThreadRow} key=${t.id} thread=${t} active=${t.id === activeThreadId} />`)}
+        ${threads.map((t) => html`<${ThreadRow} key=${t.id} thread=${t} active=${t.id === activeThreadId} swiped=${swiped} onSwipe=${setSwiped} />`)}
       </div>
     </div>`;
 }
@@ -93,9 +94,18 @@ export function threadTitle(app, t) {
   return t.title || t.agentIds.map((id) => app.getAgent(id)?.name).filter(Boolean).join(', ');
 }
 
-function ThreadRow({ thread, active }) {
+/** How far a row slides left to show its Delete button. */
+const SWIPE_OPEN = 88;
+
+/** A chat in the list. Swiping it left shows Delete (the bot, or a group
+ * chat); one row is open at a time, and a tap or a scroll closes it. */
+function ThreadRow({ thread, active, swiped, onSwipe }) {
   const app = useApp();
   const ui = useUi();
+  const open = swiped === thread.id;
+  const [drag, setDrag] = useState(null); // the row's offset while a finger moves it
+  const gesture = useRef(null);
+  const moved = useRef(false); // this touch was a swipe or closed another row, not a tap
   const busy = app.runtime.isThreadBusy(thread.id) || thread.status === 'working';
   const waiting = thread.status === 'waiting';
   const kind = thread.preview?.kind || 'normal';
@@ -110,22 +120,77 @@ function ThreadRow({ thread, active }) {
     if (who) preview = `${who}: ${preview}`;
   }
   if (busy && !preview) preview = 'Working…';
+
+  // A sideways drag moves the row; an up-and-down one is left to the list's scrolling.
+  const down = (e) => {
+    moved.current = !!swiped && !open;
+    if (moved.current) onSwipe(null);
+    if (e.pointerType === 'mouse') return;
+    gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: open ? -SWIPE_OPEN : 0, at: open ? -SWIPE_OPEN : 0, sideways: null };
+  };
+  const move = (e) => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (g.sideways === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      g.sideways = Math.abs(dx) > Math.abs(dy);
+      if (g.sideways) e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+    if (!g.sideways) return;
+    g.at = Math.min(0, Math.max(-SWIPE_OPEN * 1.4, g.from + dx));
+    setDrag(g.at);
+  };
+  const up = (e) => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    gesture.current = null;
+    if (!g.sideways) return;
+    moved.current = true;
+    setDrag(null);
+    const opening = e.type === 'pointerup' && g.at < -SWIPE_OPEN / 2;
+    if (opening && !open) haptic(app);
+    onSwipe(opening ? thread.id : null);
+  };
+  const tap = () => {
+    if (moved.current) return;
+    if (swiped) return onSwipe(null);
+    ui.navigate(`#/chat/${thread.id}`);
+  };
+  const remove = async () => {
+    const dm = thread.kind === 'dm' && agent;
+    const ok = await ui.confirm(dm
+      ? { title: `Delete ${agent.name}?`, message: 'This deletes the bot, its chats, memories, files and routines. This cannot be undone.', confirmText: 'Delete', danger: true }
+      : { title: `Delete ${title}?`, message: 'Bots and their memories are not affected.', confirmText: 'Delete', danger: true });
+    onSwipe(null);
+    if (!ok) return;
+    if (active) ui.navigate('#/');
+    if (dm) await app.deleteAgent(agent.id);
+    else await app.deleteThread(thread.id);
+  };
+  const x = drag ?? (open ? -SWIPE_OPEN : 0);
+
   return html`
-    <button class=${`row-bot ${active ? 'active' : ''}`} onClick=${() => ui.navigate(`#/chat/${thread.id}`)}>
-      ${thread.kind === 'group'
-        ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" activityOf=${(a) => botActivity(app, a, thread.id)} />`
-        : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" activity=${botActivity(app, agent, thread.id) || (busy ? 'thinking' : null)} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
-      <div class="meta">
-        <div class="line1">
-          <span class="title">${title}</span>
-          ${!(thread.unread && !active) && html`<span class="time">${at ? formatShort(at) : ''}</span>`}
+    <div class=${`swipe-row ${x ? 'shifted' : ''}`}>
+      <button class="swipe-delete" tabindex=${open ? 0 : -1} aria-hidden=${!open} onClick=${remove}><${Icon.trash} size="20" />Delete</button>
+      <button class=${`row-bot ${active ? 'active' : ''} ${drag !== null ? 'dragging' : ''}`} style=${x ? `transform:translateX(${x}px)` : ''}
+        onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onClick=${tap}>
+        ${thread.kind === 'group'
+          ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" activityOf=${(a) => botActivity(app, a, thread.id)} />`
+          : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" activity=${botActivity(app, agent, thread.id) || (busy ? 'thinking' : null)} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
+        <div class="meta">
+          <div class="line1">
+            <span class="title">${title}</span>
+            ${!(thread.unread && !active) && html`<span class="time">${at ? formatShort(at) : ''}</span>`}
+          </div>
+          <div class="line2">
+            <span class=${`preview ${waiting ? 'waiting' : previewClass}`}>${preview}</span>
+            ${waiting && kind === 'waiting' ? html`<span class="dot waiting"></span>` : thread.unread && !active ? html`<span class="dot unread"></span>` : null}
+          </div>
         </div>
-        <div class="line2">
-          <span class=${`preview ${waiting ? 'waiting' : previewClass}`}>${preview}</span>
-          ${waiting && kind === 'waiting' ? html`<span class="dot waiting"></span>` : thread.unread && !active ? html`<span class="dot unread"></span>` : null}
-        </div>
-      </div>
-    </button>`;
+      </button>
+    </div>`;
 }
 
 function EmptyHome() {
