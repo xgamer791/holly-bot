@@ -74,6 +74,8 @@ export const EXPRESSIONS = {
   neutral: [{ dx: -10, dy: 0, r: 0, s: 1 }, { dx: 10, dy: 0, r: 0, s: 1 }],
   downLeft: [{ dx: -22, dy: 13, r: -18, s: 1 }, { dx: 2, dy: 8, r: -18, s: 1 }],
   upRight: [{ dx: -5, dy: 1, r: 16, s: 1 }, { dx: 18, dy: -2, r: -43, s: 0.95 }],
+  // downLeft turned 180°: the same glance, up and to the right.
+  lookUpRight: [{ dx: -2, dy: -8, r: -18, s: 1 }, { dx: 22, dy: -13, r: -18, s: 1 }],
   left: [{ dx: -20, dy: 2, r: -8, s: 1 }, { dx: 0, dy: 2, r: -8, s: 1 }],
   right: [{ dx: 0, dy: 2, r: 8, s: 1 }, { dx: 20, dy: 2, r: 8, s: 1 }],
   up: [{ dx: -10, dy: -10, r: 0, s: 0.95 }, { dx: 10, dy: -10, r: 0, s: 0.95 }],
@@ -153,16 +155,17 @@ function Extras({ anim, def, clipId }) {
 }
 
 /**
- * <Avatar shape color size expression live working anim status />
+ * <Avatar shape color size expression rest live working anim status />
+ * - rest: the expression it settles on when it isn't animating (default 'downLeft')
  * - live: slowly cycles expressions and blinks (use for big / focused avatars)
  * - working: plays the bot's thinking animation `anim` (see THINKING)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
  */
 export function Avatar({
-  shape = 'squircle', color = 'green', size = 40, expression, live = false, working = false,
+  shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,
   anim = 'hop', status, className = '', title, onClick,
 }) {
-  const [expr, setExpr] = useState(expression || 'downLeft');
+  const [expr, setExpr] = useState(expression || rest);
   const [blink, setBlink] = useState(false);
   const idx = useRef(0);
   const clipId = useRef(null);
@@ -176,7 +179,7 @@ export function Avatar({
   useEffect(() => {
     if ((!live && !working) || expression || reducedMotion()) {
       setBlink(false);
-      if (!expression) setExpr('downLeft');
+      if (!expression) setExpr(rest);
       return undefined;
     }
     let timer;
@@ -215,7 +218,7 @@ export function Avatar({
       clearTimeout(timer);
       setBlink(false);
     };
-  }, [live, working, expression, style]);
+  }, [live, working, expression, style, rest]);
 
   const def = SHAPES[shape] || SHAPES.squircle;
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
@@ -242,14 +245,14 @@ export function Avatar({
 }
 
 /** Stacked mini-avatars for group chats. */
-export function AvatarStack({ agents, size = 40 }) {
+export function AvatarStack({ agents, size = 40, rest }) {
   const shown = agents.slice(0, 3);
   const inner = Math.round(size * (shown.length > 1 ? 0.62 : 1));
   return html`
     <span class="avatar-stack" style=${`width:${size}px;height:${size}px`}>
       ${shown.map((a, i) => html`
         <span key=${a.id} class="avatar-stack-item" style=${stackPos(i, shown.length, size, inner)}>
-          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} />
+          <${Avatar} shape=${a.shape} color=${a.color} size=${inner} rest=${rest} />
         </span>`)}
     </span>`;
 }

@@ -60,7 +60,9 @@ export function Root({ app }) {
     const theme = appearance === 'system' ? (prefersLight ? 'light' : 'black') : appearance;
     if (theme === 'black') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', theme);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f5f5f7' : theme === 'dark' ? '#141416' : '#0b0b0b');
+    // Browser and status bar chrome use the app background, so there's no seam.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
   }, [appearance, prefersLight]);
 
   const ui = useMemo(() => ({
