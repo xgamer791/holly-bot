@@ -15,7 +15,7 @@ import { NodeDB } from './node-db.mjs';
 import { FileOutbox } from './outbox.mjs';
 import { App } from '../../src/core/app.js';
 import { SCHEMA } from '../../src/core/db.js';
-import { CloudDB } from '../../src/account/cloud-db.js';
+import { CloudDB, inactive } from '../../src/account/cloud-db.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -54,9 +54,11 @@ export class BotHome {
   }
 
   /** The account's storage. At startup it waits for the server if it can't
-   * be reached (the bots are in the account, so there's nothing to run
-   * without it); `once` gives up after the first try instead. */
+   * be reached, or for the account's subscription if it isn't active (the
+   * bots are in the account, so there's nothing to run without it); `once`
+   * gives up after the first try instead. */
   async openAccount({ once = false } = {}) {
+    let told = false;
     for (let wait = 5000; ; wait = Math.min(wait * 2, 60_000)) {
       const userId = this.account.userId;
       if (!userId) return NodeDB.open(this.localDir()); // the link ended meanwhile
@@ -69,6 +71,12 @@ export class BotHome {
       } catch (err) {
         if (once) throw err;
         if (!this.account.linked) return NodeDB.open(this.localDir());
+        if (inactive(err)) {
+          if (!told) this.log.log?.("\n  Your Holly Bot account's subscription isn't active. Your bots start as soon as it is: choose a plan in the Holly Bot app.\n");
+          told = true;
+          await sleep(5 * 60_000);
+          continue;
+        }
         this.log.log?.(`  Can't reach your Holly Bot account (${err.message}). Trying again in ${Math.round(wait / 1000)}s…`);
         await sleep(wait);
       }

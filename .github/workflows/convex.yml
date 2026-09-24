@@ -109,5 +109,20 @@ jobs:
             fi
           done
 
+      # Optional: Stripe, for subscriptions (CONVEX.md). Without the secret key,
+      # the subscription page says subscriptions aren't set up yet.
+      - name: Copy Stripe keys to the deployment
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+            if [ -n "${!name}" ]; then
+              printf '%s' "${!name}" | npx convex env set "$name"
+            else
+              echo "$name is not a repository secret; keeping the deployment's value."
+            fi
+          done
+
       - name: Deploy functions
         run: npx convex deploy

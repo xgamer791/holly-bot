@@ -39,8 +39,14 @@ const BATCH_BYTES = 3_000_000;
 const PAGE = 100;
 /** How often an open app asks whether another device changed the account. */
 const CHECK_EVERY = 60_000;
+/** How often changes are offered again while the subscription isn't active. */
+const INACTIVE_WAIT = 5 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/** The server turned a call down because the account's subscription isn't
+ * active (convex/lib/subscription.ts). It keeps the account's data, and
+ * changes wait here until the subscription is active again. */
+export const inactive = (err) => /active subscription/i.test(err?.message || '');
 const idOf = (store, key) => `${store}\n${key}`;
 const keyOf = (store, value) => value?.[SCHEMA[store].keyPath];
 const isNetworkError = (err) => err?.name === 'TypeError' || /network|failed to fetch|load failed|fetch failed/i.test(err?.message || '');
@@ -706,6 +712,12 @@ export class CloudDB {
           return;
         }
         failures++;
+        // Without an active subscription the server turns every change down,
+        // so none is at fault: they wait until it's active again.
+        if (inactive(err)) {
+          await sleep(INACTIVE_WAIT);
+          continue;
+        }
         const refused = err?.data !== undefined; // a ConvexError: the server turned it down on purpose
         // Offline, or the server is having a moment: wait and try again, for as
         // long as it takes. Nothing is dropped while the server can't be reached.

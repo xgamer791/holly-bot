@@ -32,6 +32,11 @@ function hollyServer() {
   const rowOf = (r) => ({ key: r.key, data: r.data });
   const fns = {
     'account:viewer': () => USER,
+    // A subscribed account, so the app opens (src/main.js asks first).
+    'billing:status': () => ({
+      active: true, ready: true, check: false, plans: [],
+      subscription: { plan: 'starter', interval: 'month', status: 'active', periodEnd: Date.now() + 30 * 86_400_000 },
+    }),
     'devices:list': () => [],
     'data:version': () => version,
     'data:list': ({ store, group }) => ({ page: [...records.values()].filter((r) => r.store === store && (group === undefined || r.group === group)).map(rowOf), isDone: true, continueCursor: '' }),

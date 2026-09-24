@@ -122,6 +122,40 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_expiry", ["expiresAt"]),
 
+  /** Each account's customer at Stripe, made the first time it starts a
+   * checkout (convex/billing.ts). One per Stripe mode: a test-mode customer
+   * means nothing to live mode. */
+  billingCustomers: defineTable({
+    userId: v.id("users"),
+    customerId: v.string(),
+    livemode: v.boolean(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_customer", ["customerId"]),
+
+  /**
+   * An account's subscriptions at Stripe, as Stripe last described them (its
+   * webhook, or the app asking after a checkout). Holly Bot opens for the
+   * account while one of them is active (convex/lib/subscription.ts). `plan`
+   * is one of convex/lib/plans.ts; times are in ms.
+   */
+  subscriptions: defineTable({
+    userId: v.id("users"),
+    customerId: v.string(),
+    subscriptionId: v.string(),
+    status: v.string(),
+    plan: v.optional(v.string()),
+    interval: v.optional(v.string()),
+    priceId: v.optional(v.string()),
+    periodEnd: v.optional(v.number()),
+    endsAt: v.optional(v.number()),
+    livemode: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_customer", ["customerId"])
+    .index("by_subscription", ["subscriptionId"]),
+
   meta: defineTable({
     key: v.string(),
     value: v.string(),

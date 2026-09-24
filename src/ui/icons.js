@@ -59,6 +59,9 @@ export const Icon = {
   dots: I(html`<circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />`, { fill: 'currentColor', sw: 0 }),
   calendar: I(html`<rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" />`),
   mail: I(html`<rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M4 7.5l8 6 8-6" />`),
+  server: I(html`<rect x="4" y="4" width="16" height="7" rx="2" /><rect x="4" y="13" width="16" height="7" rx="2" /><path d="M8 7.5h.01M8 16.5h.01" />`),
+  cpu: I(html`<rect x="6" y="6" width="12" height="12" rx="2.5" /><rect x="9.5" y="9.5" width="5" height="5" rx="1" /><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3" />`),
+  memory: I(html`<rect x="3" y="6" width="18" height="10" rx="2" /><path d="M7.5 9.5v3M12 9.5v3M16.5 9.5v3M6 16v3M10 16v3M14 16v3M18 16v3" />`),
 };
 
 export function fileIcon(mime = '', path = '') {

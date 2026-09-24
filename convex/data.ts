@@ -1,7 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
 import {
   MAX_DATA,
   bump,
@@ -16,10 +15,12 @@ import {
   toClient,
   versionOf,
 } from "./lib/records";
+import { requireSubscriber } from "./lib/subscription";
 
 // The app's storage (src/account/cloud-db.js): every bot, chat, message,
 // memory, file, routine and setting of the signed-in account. Each function
-// works on the caller's own rows only (requireUserId + indexes that start with it).
+// works on the caller's own rows only (requireSubscriber + indexes that start
+// with it), and only while the account's subscription is active.
 
 /** Most changes one `apply` takes. */
 const MAX_OPS = 64;
@@ -34,7 +35,7 @@ const counted = { prev: v.number(), version: v.number() };
 export const list = query({
   args: { store: v.string(), group: v.optional(v.string()), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { store, group, paginationOpts }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     checkStore(store);
     const opts = { ...paginationOpts, numItems: Math.min(Math.max(paginationOpts.numItems, 1), 200), maximumBytesRead: PAGE_BYTES };
     const result = group === undefined
@@ -60,7 +61,7 @@ export const tail = query({
   args: { store: v.string(), group: v.string(), limit: v.number() },
   returns: v.array(row),
   handler: async (ctx, { store, group, limit }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     checkStore(store);
     const docs = await ctx.db
       .query("records")
@@ -75,7 +76,7 @@ export const get = query({
   args: { store: v.string(), key: v.string() },
   returns: v.union(row, v.null()),
   handler: async (ctx, { store, key }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     checkStore(store);
     const doc = await findRow(ctx, userId, store, key);
     return doc ? await toClient(ctx, doc) : null;
@@ -101,7 +102,7 @@ export const apply = mutation({
   args: { ops: v.array(v.union(putOp, deleteOp)) },
   returns: v.object(counted),
   handler: async (ctx, { ops }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     if (!ops.length || ops.length > MAX_OPS) throw new ConvexError("Send between 1 and 64 changes at once");
     for (const op of ops) {
       checkStore(op.store);
@@ -143,7 +144,7 @@ export const clearStore = mutation({
   args: { store: v.string() },
   returns: v.object({ done: v.boolean(), ...counted }),
   handler: async (ctx, { store }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     checkStore(store);
     const { batch, more } = await takeBatch(
       ctx.db.query("records").withIndex("by_user_store_key", (q) => q.eq("userId", userId).eq("store", store)),
@@ -159,7 +160,7 @@ export const clearStore = mutation({
 export const version = query({
   args: {},
   returns: v.number(),
-  handler: async (ctx) => versionOf(ctx, await requireUserId(ctx)),
+  handler: async (ctx) => versionOf(ctx, await requireSubscriber(ctx)),
 });
 
 /** Takes on a piece of scheduled work (`key`, due at `at`) for this device.
@@ -169,7 +170,7 @@ export const claim = mutation({
   args: { key: v.string(), at: v.number() },
   returns: v.boolean(),
   handler: async (ctx, { key, at }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     checkName(key, "key");
     const taken = await ctx.db
       .query("claims")
@@ -187,7 +188,7 @@ export const uploadUrl = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireUserId(ctx);
+    await requireSubscriber(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -197,7 +198,7 @@ export const blobUrl = query({
   args: { storageId: v.id("_storage") },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, { storageId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireSubscriber(ctx);
     if (!(await ownsBlob(ctx, userId, storageId))) return null;
     return await ctx.storage.getUrl(storageId);
   },

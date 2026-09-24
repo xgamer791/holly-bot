@@ -28,6 +28,7 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 - `convex/uploads.ts` and `convex/crons.ts`: the daily sweep of unclaimed uploads.
 - `convex/devices.ts`: linking Holly Computer to an account (below).
 - `convex/connectors.ts`: Gmail, Outlook and GitHub connected to an account for its bots (below), with `convex/lib/oauth.ts`, `mail.ts`, `github.ts` and `seal.ts`.
+- `convex/billing.ts`: subscriptions through Stripe (below), with `convex/lib/plans.ts` (the plans and their prices), `convex/lib/stripe.ts` (Stripe's API and webhook signatures) and `convex/lib/subscription.ts` (whether an account's subscription is active). Stripe's webhook is `https://impressive-ferret-800.convex.site/stripe/webhook`.
 
 The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
@@ -35,12 +36,13 @@ The browser side is `src/account/account.js` (the sign-in protocol, sessions in 
 
 Everything the app keeps (bots, chats, messages, memories, files, routines, tasks, activity, settings and API keys) is one `records` row per record, owned by an account. The app core runs on `src/account/cloud-db.js`, which has the same interface as the IndexedDB wrapper it used before (`src/core/db.js`).
 
-- **Isolation.** Every function in `convex/data.ts` gets the account from the verified session (`requireUserId` in `convex/lib/auth.ts`; the session must still exist, so signing out or deleting the account cuts off its tokens at once) and reads and writes only through indexes that start with that account. The client never names an account. Uploads are claimed by the account whose record first refers to them (`blobs`), and only that account can get a download URL.
+- **Isolation.** Every function in `convex/data.ts` gets the account from the verified session (`requireUserId` in `convex/lib/auth.ts`, through `requireSubscriber`; the session must still exist, so signing out or deleting the account cuts off its tokens at once) and reads and writes only through indexes that start with that account.
+- **Subscribers only.** The same functions work only while the account's subscription is active (`requireSubscriber` in `convex/lib/subscription.ts`). Without one they refuse with "Holly Bot needs an active subscription", and the app and Holly Computer keep unsaved changes on the device until it's active again. The client never names an account. Uploads are claimed by the account whose record first refers to them (`blobs`), and only that account can get a download URL.
 - **Records** hold the app's JSON as a string (`data`), plus `group` and `sort` so the app can load one chat's messages or one bot's memories at a time, newest first. A record over ~800 KB of JSON goes to file storage (`overflow`), as do files' contents and long texts.
 - **Uploads** that no record claims within a day (the app closed mid-save, or an upload URL used for nothing) are deleted by a daily sweep (`convex/uploads.ts`, scheduled in `convex/crons.ts`).
 - **Writes** go through `data:apply`, in order and in batches, from an outbox the app keeps on the device (IndexedDB `holly-outbox-<userId>`) until the server has them, so nothing is lost offline or when the app closes.
 - **Several devices.** `heads` counts each account's writes. A device that sees the count move without its own writes knows another device changed the account and reloads when nothing would be lost (`src/main.js`). `claims` makes a routine's scheduled run happen on one device only.
-- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, linked computers, sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
+- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, linked computers, subscription (its Stripe customer is deleted, which cancels it), sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
 - **Before accounts** (1.2.0 and older) the app kept everything in the browser's IndexedDB (`holly`), shared by whoever used the browser. The first account to sign in on such a browser is asked to add it to the account or delete it (`src/account/device-data.js`); either way it leaves the browser.
 
 ## Holly Computer on the account
@@ -64,6 +66,28 @@ People connect them in Settings → Plugins, and bots use them through tools (`s
 - **Disconnecting** (`connectors:disconnect`) deletes the row and asks Google to revoke its grant or GitHub its token. Microsoft has no endpoint for that: its refresh token just stops being used. A GitHub token the person made is theirs to delete. `account:deleteAccount` does the same for every connection.
 - **Tests.** `npm run test:convex` runs these functions on convex-test with Google, Microsoft and GitHub stood in (`tests/convex`). `npm test` covers the API code and the bot tools, and `tests/e2e/connectors.e2e.mjs` covers the screens.
 
+## Subscriptions
+
+Holly Bot opens only for an account with an active subscription. Right after an account is created, and whenever its subscription isn't active, the app shows the subscription page instead of the app (`subscribed()` in `src/main.js`, `src/ui/subscribe.js`). The server enforces it too, so a copy of the app with the check taken out gets nowhere.
+
+| Plan | Monthly | Yearly | Dedicated server |
+|------|---------|--------|------------------|
+| Starter (best for 1 bot) | $49 | $490 | 2 CPU, 4 GB RAM |
+| Pro | $99 | $990 | 4 CPU, 8 GB RAM |
+| Ultra | $179 | $1,790 | 6 CPU, 16 GB RAM |
+
+- **Plans** live in `convex/lib/plans.ts`, and the page shows them as `billing:status` hands them out, so prices are set in one place. Nothing provisions the dedicated servers yet: the plan is kept on the subscription (`subscriptions.plan`) for when something does.
+- **Subscribing.** `billing:checkout` makes the account's Stripe customer the first time (its id kept in `billingCustomers`), and opens Stripe Checkout with `mode=subscription` for the plan's monthly or yearly price. Stripe sends the person back with `?checkout=done` (or `cancelled`).
+- **Products and prices** are made at Stripe the first time someone subscribes to each: products `holly_bot_starter`, `holly_bot_pro` and `holly_bot_ultra`, and prices found by the lookup keys `holly_bot_<plan>_month` and `_year`. To change a price, change `convex/lib/plans.ts`: the next checkout makes the new price and moves the lookup key to it. People already subscribed keep what they pay until you move them in Stripe.
+- **Staying in step.** Stripe's webhook (`/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) reports every change, and each event reads the subscription from Stripe again (`subscriptions`), so late or out-of-order events can't undo a newer change. The app also asks Stripe itself (`billing:sync`) when it comes back from Checkout or the billing portal, and when a paid period should have ended, so a subscription opens the app the moment it's paid for, and a missed webhook can't keep one open or shut for long. A period that ended more than three days ago with no word from Stripe no longer counts.
+- **Active** means Stripe's status is `active` or `trialing`. A renewal that didn't go through (`past_due`, `unpaid`) shuts the app until the card is updated; the subscription page leads to Stripe's billing portal for that, not to a second subscription. `billing:checkout` refuses to start one while the account has a subscription that isn't over.
+- **Managing.** Settings → Subscription opens Stripe's billing portal (`billing:portal`): change plan, update the card, see invoices, cancel. Coming back (`?billing=done`) the app asks Stripe again.
+- **While the app is open** it checks when it comes back to the front and every ten minutes, and reloads onto the subscription page once the subscription has ended.
+- **What still works without one:** signing in and out, the subscription itself, deleting the account (on the subscription page too), unlinking a computer and disconnecting a service. `account:viewer` and `devices:*` don't need a subscription; `data:*` and connecting or using Gmail, Outlook and GitHub do.
+- **Test and live.** Customers and subscriptions remember which Stripe mode made them, and only the mode of the current `STRIPE_SECRET_KEY` counts, so switching from test keys to live ones never lets a test subscription open Holly Bot.
+- **Deleting the account** deletes its Stripe customer, which cancels the subscription at once (`billing:forget`, retried for most of a day if Stripe can't be reached).
+- Bring your own key is unchanged: bots still call AI providers with the account's own keys, so a plan's price doesn't include AI.
+
 ## Setting up sign-in (once)
 
 ### 1. Let GitHub deploy the backend
@@ -73,6 +97,7 @@ People connect them in Settings → Plugins, and bots use them through tools (`s
 - sets `SITE_URL` to `https://xgamer791.github.io/holly-bot`,
 - creates the session signing keys `JWT_PRIVATE_KEY` and `JWKS` if the deployment has none (`scripts/convex-auth-keys.mjs`),
 - copies `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_APPLE_ID` and `AUTH_APPLE_SECRET` from repository secrets, when they exist there,
+- copies the connector apps' secrets and `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` the same way (steps 4 and 5),
 - runs `npx convex deploy`.
 
 It needs one repository secret, **`CONVEX_DEPLOY_KEY`**: in the Convex dashboard open the holly-bot production deployment → Settings and generate a production deploy key. Add it under GitHub → Settings → Secrets and variables → Actions, then run the workflow.
@@ -123,9 +148,26 @@ The deploy workflow creates `CONNECTORS_KEY` the first time (`scripts/convex-con
 
 Then run Deploy Convex from the Actions tab (or push a change under `convex/`). The buttons turn on as soon as it finishes.
 
-### 5. Check
+### 5. Stripe, for subscriptions
 
-Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works.
+Nobody gets past the subscription page until this is done, you included; until then, it says subscriptions aren't set up yet. Start in test mode (the Test mode switch in the Stripe dashboard), where test cards like `4242 4242 4242 4242` pay for nothing.
+
+1. **Secret key.** Developers → API keys → Secret key (`sk_test_…`). Add it as the repository secret `STRIPE_SECRET_KEY`. A restricted key works too, if it can write Customers, Products, Prices, Checkout Sessions, Customer portal and Subscriptions.
+2. **Webhook.** Developers → Webhooks → Add endpoint:
+   - URL `https://impressive-ferret-800.convex.site/stripe/webhook`
+   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Add its signing secret (`whsec_…`) as the repository secret `STRIPE_WEBHOOK_SECRET`.
+3. **Billing portal.** Settings → Billing → Customer portal: turn on updating payment methods, invoice history and cancelling, with cancellations **at the end of the billing period** (the Terms say so), and save. Stripe won't open the portal until it's saved, in test and live mode each. After the first subscriptions have made Holly Bot's products, you can also let people switch plans there.
+4. **Branding** (optional). Settings → Branding: Holly Bot's icon and colors on Checkout, the portal and receipts. Settings → Customer emails can send receipts.
+5. Run **Deploy Convex** from the Actions tab. It copies both secrets to the deployment like the others (or set them in the Convex dashboard).
+6. Subscribe from the app with a test card. It should open the app straight away, and Settings → Subscription should show the plan.
+7. **Going live.** Switch the dashboard to live mode, repeat steps 1 to 3 with the live key (`sk_live_…`) and a live webhook endpoint (it has its own signing secret), update both repository secrets and run Deploy Convex. Test subscriptions stop counting as soon as the key is live.
+
+If Subscribe or Manage fails, the deployment's logs in the Convex dashboard have Stripe's own message. Stripe Tax is off: turn it on in Stripe and add `automatic_tax` to `billing:checkout` if you need to charge tax.
+
+### 6. Check
+
+Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works, and a subscription, so there's no way past the subscription page until Stripe is set up (step 5).
 
 Sessions last 30 days (Convex Auth's default). `node scripts/convex-auth-keys.mjs` with a deploy key for the deployment rotates the signing keys, which signs everyone out.
 

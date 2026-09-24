@@ -11,6 +11,7 @@ import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import { RemoteApp, savedConnection, saveConnection } from '../remote/remote-app.js';
 import { account, noticeAfterReload, signInWorksHere, takeNotice, SITE } from '../account/account.js';
+import { longDate } from './subscribe.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
@@ -47,6 +48,33 @@ function AccountGroup({ acct }) {
       <span class="initials">${initials(user.name || user.email)}</span>
       <div class="label"><div class="t">${user.name || user.email || 'Holly Bot account'}</div><div class="s">${detail || 'Signed in'}</div></div>
     </div>
+  <//>`;
+}
+
+/** The account's plan. Tapping it opens Stripe's billing portal to change the
+ * plan, update the card, see invoices or cancel (convex/billing.ts); coming
+ * back, the app checks the subscription again (src/main.js). */
+function SubscriptionGroup({ acct }) {
+  const ui = useUi();
+  const [busy, setBusy] = useState(false);
+  const { data: status } = useAsync(() => (acct.signedIn ? account.authed('query', 'billing:status') : Promise.resolve(null)), [acct.signedIn]);
+  if (!acct.signedIn) return null;
+  const sub = status?.subscription;
+  const plan = status?.plans?.find((p) => p.id === sub?.plan);
+  const when = sub?.endsAt ? `Ends ${longDate(sub.endsAt)}` : sub?.periodEnd ? `Renews ${longDate(sub.periodEnd)}` : '';
+  const detail = [{ month: 'Monthly', year: 'Yearly' }[sub?.interval], when].filter(Boolean).join(' · ');
+  const manage = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      location.assign(await account.authed('action', 'billing:portal', { returnTo: `${location.origin}${location.pathname}` }));
+    } catch (err) {
+      setBusy(false);
+      ui.toast(serverSays(err, "Couldn't open billing. Check your connection and try again."), { error: true });
+    }
+  };
+  return html`<${Group} note="Change your plan, update your card, see invoices or cancel, on Stripe.">
+    <${Row} title="Subscription" sub=${detail} value=${busy ? html`<span class="spinner"></span>` : plan ? `Holly Bot ${plan.name}` : ''} onClick=${manage} />
   <//>`;
 }
 
@@ -88,6 +116,7 @@ function MainPage({ go, onClose }) {
   const set = (patch) => app.saveSettings(patch);
   return html`
     <${AccountGroup} acct=${acct} />
+    <${SubscriptionGroup} acct=${acct} />
     <${Group}>
       <button class="row" onClick=${() => go('profile')}>
         <span class="initials">${s.profile?.name ? initials(s.profile.name) : '?'}</span>
@@ -189,7 +218,7 @@ async function deleteAccount(app, ui) {
     : '';
   if (!(await ui.confirm({
     title: 'Delete your account?',
-    message: `This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys. It can't be undone.${computer}`,
+    message: `This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys, and cancels your subscription right away. It can't be undone.${computer}`,
     confirmText: 'Delete Account',
     danger: true,
   }))) return;
@@ -867,6 +896,8 @@ function HelpPage() {
     <p>Web search, a Python/JavaScript sandbox, files, image generation, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
     <h3>Email and GitHub</h3>
     <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
+    <h3>Your subscription</h3>
+    <p>Settings → <b>Subscription</b> shows your plan. Tap it to change plan, update your card, see invoices or cancel, on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.</p>
     <h3>Install as an app</h3>
     <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>

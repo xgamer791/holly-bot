@@ -4,11 +4,26 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 
 **Open the app:** https://xgamer791.github.io/holly-bot/ (on a phone, use "Add to Home Screen" to install it)
 
+## Plans
+
+Holly Bot is a subscription. Right after you create an account, you choose a plan, billed monthly or yearly, and pay with Stripe. The app opens as soon as the subscription is active, and only then.
+
+| Plan | Monthly | Yearly | Runs on |
+|---|---|---|---|
+| Starter (best for 1 bot) | $49 | $490 | A dedicated server with 2 CPU and 4 GB RAM |
+| Pro | $99 | $990 | A dedicated server with 4 CPU and 8 GB RAM |
+| Ultra | $179 | $1,790 | A dedicated server with 6 CPU and 16 GB RAM |
+
+- Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for.
+- Without an active subscription (never subscribed, cancelled, or a renewal that didn't go through), the app shows the subscription page instead, and Holly Bot's server keeps your account's data until you're back.
+- Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
+- Setting up Stripe (keys and webhook) is in [CONVEX.md](CONVEX.md#5-stripe-for-subscriptions).
+
 ## Your account
 
 The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. You need an account, and everything Holly Bot keeps for you lives in it, in Holly Bot's own Convex database: bots, chats, memories, files, routines, settings and API keys. The server only ever hands an account its own data. Sign in on another device and your bots are there.
 
-- Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. **Delete Account** erases the account and everything in it.
+- Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. **Delete Account** erases the account and everything in it, and cancels the subscription. Without a subscription, both are on the subscription page.
 - A browser that kept bots in it before accounts (1.2.0 and older) asks the first account to sign in there whether to add them to that account or delete them. Either way they leave the browser.
 - Open on two devices at once? Each notices the other's changes and reloads when nothing would be lost. A routine runs once, on whichever device gets to it first.
 - Holly Computer keeps its bots in your account too, once it's linked. The first time you open it signed in, the app asks to link it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, each with Unlink, and deleting your account unlinks them.
@@ -109,10 +124,10 @@ npm run check            # syntax check everything and confirm the bundle is cur
 
 Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
-- `src/ui`: the interface.
+- `src/ui`: the interface (`subscribe.js` is the subscription page).
 - `src/remote`: the phone-side remote-control client.
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
-- `convex`: that backend (accounts and everything in them). `.github/workflows/convex.yml` deploys it.
+- `convex`: that backend (accounts and everything in them, and subscriptions through Stripe in `billing.ts`). `.github/workflows/convex.yml` deploys it.
 - `computer/src`: Holly Computer.
   - `home.mjs`, `account.mjs`, `outbox.mjs`: where its bots are kept, its session on your account, and changes waiting to be saved.
   - `server.mjs`: HTTP API and long-poll events.

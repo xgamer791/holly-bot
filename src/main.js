@@ -9,15 +9,19 @@ import { ConnectProblem } from './ui/connect.js';
 import {
   DeviceDataScreen, LinkComputerScreen, OtherAccountScreen, ProblemScreen, WelcomeFlow, screenFromHash,
 } from './ui/welcome.js';
-import { account, friendlyError, signInWorksHere, SITE, takeNotice } from './account/account.js';
-import { CloudDB } from './account/cloud-db.js';
+import { SubscribeScreen } from './ui/subscribe.js';
+import {
+  account, friendlyError, noticeAfterReload, signInWorksHere, SITE, takeNotice,
+} from './account/account.js';
+import { CloudDB, inactive } from './account/cloud-db.js';
 import { makeLinkCode } from './account/device-link.js';
 import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/device-data.js';
 
-// Boot. Holly Bot needs an account (Sign in with Apple or Google), and what it
-// keeps lives in that account on Holly Bot's server (src/account/cloud-db.js),
-// never in the browser where the next person to sign in could see it. Then
-// two ways to run:
+// Boot. Holly Bot needs an account (Sign in with Apple or Google) with an
+// active subscription: until it has one, the subscription page stands in for
+// the app (src/ui/subscribe.js). What it keeps lives in that account on Holly
+// Bot's server (src/account/cloud-db.js), never in the browser where the next
+// person to sign in could see it. Then two ways to run:
 //  • Your computer (recommended): bots live on Holly Computer and this app is the remote control.
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
 // Holly Computer linked to the account keeps its bots there too, and runs
@@ -44,11 +48,140 @@ async function boot() {
   account.on(() => account.userId !== me && location.reload());
   account.refreshUser().catch((err) => console.warn('account', err));
   useConnectionsOf(me);
-  notice = await finishConnecting();
   adopted = takeHeldConnection();
   if (adopted) saveConnection(adopted);
   registerServiceWorker();
+  if (await subscribed()) await openApp();
+}
+
+/** Past the subscription page: finishes connecting a service, if that's what
+ * brought the person back, then opens the account. */
+async function openApp() {
+  const connected = await finishConnecting();
+  if (connected) notice = connected;
   return startAccount();
+}
+
+/** Marks the next launch as the subscription page's, so index.html starts it
+ * on white instead of the app's dark splash. */
+const SUBSCRIBE_PAGE = 'holly.subscribePage';
+let watchingSubscription = false;
+
+/**
+ * Holly Bot opens only for an account with an active subscription
+ * (convex/billing.ts). Anyone else gets the subscription page instead, which
+ * the address can't get around: the app and its routes open only from here.
+ * Back from Stripe (Checkout or the billing portal), or when a paid period
+ * should have ended, Stripe is asked first, so a subscription just paid for
+ * opens the app straight away. True when the app may open; otherwise a page
+ * has taken over.
+ */
+async function subscribed() {
+  const back = takeBillingReturn();
+  let status;
+  try {
+    status = back === 'paid' || back === 'billing'
+      ? await account.authed('action', 'billing:sync')
+      : await account.authed('query', 'billing:status');
+    if (status.check) status = await account.authed('action', 'billing:sync');
+  } catch (err) {
+    console.error('subscription', err);
+    if (!account.signedIn) {
+      location.reload();
+      return false;
+    }
+    show(html`<${ProblemScreen} message=${loadError(err)} onRetry=${() => location.reload()} onSignOut=${() => signOut()} />`);
+    return false;
+  }
+  try {
+    if (status.active) localStorage.removeItem(SUBSCRIBE_PAGE);
+    else localStorage.setItem(SUBSCRIBE_PAGE, '1');
+  } catch { /* storage blocked */ }
+  const home = `${location.pathname}${location.search}#/`;
+  if (status.active) {
+    if (back === 'paid') notice = { text: welcomeText(status) };
+    if (/^#\/subscribe\b/.test(location.hash)) history.replaceState(null, '', home);
+    return true;
+  }
+  history.replaceState(null, '', `${location.pathname}${location.search}#/subscribe`);
+  show(html`<${SubscribeScreen} status=${status} back=${back}
+    onActive=${(next) => {
+      try {
+        localStorage.removeItem(SUBSCRIBE_PAGE);
+      } catch { /* storage blocked */ }
+      notice = { text: welcomeText(next) };
+      history.replaceState(null, '', home);
+      openApp();
+    }}
+    onSignOut=${() => signOut()}
+    onDeleteAccount=${deleteFromSubscribePage} />`);
+  return false;
+}
+
+function welcomeText(status) {
+  const plan = status.plans?.find((p) => p.id === status.subscription?.plan);
+  return plan ? `Welcome to Holly Bot ${plan.name}.` : 'Welcome to Holly Bot.';
+}
+
+/** Back from Stripe: ?checkout=done or ?checkout=cancelled (Checkout), or
+ * ?billing=done (the billing portal). Takes it off the address and says
+ * which: 'paid', 'cancelled' or 'billing'. */
+function takeBillingReturn() {
+  const url = new URL(location.href);
+  const checkout = url.searchParams.get('checkout');
+  const billing = url.searchParams.get('billing');
+  if (!checkout && !billing) return null;
+  url.searchParams.delete('checkout');
+  url.searchParams.delete('billing');
+  history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  if (checkout) return checkout === 'done' ? 'paid' : 'cancelled';
+  return 'billing';
+}
+
+/**
+ * Delete Account on the subscription page, for someone who'd rather not
+ * subscribe (Settings, where it usually is, is part of the app). Like
+ * Settings → Delete Account, it leaves nothing of the account on the device.
+ */
+async function deleteFromSubscribePage() {
+  const conn = savedConnection();
+  saveConnection(null);
+  try {
+    indexedDB.deleteDatabase(CloudDB.outboxName(account.userId));
+  } catch { /* no IndexedDB here */ }
+  noticeAfterReload('Your account and everything in it have been deleted.');
+  try {
+    await account.deleteAccount(); // the listener in boot() reloads into the welcome screen
+  } catch (err) {
+    takeNotice();
+    if (conn) saveConnection(conn);
+    throw err;
+  }
+}
+
+/**
+ * While the app is open, its subscription can end: cancelled, or a renewal
+ * that didn't go through. It's checked each time the app comes back to the
+ * front and every ten minutes, and once it has ended the app reloads, which
+ * lands on the subscription page. Changes not yet saved wait on the device.
+ */
+function watchSubscription() {
+  if (watchingSubscription) return;
+  watchingSubscription = true;
+  let checking = false;
+  const check = async () => {
+    if (checking || document.visibilityState !== 'visible' || !account.signedIn) return;
+    checking = true;
+    try {
+      let status = await account.authed('query', 'billing:status');
+      if (status.check) status = await account.authed('action', 'billing:sync');
+      if (!status.active) location.reload();
+    } catch { /* offline, or the server is busy: next time */ } finally {
+      checking = false;
+    }
+  };
+  document.addEventListener('visibilitychange', check);
+  setInterval(check, 10 * 60_000);
 }
 
 /** Opens the signed-in account: first anything this device kept from before
@@ -66,7 +199,9 @@ async function startAccount() {
     db = await CloudDB.open({ userId, call: (kind, name, args) => account.authed(kind, name, args, { as: userId }) });
   } catch (err) {
     console.error('account storage', err);
-    if (!account.signedIn) return location.reload();
+    // Signed out meanwhile, or the subscription just ended (the reload lands
+    // on the subscription page).
+    if (!account.signedIn || inactive(err)) return location.reload();
     show(html`<${ProblemScreen} message=${loadError(err)} onRetry=${startAccount} onSignOut=${() => signOut()} />`);
     return;
   }
@@ -221,6 +356,7 @@ async function bootLocal(db) {
     app = await App.create({ db });
   } catch (err) {
     console.error('startup', err);
+    if (db.cloud && inactive(err)) return location.reload(); // the subscription just ended
     show(html`<${ProblemScreen} message=${db.cloud ? loadError(err) : String(err?.message || err)} onRetry=${() => location.reload()} onSignOut=${db.cloud ? () => signOut(db) : null} />`);
     return;
   }
@@ -320,6 +456,7 @@ function mount(app) {
   render(html`<${Root} app=${app} />`, root);
   document.getElementById('boot')?.remove();
   registerServiceWorker();
+  if (signInWorksHere() && account.signedIn) watchSubscription();
 }
 
 function registerServiceWorker() {

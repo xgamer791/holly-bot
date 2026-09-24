@@ -51,11 +51,25 @@ async function sha256url(text: string) {
   return btoa(String.fromCharCode(...digest)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** A signed-in account: a user and a live session, called as that session. */
+/** A signed-in account: a user with an active subscription and a live
+ * session, called as that session. */
 async function signIn(t: ReturnType<typeof convexTest>, email: string) {
   const { userId, sessionId } = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { email });
     const sessionId = await ctx.db.insert("authSessions", { userId, expirationTime: Date.now() + 3_600_000 });
+    // Holly Bot's server keeps an account's data only while it has an active
+    // subscription (convex/lib/subscription.ts).
+    await ctx.db.insert("subscriptions", {
+      userId,
+      customerId: `cus_${userId}`,
+      subscriptionId: `sub_${userId}`,
+      status: "active",
+      plan: "starter",
+      interval: "month",
+      periodEnd: Date.now() + 30 * 86_400_000,
+      livemode: false,
+      updatedAt: Date.now(),
+    });
     return { userId, sessionId };
   });
   return { userId, sessionId, as: t.withIdentity({ subject: `${userId}|${sessionId}` }) };

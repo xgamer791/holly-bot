@@ -642,6 +642,80 @@ html.signed-out #boot line { stroke: #fff; }
 .hello-grabber { align-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--border-strong); }
 .hello-sheet h2 { margin: 2px 0 4px; text-align: center; font-size: 17px; line-height: 22px; font-weight: 600; }
 .hello-sheet-cancel { align-self: center; min-height: 44px; padding: 0 16px; font-size: 15px; font-weight: 600; }
+.hello-cta.danger { background: var(--red); }
+
+/* ---------- the subscription page (src/ui/subscribe.js) ---------- */
+/* On the white page, right after Create Account: the plans as cards to pick
+   from, Monthly or Yearly, and Subscribe docked at the bottom. */
+.sub-canvas { max-width: 560px; }
+.sub-head { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 24px 0; text-align: center;
+  animation: sub-rise .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+.sub-title { margin: 8px 0 0; font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -.5px; }
+.sub-lead { max-width: 340px; margin: 0; color: var(--muted); font-size: 16px; line-height: 22px; }
+.sub-notice { margin: 18px 24px 0; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 14px; line-height: 20px; text-align: center; }
+
+/* Monthly | Yearly, with a thumb that slides between them. */
+.sub-cycle { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(100% - 48px, 400px); margin: 22px auto 0; padding: 4px;
+  border-radius: 14px; background: var(--surface-2); }
+.sub-cycle::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 10px; background: #fff;
+  box-shadow: 0 1px 2px rgba(17, 17, 19, .08), 0 3px 10px rgba(17, 17, 19, .08); transition: transform .32s cubic-bezier(.3, .9, .3, 1); }
+.sub-cycle.year::before { transform: translateX(100%); }
+.sub-cycle label { position: relative; z-index: 1; min-height: 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 6px;
+  padding: 2px 4px; border-radius: 10px; color: var(--muted); font-size: 15px; line-height: 20px; font-weight: 600; cursor: pointer; transition: color .2s; }
+.sub-cycle label.on { color: var(--text); }
+.sub-cycle input, .sub-plan input { position: absolute; top: 0; left: 0; opacity: 0; pointer-events: none; }
+.sub-cycle label:has(input:focus-visible), .sub-plan:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sub-free, .sub-save { padding: 2px 7px; border-radius: 999px; background: #e6f4ea; color: #1b7a3d; font-size: 11.5px; line-height: 16px; font-weight: 700;
+  letter-spacing: .2px; white-space: nowrap; }
+
+/* A plan: the radio, its name and price on top, its server underneath. */
+.sub-plans { display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 0; }
+.sub-plan { position: relative; display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "radio name price" "radio note price" ". specs specs";
+  column-gap: 12px; align-items: start; padding: 16px 16px 16px 14px; border-radius: 18px; background: #fff; cursor: pointer; box-shadow: inset 0 0 0 1px var(--border);
+  transition: box-shadow .25s, transform .15s; animation: sub-rise .5s cubic-bezier(.2, .9, .3, 1) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
+.sub-plan.on { box-shadow: inset 0 0 0 2px var(--text), 0 12px 32px -14px rgba(17, 17, 19, .35); }
+.sub-plan:active { transform: scale(.985); }
+.sub-radio { grid-area: radio; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: inset 0 0 0 2px var(--border-strong); transition: background .2s, box-shadow .2s; }
+.sub-radio svg { opacity: 0; transform: scale(.4); transition: opacity .15s, transform .3s cubic-bezier(.3, 1.6, .5, 1); }
+.sub-plan.on .sub-radio { background: var(--text); box-shadow: none; }
+.sub-plan.on .sub-radio svg { opacity: 1; transform: none; }
+.sub-name { grid-area: name; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 19px; line-height: 26px; font-weight: 700; letter-spacing: -.2px; }
+.sub-note { grid-area: note; color: var(--muted); font-size: 14px; line-height: 20px; }
+.sub-price { grid-area: price; display: flex; flex-direction: column; align-items: flex-end; animation: fade .25s ease-out; }
+.sub-price b { font-size: 28px; line-height: 30px; font-weight: 700; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+.sub-price span { color: var(--muted); font-size: 13px; line-height: 18px; font-weight: 500; }
+.sub-specs { grid-area: specs; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.sub-specs > span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 8px; border-radius: 9px; background: var(--surface-2); color: var(--text-2);
+  font-size: 13.5px; line-height: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sub-specs svg { color: var(--muted); }
+
+.sub-includes { margin: 22px 24px 0; padding: 18px 18px 4px; border-radius: 18px; background: var(--surface-2); }
+.sub-includes h2 { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+.sub-includes ul { margin: 0; padding: 0; list-style: none; }
+.sub-includes li { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; color: var(--text-2); font-size: 15px; line-height: 21px; }
+.sub-includes li svg { flex: none; margin-top: 1px; color: var(--text); }
+
+.sub-account { display: flex; flex-direction: column; align-items: center; margin: 22px 24px 0; text-align: center; color: var(--muted); font-size: 14px; line-height: 20px; }
+.sub-account p { margin: 0; overflow-wrap: anywhere; }
+.sub-account b { color: var(--text-2); font-weight: 600; }
+.sub-account-actions { display: flex; align-items: center; gap: 2px; }
+.sub-account-actions button { min-height: 44px; padding: 0 10px; color: var(--text); font-size: 15px; font-weight: 600; }
+.sub-account-actions button:disabled { opacity: .5; }
+.hello-dock .sub-account { margin: -6px 0 0; }
+.sub-legal { margin: 0 24px; }
+
+/* Subscribe stays in reach while the plans scroll under it. */
+.sub-dock { position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; margin-top: auto;
+  padding: 28px 24px calc(max(var(--safe-bottom), 12px) + 8px); background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff 28px); }
+.sub-dock .auth-error { text-align: center; }
+.sub-fine { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
+.sub-sheet-text { margin: 0; color: var(--text-2); font-size: 15px; line-height: 21px; text-align: center; }
+@keyframes sub-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (min-width: 700px) {
+  .sub-head { padding-top: 56px; }
+  .sub-title { font-size: 34px; line-height: 40px; }
+}
 
 /* Settings → Privacy Policy and Terms of Service: the body of privacy.html and terms.html. */
 .legal-body h1 { display: none; }
