@@ -745,6 +745,8 @@ const row = v.object({
   plan: v.optional(v.string()),
   serverPlan: v.optional(v.string()),
   subscriptionStatus: v.optional(v.string()),
+  /** Moving to a smaller server (a downgrade under way). */
+  moving: v.boolean(),
   access: v.boolean(),
   paid: v.boolean(),
 });
@@ -765,6 +767,7 @@ export const everyone = internalQuery({
       plan: r.plan,
       serverPlan: r.serverPlan,
       subscriptionStatus: r.subscriptionStatus,
+      moving: !!r.nextServerKey,
       access: hasAccess(r, now),
       paid: isPaid(r, now),
     }));
@@ -839,6 +842,8 @@ export const reconcile = internalAction({
         changes.push(`deleting ${r.userId}'s server ${i.id}: the subscription is ${r.subscriptionStatus || "gone"}`);
       }
     }
+    /** Work on a server that started over `ms` ago and hasn't finished. */
+    const stalled = (r: (typeof rows)[number], ms = 10 * 60_000) => (r.serverWorkStartedAt ?? 0) < startedAt - ms;
     for (const r of rows) {
       if (removing.has(r.userId)) continue;
       const old = (r.serverCreatedAt ?? startedAt) < startedAt - 10 * 60_000;
@@ -859,10 +864,16 @@ export const reconcile = internalAction({
           await ctx.scheduler.runAfter(0, want > have ? internal.servers.resize : internal.servers.migrate, { userId: r.userId });
           changes.push(`${want > have ? "upgrading" : "moving"} ${r.userId}'s server to ${r.plan}`);
         }
-      } else if (r.access && r.serverStatus === "deleting" && r.serverId && atVultr.has(r.serverId)) {
-        // A deletion for a retry that didn't go through: try it again.
-        await ctx.scheduler.runAfter(0, internal.servers.remove, { userId: r.userId, replace: true });
-        changes.push(`deleting ${r.userId}'s failed server again`);
+      } else if (r.serverStatus === "deleting" && stalled(r)) {
+        // A deletion that didn't finish (Vultr refused, or it stopped partway)
+        // goes again. A server Vultr no longer has counts as deleted.
+        await ctx.scheduler.runAfter(0, internal.servers.remove, { userId: r.userId, replace: r.access });
+        changes.push(`deleting ${r.userId}'s server again`);
+      } else if (r.serverStatus === "resizing" && r.serverId && !r.moving && stalled(r, 2 * RESIZE_MS)) {
+        // An upgrade no longer being checked on: one last look settles it.
+        const plan = planById(r.plan)?.server ?? "";
+        await ctx.scheduler.runAfter(0, internal.servers.watchResize, { userId: r.userId, id: r.serverId, plan, startedAt: r.serverWorkStartedAt ?? 0 });
+        changes.push(`checking on ${r.userId}'s upgrade, which stalled`);
       }
     }
     const dry = vultr.dryRun ? " (dry run)" : "";

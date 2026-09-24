@@ -1,8 +1,8 @@
 // The cloud-init script a subscriber's server runs once, as root, when it
 // first boots (convex/servers.ts sends it as the server's user_data). It sets
 // up Holly Computer, unattended:
-//   1. Node.js 22 (nodejs.org, checked against its checksums), Google Chrome
-//      for the bots' browser, and Caddy for HTTPS.
+//   1. Caddy for HTTPS, Node.js 22 (nodejs.org, checked against its
+//      checksums), and Google Chrome for the bots' browser.
 //   2. When the server replaces a bigger one (a downgrade), the bots' files
 //      from the old server: its workspace, browser profile and plugins.
 //   3. Holly Computer as a service, which links itself to the subscriber's
@@ -56,6 +56,16 @@ FROM_TOKEN=${q(o.from?.token ?? "")}
 export DEBIAN_FRONTEND=noninteractive
 APT="apt-get -o DPkg::Lock::Timeout=600 -o Acquire::Retries=3 -y"
 
+# apt, tried a few times: at first boot, Ubuntu's own daily apt run can have
+# the package lists locked for a minute (installs wait for it; updates don't).
+apt_try() {
+  for i in 1 2 3 4 5 6; do
+    $APT "$@" && return 0
+    sleep 20
+  done
+  return 1
+}
+
 # Tells Holly Bot how it went (a JSON body), trying for a couple of minutes.
 report() {
   for i in 1 2 3 4 5 6; do
@@ -73,8 +83,15 @@ fail() {
 }
 
 echo "== Packages"
-$APT update || fail "Updating the package lists failed"
-$APT install ca-certificates curl gnupg tar xz-utils python3 || fail "Installing the basics failed"
+apt_try update || fail "Updating the package lists failed"
+apt_try install ca-certificates curl gnupg tar xz-utils python3 || fail "Installing the basics failed"
+
+echo "== Caddy"
+curl -fsSL --retry 3 https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \\
+  || fail "Couldn't get Caddy's signing key"
+curl -fsSL --retry 3 -o /etc/apt/sources.list.d/caddy-stable.list https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt || fail "Couldn't add Caddy's packages"
+chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+apt_try update && apt_try install caddy || fail "Installing Caddy failed"
 
 echo "== Node.js 22"
 NODE_URL=https://nodejs.org/dist/latest-v22.x
@@ -87,18 +104,14 @@ tar -xJf "/tmp/$NODE_TAR" -C /usr/local --strip-components=1 || fail "Unpacking 
 rm -f "/tmp/$NODE_TAR"
 
 echo "== Chrome"
-if curl -fsSL --retry 3 -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && $APT install /tmp/chrome.deb; then
+# Chrome comes last because it adds Google's package source to apt, which
+# then can't get in the way of the installs above.
+if curl -fsSL --retry 3 -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && apt_try install /tmp/chrome.deb; then
   echo "Chrome installed"
 else
   echo "Chrome couldn't be installed; the bots will have no browser"
 fi
 rm -f /tmp/chrome.deb
-
-echo "== Caddy"
-curl -fsSL --retry 3 https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \\
-  || fail "Couldn't get Caddy's signing key"
-curl -fsSL --retry 3 -o /etc/apt/sources.list.d/caddy-stable.list https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt || fail "Couldn't add Caddy's packages"
-$APT update && $APT install caddy || fail "Installing Caddy failed"
 
 echo "== Holly Computer"
 id holly >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/holly --shell /bin/bash holly || fail "Couldn't make the holly user"
