@@ -9,7 +9,11 @@
   <meta name="color-scheme" content="dark light" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <!-- "default", not "black-translucent": under a see-through status bar, iOS 26
+       makes a home-screen app one status bar short and leaves an empty strip
+       below it that nothing can paint (WebKit bug 301108). With "default" the
+       app starts below the status bar, which takes the theme color. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Holly Bot" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />

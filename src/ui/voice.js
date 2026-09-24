@@ -76,10 +76,15 @@ export function VoiceMode({ thread, agent, onClose }) {
 
   useEffect(() => {
     startListening();
+    // The status bar takes the theme color: dark over voice mode, then back.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const before = meta?.getAttribute('content');
+    meta?.setAttribute('content', '#050505');
     return () => {
       open.current = false;
       rec.current?.abort?.();
       stopSpeaking();
+      if (before) meta?.setAttribute('content', before);
     };
   }, []);
 

@@ -67,8 +67,8 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-/* One background from top to bottom. iOS home-screen apps also paint the strip
-   below the page (and any overscroll) with the body color, so it must match. */
+/* One background from top to bottom: iOS paints overscroll with the body
+   color, and the status bar with the theme color (kept equal in src/ui/app.js). */
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 17px; line-height: 1.35; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 body { overflow: hidden; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
