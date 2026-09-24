@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { auth } from "./auth";
 import { webhook } from "./billing";
 import { callback } from "./connectors";
+import { ready } from "./servers";
 
 const http = httpRouter();
 
@@ -15,5 +16,9 @@ http.route({ pathPrefix: "/connectors/", method: "GET", handler: callback });
 
 // /stripe/webhook: Stripe's news of every subscription change (convex/billing.ts).
 http.route({ path: "/stripe/webhook", method: "POST", handler: webhook });
+
+// /servers/ready: a subscriber's server reporting that Holly is running on it,
+// or what went wrong (convex/servers.ts, convex/lib/cloudinit.ts).
+http.route({ path: "/servers/ready", method: "POST", handler: ready });
 
 export default http;

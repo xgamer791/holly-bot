@@ -10,6 +10,7 @@ import {
   DeviceDataScreen, LinkComputerScreen, OtherAccountScreen, ProblemScreen, WelcomeFlow, screenFromHash,
 } from './ui/welcome.js';
 import { SubscribeScreen } from './ui/subscribe.js';
+import { SetupScreen } from './ui/setup.js';
 import {
   account, friendlyError, noticeAfterReload, signInWorksHere, SITE, takeNotice,
 } from './account/account.js';
@@ -54,27 +55,42 @@ async function boot() {
   if (await subscribed()) await openApp();
 }
 
-/** Past the subscription page: finishes connecting a service, if that's what
- * brought the person back, then opens the account. */
+/** Past the subscription page and the computer's setup: connects to the
+ * subscriber's computer, finishes connecting a service if that's what brought
+ * the person back, then opens the account. */
 async function openApp() {
+  whitePages(false);
+  if (/^#\/(subscribe|setup)\b/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+  await useServer();
   const connected = await finishConnecting();
   if (connected) notice = connected;
   return startAccount();
 }
 
-/** Marks the next launch as the subscription page's, so index.html starts it
- * on white instead of the app's dark splash. */
-const SUBSCRIBE_PAGE = 'holly.subscribePage';
+/** Marks the next launch as one of the white pages' (the subscription page,
+ * or the computer's setup), so index.html starts it on white instead of the
+ * app's dark splash. */
+function whitePages(on) {
+  try {
+    if (on) localStorage.setItem('holly.subscribePage', '1');
+    else localStorage.removeItem('holly.subscribePage');
+  } catch { /* storage blocked */ }
+}
+
+/** The latest billing:status (convex/billing.ts). */
+let billing = null;
 let watchingSubscription = false;
 
 /**
  * Holly Bot opens only for an account with an active subscription
- * (convex/billing.ts). Anyone else gets the subscription page instead, which
- * the address can't get around: the app and its routes open only from here.
- * Back from Stripe (Checkout or the billing portal), or when a paid period
- * should have ended, Stripe is asked first, so a subscription just paid for
- * opens the app straight away. True when the app may open; otherwise a page
- * has taken over.
+ * (convex/billing.ts) whose computer is ready (convex/servers.ts). Anyone
+ * without a subscription gets the subscription page instead, and a subscriber
+ * whose computer is still being set up gets its progress (src/ui/setup.js);
+ * the address can't get around either, since the app and its routes open only
+ * from here. Back from Stripe (Checkout or the billing portal), or when a paid
+ * period should have ended, Stripe is asked first, so a subscription just paid
+ * for goes straight on to its computer. True when the app may open; otherwise
+ * a page has taken over, and opens it when it's time.
  */
 async function subscribed() {
   const back = takeBillingReturn();
@@ -93,29 +109,78 @@ async function subscribed() {
     show(html`<${ProblemScreen} message=${loadError(err)} onRetry=${() => location.reload()} onSignOut=${() => signOut()} />`);
     return false;
   }
-  try {
-    if (status.active) localStorage.removeItem(SUBSCRIBE_PAGE);
-    else localStorage.setItem(SUBSCRIBE_PAGE, '1');
-  } catch { /* storage blocked */ }
-  const home = `${location.pathname}${location.search}#/`;
-  if (status.active) {
-    if (back === 'paid') notice = { text: welcomeText(status) };
-    if (/^#\/subscribe\b/.test(location.hash)) history.replaceState(null, '', home);
-    return true;
+  billing = status;
+  if (!status.active) {
+    showSubscribe(status, back);
+    return false;
   }
+  if (back === 'paid') notice = { text: welcomeText(status) };
+  if (usable(status)) return true;
+  showSetup(status);
+  return false;
+}
+
+/** Whether the app can open: the subscriber's computer is ready (or being
+ * resized), or they're past due, keeping what they have while Stripe tries
+ * their card again. */
+function usable(status) {
+  return status.pastDue || ['ready', 'resizing'].includes(status.server?.status);
+}
+
+function showSubscribe(status, back) {
+  whitePages(true);
   history.replaceState(null, '', `${location.pathname}${location.search}#/subscribe`);
   show(html`<${SubscribeScreen} status=${status} back=${back}
     onActive=${(next) => {
-      try {
-        localStorage.removeItem(SUBSCRIBE_PAGE);
-      } catch { /* storage blocked */ }
+      billing = next;
       notice = { text: welcomeText(next) };
-      history.replaceState(null, '', home);
+      if (usable(next)) openApp();
+      else showSetup(next);
+    }}
+    onSignOut=${() => signOut()}
+    onDeleteAccount=${deleteFromSubscribePage} />`);
+}
+
+function showSetup(status) {
+  whitePages(true);
+  history.replaceState(null, '', `${location.pathname}${location.search}#/setup`);
+  show(html`<${SetupScreen} status=${status}
+    onReady=${(next) => {
+      billing = next;
       openApp();
     }}
     onSignOut=${() => signOut()}
     onDeleteAccount=${deleteFromSubscribePage} />`);
-  return false;
+}
+
+/**
+ * The subscriber's own computer (convex/servers.ts) is where their bots run,
+ * so this app becomes its remote control, the way it does for a Holly
+ * Computer opened from its link. It's set up once per computer: choosing
+ * "Use bots in this app instead" sticks until the computer changes (a
+ * smaller one after a downgrade), and a Holly Computer of the person's own
+ * that this app is already connected to stays.
+ */
+async function useServer() {
+  let server = null;
+  try {
+    server = await account.authed('query', 'servers:connection');
+  } catch (err) {
+    console.warn('server', err);
+  }
+  if (!server) return;
+  const saved = savedConnection();
+  const offered = `holly.serverOffered:${account.userId}`;
+  let last = null;
+  try {
+    last = localStorage.getItem(offered);
+  } catch { /* storage blocked */ }
+  const replaced = saved?.managed && (saved.url !== server.url || saved.token !== server.token);
+  if (!replaced && (saved || last === server.url)) return;
+  saveConnection({ url: server.url, token: server.token, name: server.name, managed: true });
+  try {
+    localStorage.setItem(offered, server.url);
+  } catch { /* storage blocked */ }
 }
 
 function welcomeText(status) {
@@ -160,10 +225,12 @@ async function deleteFromSubscribePage() {
 }
 
 /**
- * While the app is open, its subscription can end: cancelled, or a renewal
- * that didn't go through. It's checked each time the app comes back to the
- * front and every ten minutes, and once it has ended the app reloads, which
- * lands on the subscription page. Changes not yet saved wait on the device.
+ * While the app is open, its subscription can change. It's checked each time
+ * the app comes back to the front and every ten minutes: once it has ended,
+ * the app reloads, which lands on the subscription page (changes not yet
+ * saved wait on the device); a renewal that didn't go through shows a banner
+ * asking for a new card; and when the subscriber's computer was replaced (a
+ * smaller one after a downgrade), the app reloads to connect to the new one.
  */
 function watchSubscription() {
   if (watchingSubscription) return;
@@ -175,13 +242,40 @@ function watchSubscription() {
     try {
       let status = await account.authed('query', 'billing:status');
       if (status.check) status = await account.authed('action', 'billing:sync');
-      if (!status.active) location.reload();
+      billing = status;
+      if (!status.active) return location.reload();
+      if (status.pastDue) paymentBanner();
+      const saved = savedConnection();
+      if (saved?.managed) {
+        const server = await account.authed('query', 'servers:connection');
+        if (server && server.url !== saved.url) location.reload();
+      }
     } catch { /* offline, or the server is busy: next time */ } finally {
       checking = false;
     }
+    return undefined;
   };
   document.addEventListener('visibilitychange', check);
   setInterval(check, 10 * 60_000);
+}
+
+let paymentBannerShown = false;
+
+/** Past due: Holly Bot keeps working while Stripe tries the card again, and
+ * this asks for a new one, in Stripe's billing portal. */
+function paymentBanner() {
+  if (paymentBannerShown) return;
+  paymentBannerShown = true;
+  const button = banner("Your payment didn't go through · Update it", async () => {
+    button.disabled = true;
+    try {
+      location.assign(await account.authed('action', 'billing:portal', { returnTo: `${location.origin}${location.pathname}` }));
+    } catch (err) {
+      console.warn('billing', err);
+      button.textContent = "Couldn't open billing · Tap to try again";
+      button.disabled = false;
+    }
+  }, 'warn');
 }
 
 /** Opens the signed-in account: first anything this device kept from before
@@ -439,13 +533,22 @@ async function finishConnecting() {
   }
 }
 
-/** A small notice at the top of the app that does something when tapped. */
-function banner(text, onClick) {
+/** A small notice at the top of the app that does something when tapped.
+ * Several stack. */
+function banner(text, onClick, tone = '') {
+  let box = document.getElementById('banners');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'banners';
+    box.className = 'banners';
+    document.body.append(box);
+  }
   const button = document.createElement('button');
-  button.className = 'stale-banner';
+  button.className = `stale-banner${tone ? ` ${tone}` : ''}`;
   button.textContent = text;
   button.onclick = onClick;
-  document.body.append(button);
+  box.append(button);
+  return button;
 }
 
 function mount(app) {
@@ -456,7 +559,10 @@ function mount(app) {
   render(html`<${Root} app=${app} />`, root);
   document.getElementById('boot')?.remove();
   registerServiceWorker();
-  if (signInWorksHere() && account.signedIn) watchSubscription();
+  if (signInWorksHere() && account.signedIn) {
+    if (billing?.pastDue) paymentBanner();
+    watchSubscription();
+  }
 }
 
 function registerServiceWorker() {

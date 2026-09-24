@@ -18,6 +18,7 @@ import type * as devices from "../devices.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_cloudinit from "../lib/cloudinit.js";
 import type * as lib_github from "../lib/github.js";
 import type * as lib_mail from "../lib/mail.js";
 import type * as lib_oauth from "../lib/oauth.js";
@@ -26,6 +27,8 @@ import type * as lib_records from "../lib/records.js";
 import type * as lib_seal from "../lib/seal.js";
 import type * as lib_stripe from "../lib/stripe.js";
 import type * as lib_subscription from "../lib/subscription.js";
+import type * as lib_vultr from "../lib/vultr.js";
+import type * as servers from "../servers.js";
 import type * as uploads from "../uploads.js";
 
 import type {
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   health: typeof health;
   http: typeof http;
   "lib/auth": typeof lib_auth;
+  "lib/cloudinit": typeof lib_cloudinit;
   "lib/github": typeof lib_github;
   "lib/mail": typeof lib_mail;
   "lib/oauth": typeof lib_oauth;
@@ -53,6 +57,8 @@ declare const fullApi: ApiFromModules<{
   "lib/seal": typeof lib_seal;
   "lib/stripe": typeof lib_stripe;
   "lib/subscription": typeof lib_subscription;
+  "lib/vultr": typeof lib_vultr;
+  servers: typeof servers;
   uploads: typeof uploads;
 }>;
 

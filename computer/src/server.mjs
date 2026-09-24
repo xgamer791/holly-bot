@@ -9,6 +9,9 @@
 
 import { createServer } from 'node:http';
 import { timingSafeEqual, randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { RPC, stateSnapshot, sanitizeMessage, findImage, redactSettings } from './remote-api.mjs';
 
 const MAX_BODY = 60 * 1024 * 1024;
@@ -49,6 +52,34 @@ async function readBody(req) {
   }
   const raw = Buffer.concat(chunks).toString('utf8');
   return raw ? JSON.parse(raw) : {};
+}
+
+/** The folder two paths both live in. */
+function commonParent(a, b) {
+  const x = a.split(sep);
+  const y = b.split(sep);
+  let i = 0;
+  while (i < x.length && i < y.length && x[i] === y[i]) i++;
+  return x.slice(0, i).join(sep) || sep;
+}
+
+/**
+ * GET /v1/export: the bots' files as a .tar.gz (the workspace, and the
+ * browser profile and plugins in the data folder), with paths relative to the
+ * folder both live in. When Holly Bot moves a subscriber to a smaller server,
+ * the new one copies them from the old one (convex/lib/cloudinit.ts). Caches
+ * and the browser's lock files stay behind.
+ */
+function exportFiles(res, computer) {
+  const root = commonParent(computer.workspace, computer.dataDir);
+  const parts = [computer.workspace, join(computer.dataDir, 'browser-profile'), join(computer.dataDir, 'mcp.json')]
+    .filter((path) => existsSync(path))
+    .map((path) => relative(root, path));
+  const excludes = ['Singleton*', '*/Cache', '*/Code Cache', '*/GPUCache', '*/Service Worker/CacheStorage'].map((pattern) => `--exclude=${pattern}`);
+  const tar = spawn('tar', ['-czf', '-', ...excludes, '-C', root, ...parts], { stdio: ['ignore', 'pipe', 'ignore'] });
+  tar.on('error', () => res.destroy());
+  res.writeHead(200, { 'Content-Type': 'application/gzip', 'Cache-Control': 'no-store' });
+  tar.stdout.pipe(res);
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms).unref());
@@ -279,6 +310,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
   async function computerApi(req, res, url) {
     const p = url.pathname;
     if (p === '/v1/info' && req.method === 'GET') return json(res, 200, await computer.connect());
+    if (p === '/v1/export' && req.method === 'GET') return exportFiles(res, computer);
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (p === '/v1/exec') {
       const job = jobs.start(body);

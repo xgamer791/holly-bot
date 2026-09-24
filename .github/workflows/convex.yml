@@ -109,14 +109,24 @@ jobs:
             fi
           done
 
-      # Optional: Stripe, for subscriptions (CONVEX.md). Without the secret key,
-      # the subscription page says subscriptions aren't set up yet.
-      - name: Copy Stripe keys to the deployment
+      # Optional: Stripe and Vultr, for subscriptions and each subscriber's
+      # server (CONVEX.md). They can also be set in the Convex dashboard; a
+      # secret that isn't set here leaves the deployment's own value alone.
+      - name: Copy Stripe and Vultr settings to the deployment
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER_MONTHLY: ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY: ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY: ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY: ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_ULTRA_MONTHLY: ${{ secrets.STRIPE_PRICE_ULTRA_MONTHLY }}
+          STRIPE_PRICE_ULTRA_YEARLY: ${{ secrets.STRIPE_PRICE_ULTRA_YEARLY }}
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+          VULTR_DRY_RUN: ${{ secrets.VULTR_DRY_RUN }}
         run: |
-          for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+          for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_STARTER_MONTHLY STRIPE_PRICE_STARTER_YEARLY \
+            STRIPE_PRICE_PRO_MONTHLY STRIPE_PRICE_PRO_YEARLY STRIPE_PRICE_ULTRA_MONTHLY STRIPE_PRICE_ULTRA_YEARLY VULTR_API_KEY VULTR_DRY_RUN; do
             if [ -n "${!name}" ]; then
               printf '%s' "${!name}" | npx convex env set "$name"
             else

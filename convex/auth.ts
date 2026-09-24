@@ -6,7 +6,7 @@ import { internal } from "./_generated/api";
 
 /** The live app. Allowed whatever `SITE_URL` says, so a stray value there
  * (prod was once set to http://localhost:8080) can't break sign-in. */
-const LIVE_SITE = "https://xgamer791.github.io/holly-bot";
+export const LIVE_SITE = "https://xgamer791.github.io/holly-bot";
 
 /**
  * Where Google and Apple may send someone back to: the live app, `SITE_URL`

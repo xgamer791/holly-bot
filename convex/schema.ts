@@ -63,9 +63,12 @@ export default defineSchema({
     userId: v.id("users"),
     codeHash: v.string(),
     expiresAt: v.number(),
+    /** For a subscriber's server (convex/servers.ts): which one. */
+    serverKey: v.optional(v.string()),
   })
     .index("by_code", ["codeHash"])
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_server_key", ["serverKey"]),
 
   /** Holly Computers linked to an account, each signed in with a session of its own. */
   devices: defineTable({
@@ -73,7 +76,11 @@ export default defineSchema({
     sessionId: v.id("authSessions"),
     name: v.string(),
     linkedAt: v.number(),
-  }).index("by_user", ["userId"]),
+    /** A subscriber's server (convex/servers.ts): its session ends when the server is deleted. */
+    serverKey: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_server_key", ["serverKey"]),
 
   /**
    * Services connected to an account for its bots: Gmail, Outlook, GitHub
@@ -122,39 +129,65 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_expiry", ["expiresAt"]),
 
-  /** Each account's customer at Stripe, made the first time it starts a
-   * checkout (convex/billing.ts). One per Stripe mode: a test-mode customer
-   * means nothing to live mode. */
-  billingCustomers: defineTable({
-    userId: v.id("users"),
-    customerId: v.string(),
-    livemode: v.boolean(),
-  })
-    .index("by_user", ["userId"])
-    .index("by_customer", ["customerId"]),
-
   /**
-   * An account's subscriptions at Stripe, as Stripe last described them (its
-   * webhook, or the app asking after a checkout). Holly Bot opens for the
-   * account while one of them is active (convex/lib/subscription.ts). `plan`
-   * is one of convex/lib/plans.ts; times are in ms.
+   * Each subscriber: their Stripe customer and subscription as Stripe last
+   * described them (convex/billing.ts), and the dedicated Vultr server that
+   * runs Holly for them (convex/servers.ts). One row per account, made when it
+   * first starts a checkout. Times are in ms.
+   *
+   * serverStatus is none, provisioning, ready, resizing (an upgrade, or a move
+   * to a smaller server), deleting or error. serverReadyToken holds the
+   * SHA-256 of the one-time token a server reports ready with. serverKey ties a
+   * server to the Holly Computer session it links with (devices.serverKey). A
+   * downgrade builds the smaller server as nextServer*, then swaps it in.
    */
-  subscriptions: defineTable({
+  subscribers: defineTable({
     userId: v.id("users"),
-    customerId: v.string(),
-    subscriptionId: v.string(),
-    status: v.string(),
-    plan: v.optional(v.string()),
-    interval: v.optional(v.string()),
-    priceId: v.optional(v.string()),
-    periodEnd: v.optional(v.number()),
-    endsAt: v.optional(v.number()),
+    /** Whether the Stripe customer and subscription are live or test mode. */
     livemode: v.boolean(),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    plan: v.optional(v.string()),
+    billingInterval: v.optional(v.string()),
+    subscriptionStatus: v.optional(v.string()),
+    currentPeriodEnd: v.optional(v.number()),
+    /** When the subscription ended, or is set to end. */
+    cancelAt: v.optional(v.number()),
+    serverStatus: v.string(),
+    serverId: v.optional(v.string()),
+    serverIp: v.optional(v.string()),
+    serverPlan: v.optional(v.string()),
+    serverReadyToken: v.optional(v.string()),
+    serverCreatedAt: v.optional(v.number()),
+    serverError: v.optional(v.string()),
+    serverKey: v.optional(v.string()),
+    /** Where the app reaches the server, and its Holly Computer pairing token. */
+    serverUrl: v.optional(v.string()),
+    serverPairingToken: v.optional(v.string()),
+    /** When the work under way (provisioning, resizing) started. */
+    serverWorkStartedAt: v.optional(v.number()),
+    nextServerId: v.optional(v.string()),
+    nextServerIp: v.optional(v.string()),
+    nextServerPlan: v.optional(v.string()),
+    nextServerKey: v.optional(v.string()),
+    /** When the app last asked to set the server up again (servers:retry). */
+    retriedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_customer", ["customerId"])
-    .index("by_subscription", ["subscriptionId"]),
+    .index("by_customer", ["stripeCustomerId"])
+    .index("by_server", ["serverId"])
+    .index("by_next_server", ["nextServerId"]),
+
+  /** Stripe events already handled, so a delivery Stripe repeats is skipped
+   * (convex/billing.ts). Kept 30 days. */
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    processedAt: v.number(),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_time", ["processedAt"]),
 
   meta: defineTable({
     key: v.string(),

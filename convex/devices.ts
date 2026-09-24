@@ -1,3 +1,4 @@
+import { getAuthSessionId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
@@ -19,6 +20,27 @@ const LINK_MS = 10 * 60 * 1000;
  * can end it at any time (unlink). */
 const DEVICE_SESSION_MS = 365 * 24 * 60 * 60 * 1000;
 
+/** Ends the Holly Computer session of a subscriber's server that's being
+ * deleted (convex/servers.ts), and drops its link code if it was never used. */
+export async function forgetServerSessions(ctx: MutationCtx, serverKey: string) {
+  for (const device of await ctx.db.query("devices").withIndex("by_server_key", (q) => q.eq("serverKey", serverKey)).collect()) {
+    await endSession(ctx, device.sessionId);
+    await ctx.db.delete(device._id);
+  }
+  for (const link of await ctx.db.query("deviceLinks").withIndex("by_server_key", (q) => q.eq("serverKey", serverKey)).collect()) {
+    await ctx.db.delete(link._id);
+  }
+}
+
+export const forgetServer = internalMutation({
+  args: { key: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { key }) => {
+    await forgetServerSessions(ctx, key);
+    return null;
+  },
+});
+
 async function endSession(ctx: MutationCtx, sessionId: Id<"authSessions">) {
   const tokens = await ctx.db
     .query("authRefreshTokens")
@@ -29,21 +51,26 @@ async function endSession(ctx: MutationCtx, sessionId: Id<"authSessions">) {
 }
 
 /** Starts linking a computer to the signed-in account. One code at a time:
- * a new one replaces any left over. Also tidies away computers whose session
- * has ended (unlinked, or renewed into a new one). */
+ * a new one replaces any left over (but not one a subscriber's server is
+ * waiting to use). Also tidies away computers whose session has ended
+ * (unlinked, or renewed into a new one). A subscriber's server renewing its
+ * own link (Holly Computer does after 300 days) stays marked as that server. */
 export const createLink = mutation({
   args: { codeHash: v.string() },
   returns: v.null(),
   handler: async (ctx, { codeHash }) => {
     const userId = await requireUserId(ctx);
     if (!/^[0-9a-f]{64}$/.test(codeHash)) throw new ConvexError("Bad link code");
+    const sessionId = await getAuthSessionId(ctx);
+    let serverKey: string | undefined;
     for (const old of await ctx.db.query("deviceLinks").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
-      await ctx.db.delete(old._id);
+      if (!old.serverKey) await ctx.db.delete(old._id);
     }
     for (const device of await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      if (device.sessionId === sessionId) serverKey = device.serverKey;
       if (!(await ctx.db.get(device.sessionId))) await ctx.db.delete(device._id);
     }
-    await ctx.db.insert("deviceLinks", { userId, codeHash, expiresAt: Date.now() + LINK_MS });
+    await ctx.db.insert("deviceLinks", { userId, codeHash, expiresAt: Date.now() + LINK_MS, ...(serverKey ? { serverKey } : null) });
     return null;
   },
 });
@@ -68,21 +95,23 @@ export const redeem = internalMutation({
       sessionId,
       name: name.trim().slice(0, 60) || "Holly Computer",
       linkedAt: now,
+      ...(link.serverKey ? { serverKey: link.serverKey } : null),
     });
     return { userId: link.userId, sessionId };
   },
 });
 
-/** The computers linked to the signed-in account. */
+/** The computers linked to the signed-in account. `server`: the subscriber's
+ * own server, which Holly Bot links and unlinks itself (convex/servers.ts). */
 export const list = query({
   args: {},
-  returns: v.array(v.object({ id: v.id("devices"), name: v.string(), linkedAt: v.number() })),
+  returns: v.array(v.object({ id: v.id("devices"), name: v.string(), linkedAt: v.number(), server: v.boolean() })),
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
     const linked = [];
     for (const device of devices) {
-      if (await ctx.db.get(device.sessionId)) linked.push({ id: device._id, name: device.name, linkedAt: device.linkedAt });
+      if (await ctx.db.get(device.sessionId)) linked.push({ id: device._id, name: device.name, linkedAt: device.linkedAt, server: !!device.serverKey });
     }
     return linked;
   },

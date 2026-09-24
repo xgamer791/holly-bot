@@ -28,7 +28,8 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 - `convex/uploads.ts` and `convex/crons.ts`: the daily sweep of unclaimed uploads.
 - `convex/devices.ts`: linking Holly Computer to an account (below).
 - `convex/connectors.ts`: Gmail, Outlook and GitHub connected to an account for its bots (below), with `convex/lib/oauth.ts`, `mail.ts`, `github.ts` and `seal.ts`.
-- `convex/billing.ts`: subscriptions through Stripe (below), with `convex/lib/plans.ts` (the plans and their prices), `convex/lib/stripe.ts` (Stripe's API and webhook signatures) and `convex/lib/subscription.ts` (whether an account's subscription is active). Stripe's webhook is `https://impressive-ferret-800.convex.site/stripe/webhook`.
+- `convex/billing.ts`: subscriptions through Stripe (below), with `convex/lib/plans.ts` (the plans, their prices and their servers: the one place they're set), `convex/lib/stripe.ts` (Stripe's API and webhook signatures) and `convex/lib/subscription.ts` (whether an account's subscription lets it in). Stripe's webhook is `https://impressive-ferret-800.convex.site/stripe/webhook`.
+- `convex/servers.ts`: each subscriber's dedicated server at Vultr (below), with `convex/lib/vultr.ts` (Vultr's API) and `convex/lib/cloudinit.ts` (the script that sets a server up). Servers report in at `https://impressive-ferret-800.convex.site/servers/ready`.
 
 The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
@@ -37,12 +38,12 @@ The browser side is `src/account/account.js` (the sign-in protocol, sessions in 
 Everything the app keeps (bots, chats, messages, memories, files, routines, tasks, activity, settings and API keys) is one `records` row per record, owned by an account. The app core runs on `src/account/cloud-db.js`, which has the same interface as the IndexedDB wrapper it used before (`src/core/db.js`).
 
 - **Isolation.** Every function in `convex/data.ts` gets the account from the verified session (`requireUserId` in `convex/lib/auth.ts`, through `requireSubscriber`; the session must still exist, so signing out or deleting the account cuts off its tokens at once) and reads and writes only through indexes that start with that account.
-- **Subscribers only.** The same functions work only while the account's subscription is active (`requireSubscriber` in `convex/lib/subscription.ts`). Without one they refuse with "Holly Bot needs an active subscription", and the app and Holly Computer keep unsaved changes on the device until it's active again. The client never names an account. Uploads are claimed by the account whose record first refers to them (`blobs`), and only that account can get a download URL.
+- **Subscribers only.** The same functions work only while the account's subscription is active or past due (`requireSubscriber` in `convex/lib/subscription.ts`). Without one they refuse with "Holly Bot needs an active subscription", and the app and Holly Computer keep unsaved changes on the device until it's active again. The client never names an account. Uploads are claimed by the account whose record first refers to them (`blobs`), and only that account can get a download URL.
 - **Records** hold the app's JSON as a string (`data`), plus `group` and `sort` so the app can load one chat's messages or one bot's memories at a time, newest first. A record over ~800 KB of JSON goes to file storage (`overflow`), as do files' contents and long texts.
 - **Uploads** that no record claims within a day (the app closed mid-save, or an upload URL used for nothing) are deleted by a daily sweep (`convex/uploads.ts`, scheduled in `convex/crons.ts`).
 - **Writes** go through `data:apply`, in order and in batches, from an outbox the app keeps on the device (IndexedDB `holly-outbox-<userId>`) until the server has them, so nothing is lost offline or when the app closes.
 - **Several devices.** `heads` counts each account's writes. A device that sees the count move without its own writes knows another device changed the account and reloads when nothing would be lost (`src/main.js`). `claims` makes a routine's scheduled run happen on one device only.
-- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, linked computers, subscription (its Stripe customer is deleted, which cancels it), sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
+- **Deleting.** `account:deleteAccount` removes the account's records and uploads, counters, claims, linked computers, subscription (its Stripe customer is deleted, which cancels it) and servers, sessions and sign-in links, then the user, in batches the app repeats until done. Settings → Data & Backup → Erase all data empties the account but keeps it (`data:clearStore`).
 - **Before accounts** (1.2.0 and older) the app kept everything in the browser's IndexedDB (`holly`), shared by whoever used the browser. The first account to sign in on such a browser is asked to add it to the account or delete it (`src/account/device-data.js`); either way it leaves the browser.
 
 ## Holly Computer on the account
@@ -68,25 +69,46 @@ People connect them in Settings → Plugins, and bots use them through tools (`s
 
 ## Subscriptions
 
-Holly Bot opens only for an account with an active subscription. Right after an account is created, and whenever its subscription isn't active, the app shows the subscription page instead of the app (`subscribed()` in `src/main.js`, `src/ui/subscribe.js`). The server enforces it too, so a copy of the app with the check taken out gets nowhere.
+Holly Bot opens only for an account with an active subscription whose computer is ready. Right after an account is created, and whenever its subscription isn't active, the app shows the subscription page instead of the app (`subscribed()` in `src/main.js`, `src/ui/subscribe.js`); once paid, it shows the computer being set up (`src/ui/setup.js`) until it's ready. The server enforces the subscription too, so a copy of the app with the check taken out gets nowhere.
 
-| Plan | Monthly | Yearly | Dedicated server |
-|------|---------|--------|------------------|
-| Starter (best for 1 bot) | $49 | $490 | 2 CPU, 4 GB RAM |
-| Pro | $99 | $990 | 4 CPU, 8 GB RAM |
-| Ultra | $179 | $1,790 | 6 CPU, 16 GB RAM |
+| Plan | Paid yearly | Month to month (+20%) | Dedicated server (Vultr) |
+|------|-------------|------------------------|--------------------------|
+| Starter (best for 1 bot) | $588 a year ($49 a month) | $58.80 a month | `vc2-2c-4gb`: 2 CPU, 4 GB RAM |
+| Pro | $1,188 a year ($99 a month) | $118.80 a month | `vc2-4c-8gb`: 4 CPU, 8 GB RAM |
+| Ultra | $2,148 a year ($179 a month) | $214.80 a month | `vc2-6c-16gb`: 6 CPU, 16 GB RAM |
 
-- **Plans** live in `convex/lib/plans.ts`, and the page shows them as `billing:status` hands them out, so prices are set in one place. Nothing provisions the dedicated servers yet: the plan is kept on the subscription (`subscriptions.plan`) for when something does.
-- **Subscribing.** `billing:checkout` makes the account's Stripe customer the first time (its id kept in `billingCustomers`), and opens Stripe Checkout with `mode=subscription` for the plan's monthly or yearly price. Stripe sends the person back with `?checkout=done` (or `cancelled`).
-- **Products and prices** are made at Stripe the first time someone subscribes to each: products `holly_bot_starter`, `holly_bot_pro` and `holly_bot_ultra`, and prices found by the lookup keys `holly_bot_<plan>_month` and `_year`. To change a price, change `convex/lib/plans.ts`: the next checkout makes the new price and moves the lookup key to it. People already subscribed keep what they pay until you move them in Stripe.
-- **Staying in step.** Stripe's webhook (`/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) reports every change, and each event reads the subscription from Stripe again (`subscriptions`), so late or out-of-order events can't undo a newer change. The app also asks Stripe itself (`billing:sync`) when it comes back from Checkout or the billing portal, and when a paid period should have ended, so a subscription opens the app the moment it's paid for, and a missed webhook can't keep one open or shut for long. A period that ended more than three days ago with no word from Stripe no longer counts.
-- **Active** means Stripe's status is `active` or `trialing`. A renewal that didn't go through (`past_due`, `unpaid`) shuts the app until the card is updated; the subscription page leads to Stripe's billing portal for that, not to a second subscription. `billing:checkout` refuses to start one while the account has a subscription that isn't over.
-- **Managing.** Settings → Subscription opens Stripe's billing portal (`billing:portal`): change plan, update the card, see invoices, cancel. Coming back (`?billing=done`) the app asks Stripe again.
-- **While the app is open** it checks when it comes back to the front and every ten minutes, and reloads onto the subscription page once the subscription has ended.
-- **What still works without one:** signing in and out, the subscription itself, deleting the account (on the subscription page too), unlinking a computer and disconnecting a service. `account:viewer` and `devices:*` don't need a subscription; `data:*` and connecting or using Gmail, Outlook and GitHub do.
-- **Test and live.** Customers and subscriptions remember which Stripe mode made them, and only the mode of the current `STRIPE_SECRET_KEY` counts, so switching from test keys to live ones never lets a test subscription open Holly Bot.
-- **Deleting the account** deletes its Stripe customer, which cancels the subscription at once (`billing:forget`, retried for most of a day if Stripe can't be reached).
+- **Plans** live in `convex/lib/plans.ts`: names, prices, server sizes, the region (`ord`, Chicago) and the operating system (Ubuntu 24.04). The page shows them as `billing:status` hands them out.
+- **Prices at Stripe** are the ones you make, named by six variables: `STRIPE_PRICE_STARTER_MONTHLY`, `STRIPE_PRICE_STARTER_YEARLY`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_YEARLY`, `STRIPE_PRICE_ULTRA_MONTHLY` and `STRIPE_PRICE_ULTRA_YEARLY`. Checkout reads the price from Stripe first and refuses one that isn't exactly what `convex/lib/plans.ts` says (amount, USD, every month or year), and the log says which variable is off, so nobody is charged a different amount than the page shows. A subscription's plan is found from its price id.
+- **Subscribing.** `billing:checkout` makes the account's Stripe customer the first time (kept on its row in `subscribers`) and opens Stripe Checkout with `mode=subscription`. Stripe sends the person back with `?checkout=done` (or `cancelled`), and the app asks Stripe straight away (`billing:sync`).
+- **The webhook** (`/stripe/webhook`) checks every event's signature (`STRIPE_WEBHOOK_SECRET`) and refuses anything else, and handles each event once: its id goes in `stripeEvents` in the same transaction as the change, and a repeat is skipped. Each event reads the subscription it's about from Stripe again, so events that arrive late or out of order can't undo a newer change.
+  - `checkout.session.completed`: keeps the Stripe ids and plan, marks the subscription active, schedules the server.
+  - `customer.subscription.created` and `.updated`: keep status, plan and period end in step. A bigger plan resizes the server; a smaller one moves it to a smaller server.
+  - `invoice.payment_failed`: past due. Holly Bot keeps working and the server keeps running, and the app shows a "Your payment didn't go through" banner that opens the billing portal.
+  - `customer.subscription.deleted`: canceled. The server is deleted, and the app goes back to the subscription page.
+- **Who gets in:** Stripe's status `active` or `trialing`, or `past_due` while Stripe tries the card again. Anything else (`unpaid`, `paused`, `canceled`…) gets the subscription page, which leads to the billing portal rather than to a second subscription; `billing:checkout` refuses one while the account has a subscription that isn't over.
+- **Staying in step without the webhook.** The app asks Stripe itself (`billing:sync`) when it comes back from Checkout or the portal, and when a paid period should have ended; a period that ended more than three days ago with no word from Stripe no longer counts. `sync` never touches servers: only the webhook, the scheduler and the nightly reconcile do.
+- **Managing.** Settings → Subscription opens Stripe's billing portal (`billing:portal`): change plan, update the card, see invoices, cancel. Settings also shows the computer, and offers to set it up again if that failed.
+- **What still works without a subscription:** signing in and out, the subscription itself, deleting the account (on the subscription and setup pages too), unlinking a computer and disconnecting a service. `data:*` and connecting or using Gmail, Outlook and GitHub need one.
+- **Test and live.** A subscriber's row remembers which Stripe mode made it, and only the mode of the current `STRIPE_SECRET_KEY` counts, so a test subscription never opens Holly Bot once the key is live (and the nightly reconcile then deletes its server).
+- **Deleting the account** deletes its Stripe customer, which cancels the subscription at once (`billing:forget`, retried for most of a day), and its servers.
 - Bring your own key is unchanged: bots still call AI providers with the account's own keys, so a plan's price doesn't include AI.
+
+## Subscribers' servers
+
+Every subscriber gets their own dedicated Vultr server running Holly Computer, linked to their account, so their bots run there around the clock (`convex/servers.ts`). The app becomes its remote control (`useServer()` in `src/main.js`). It's made when they subscribe, resized when they upgrade, moved to a smaller one when they downgrade, and deleted when the subscription ends, with no manual steps. Only Stripe's webhook, the scheduler and the nightly cron make or delete servers: every function that calls Vultr is internal. The app can only ask for a failed setup to start again (`servers:retry`, at most once a minute), which schedules the same work.
+
+A subscriber's row in `subscribers` holds `serverId` (the Vultr instance), `serverIp`, `serverPlan`, `serverStatus` (`none`, `provisioning`, `ready`, `resizing`, `deleting` or `error`), `serverReadyToken` (a hash of the one-time token), `serverCreatedAt` and `serverError`, next to `stripeCustomerId`, `stripeSubscriptionId`, `plan`, `billingInterval`, `subscriptionStatus` and `currentPeriodEnd`.
+
+- **Making one** (`provision`, run by the scheduler). Nothing happens if the subscriber already has a server or one is being made. It refuses while the Vultr account has 28 or more `holly-customer` servers (Vultr caps an account at 30 servers and $1,000 a month) and logs a warning to ask Vultr for more; the subscriber sees that setup can't happen right now, and the nightly reconcile tries again. It looks up Ubuntu 24.04's `os_id` (`GET /v2/os`), then `POST /v2/instances` in `ord` at the plan's size, labelled `holly-<userId>`, tagged `holly-customer`, without backups, with the setup script as `user_data`. The id is kept at once (status `provisioning`), and Vultr is asked every 10 seconds until the server has an address.
+- **Setting it up** (`convex/lib/cloudinit.ts`, cloud-init, as root at first boot): Node.js 22 from nodejs.org (checked against its checksums), Google Chrome for the bots' browser, Caddy from its apt repository, and Holly Computer from the site as a service. Holly Computer links itself to the subscriber's account with a one-time code (two hours), and Caddy serves it over HTTPS at `https://<ip with dashes>.sslip.io` with a Let's Encrypt certificate. Once it answers over HTTPS, the script calls `POST /servers/ready` with the user id, the one-time ready token, the address and the pairing token; on a failure it sends what went wrong instead. The log is `/var/log/holly-setup.log` on the server (Vultr's web console).
+- **Ready.** A valid token makes the server `ready`; the token is then spent. Not ready 15 minutes after it started, it's `error` with the reason (never made, no address, or Holly didn't finish). The app shows the error with Try Again, which deletes what was left and starts over.
+- **Vultr errors** (network, rate limits, 5xx) are tried again up to three times with backoff. Making a server is checked first so a lost answer can't make a second one: a server labelled for the account that the record doesn't know is deleted before a new one is made.
+- **Upgrade** (`resize`): `PATCH /v2/instances/{id}` with the bigger plan, status `resizing` until Vultr reports it active on that plan, then `ready`.
+- **Downgrade** (`migrate`): Vultr can't make a server smaller, so a new server is made at the smaller size. While it sets up it copies the bots' files from the old one (its workspace, browser profile and plugins, through Holly Computer's `/v1/export`); their bots, chats and memories are in the account already. When it reports ready it takes over and the old one is deleted. If it fails, it's deleted instead, the subscriber keeps the old one, and the reconcile tries again the next night.
+- **Deleting** (`remove`): `DELETE /v2/instances/{id}`, where a 404 counts as already deleted; the server fields are cleared (`none`), and the server's Holly Computer session ends. No snapshots or backups are taken: they cost extra.
+- **Nightly reconcile** (`reconcile`, 08:07 UTC, `convex/crons.ts`): lists every `holly-customer` server at Vultr; deletes one whose subscriber has no active or past-due subscription, or that no account uses; sets one up for a paid subscriber without one; finishes a plan change that didn't happen; and logs what it changed.
+- **Dry run.** With `VULTR_DRY_RUN=true`, nothing is sent to Vultr: every call is logged instead (the setup script only by its length, since it carries one-time tokens), made-up servers get an id like `dry-…` and an address from the documentation range, and they "report ready" 15 seconds later, so the whole flow can be tried with Stripe test mode, end to end, on the phone. The app then opens in its usual mode, since there's no server to connect to.
+- **Variables:** `VULTR_API_KEY` (Vultr → Account → API; under Access Control, allow all IPv4 and IPv6 addresses, since Convex doesn't call from fixed ones) and, while trying things out, `VULTR_DRY_RUN=true`.
 
 ## Setting up sign-in (once)
 
@@ -97,7 +119,7 @@ Holly Bot opens only for an account with an active subscription. Right after an 
 - sets `SITE_URL` to `https://xgamer791.github.io/holly-bot`,
 - creates the session signing keys `JWT_PRIVATE_KEY` and `JWKS` if the deployment has none (`scripts/convex-auth-keys.mjs`),
 - copies `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_APPLE_ID` and `AUTH_APPLE_SECRET` from repository secrets, when they exist there,
-- copies the connector apps' secrets and `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` the same way (steps 4 and 5),
+- copies the connector apps' secrets, and the Stripe and Vultr variables, the same way (steps 4 and 5),
 - runs `npx convex deploy`.
 
 It needs one repository secret, **`CONVEX_DEPLOY_KEY`**: in the Convex dashboard open the holly-bot production deployment → Settings and generate a production deploy key. Add it under GitHub → Settings → Secrets and variables → Actions, then run the workflow.
@@ -148,26 +170,27 @@ The deploy workflow creates `CONNECTORS_KEY` the first time (`scripts/convex-con
 
 Then run Deploy Convex from the Actions tab (or push a change under `convex/`). The buttons turn on as soon as it finishes.
 
-### 5. Stripe, for subscriptions
+### 5. Stripe and Vultr, for subscriptions
 
-Nobody gets past the subscription page until this is done, you included; until then, it says subscriptions aren't set up yet. Start in test mode (the Test mode switch in the Stripe dashboard), where test cards like `4242 4242 4242 4242` pay for nothing.
+Nobody gets past the subscription page until this is done, you included; until then, it says subscriptions aren't set up yet. Start with Stripe's test mode (test cards like `4242 4242 4242 4242` pay for nothing) and `VULTR_DRY_RUN=true` (no servers are made), then switch each to the real thing.
 
-1. **Secret key.** Developers → API keys → Secret key (`sk_test_…`). Add it as the repository secret `STRIPE_SECRET_KEY`. A restricted key works too, if it can write Customers, Products, Prices, Checkout Sessions, Customer portal and Subscriptions.
-2. **Webhook.** Developers → Webhooks → Add endpoint:
+1. **Prices.** In Stripe, Product catalog → Add product, one for each plan (Holly Bot Starter, Pro, Ultra), each with two recurring prices in USD: yearly and monthly, exactly as in the table under Subscriptions (Starter: $588 every year and $58.80 every month; Pro: $1,188 and $118.80; Ultra: $2,148 and $214.80). Put each price's id (`price_…`) in its variable: `STRIPE_PRICE_STARTER_YEARLY`, `STRIPE_PRICE_STARTER_MONTHLY`, and so on.
+2. **Secret key.** Developers → API keys → Secret key (`sk_test_…`) as `STRIPE_SECRET_KEY`. A restricted key works too, if it can write Customers, Checkout Sessions, Customer portal and Subscriptions and read Prices.
+3. **Webhook.** Developers → Webhooks → Add endpoint:
    - URL `https://impressive-ferret-800.convex.site/stripe/webhook`
-   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
-   - Add its signing secret (`whsec_…`) as the repository secret `STRIPE_WEBHOOK_SECRET`.
-3. **Billing portal.** Settings → Billing → Customer portal: turn on updating payment methods, invoice history and cancelling, with cancellations **at the end of the billing period** (the Terms say so), and save. Stripe won't open the portal until it's saved, in test and live mode each. After the first subscriptions have made Holly Bot's products, you can also let people switch plans there.
-4. **Branding** (optional). Settings → Branding: Holly Bot's icon and colors on Checkout, the portal and receipts. Settings → Customer emails can send receipts.
-5. Run **Deploy Convex** from the Actions tab. It copies both secrets to the deployment like the others (or set them in the Convex dashboard).
-6. Subscribe from the app with a test card. It should open the app straight away, and Settings → Subscription should show the plan.
-7. **Going live.** Switch the dashboard to live mode, repeat steps 1 to 3 with the live key (`sk_live_…`) and a live webhook endpoint (it has its own signing secret), update both repository secrets and run Deploy Convex. Test subscriptions stop counting as soon as the key is live.
+   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
+   - Its signing secret (`whsec_…`) as `STRIPE_WEBHOOK_SECRET`.
+4. **Billing portal.** Settings → Billing → Customer portal: turn on updating payment methods, invoice history, cancelling (at the end of the billing period, as the Terms say) and switching plans between the three products, and save. Stripe won't open the portal until it's saved, in test and live mode each.
+5. **Vultr.** Account → API: enable the API, copy the key as `VULTR_API_KEY`, and under Access Control allow all IPv4 and IPv6 addresses. Set `VULTR_DRY_RUN=true` to try everything without making servers, and remove it (or set it to `false`) when you're ready for real ones.
+6. Set the variables in the Convex dashboard (Settings → Environment Variables), or as repository secrets with the same names and run **Deploy Convex**, which copies them over.
+7. Subscribe from the app with a test card. It should go straight to setting up the computer, then open the app, and Settings → Subscription should show the plan and the computer.
+8. **Going live.** Switch Stripe to live mode and repeat steps 1 to 4 there (live mode has its own products, prices, key and webhook signing secret), update the variables, and take `VULTR_DRY_RUN` off. Test subscriptions stop counting as soon as the key is live.
 
-If Subscribe or Manage fails, the deployment's logs in the Convex dashboard have Stripe's own message. Stripe Tax is off: turn it on in Stripe and add `automatic_tax` to `billing:checkout` if you need to charge tax.
+If Subscribe, the webhook or a server fails, the deployment's logs in the Convex dashboard say why (Stripe's and Vultr's own messages, and which variable is off). Stripe Tax is off: turn it on in Stripe and add `automatic_tax` to `billing:checkout` if you need to charge tax.
 
 ### 6. Check
 
-Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works, and a subscription, so there's no way past the subscription page until Stripe is set up (step 5).
+Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works, and a subscription, so there's no way past the subscription page until Stripe and Vultr are set up (step 5).
 
 Sessions last 30 days (Convex Auth's default). `node scripts/convex-auth-keys.mjs` with a deploy key for the deployment rotates the signing keys, which signs everyone out.
 

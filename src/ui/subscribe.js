@@ -7,9 +7,10 @@ import { Icon } from './icons.js';
 // only for an account with an active subscription, so src/main.js shows this
 // instead of the app right after an account is created, and whenever its
 // subscription isn't active. Plans are the server's (convex/lib/plans.ts),
-// billed monthly or yearly through Stripe Checkout (convex/billing.ts). Back
-// from paying, it waits for Stripe's word, then opens the app. A payment that
-// didn't go through leads to Stripe's billing portal instead.
+// paid yearly or month to month (20% more) through Stripe Checkout
+// (convex/billing.ts). Back from paying, it waits for Stripe's word, then
+// hands over to setting up the subscriber's computer (src/ui/setup.js). A
+// payment that didn't go through leads to Stripe's billing portal instead.
 
 const EVERY = { month: 'Monthly', year: 'Yearly' };
 /** A subscription in one of these needs something done before Holly Bot opens. */
@@ -26,16 +27,16 @@ export function longDate(ms) {
   return new Date(ms).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-/** What paying yearly saves on a plan, in cents. */
+/** What paying yearly saves on a plan over a year, in cents. */
 function yearlySaving(plan) {
   return plan.price.month * 12 - plan.price.year;
 }
 
-/** How many months yearly billing gives free, when every plan gives the same. */
-function monthsFree(plans) {
-  const months = new Set(plans.map((plan) => Math.round(yearlySaving(plan) / plan.price.month)));
-  const [n] = months;
-  return months.size === 1 && n > 0 ? n : 0;
+/** What paying yearly saves, in percent, when every plan saves the same. */
+function yearlyPercent(plans) {
+  const percents = new Set(plans.map((plan) => Math.round((yearlySaving(plan) / (plan.price.month * 12)) * 100)));
+  const [n] = percents;
+  return percents.size === 1 && n > 0 ? n : 0;
 }
 
 /** The server's message for a call it turned down, or `fallback`. */
@@ -127,17 +128,8 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
     return null;
   });
 
-  const who = account.user?.email || account.user?.name || '';
   const planName = plans.find((p) => p.id === sub?.plan)?.name;
-  const accountLinks = html`
-    <div class="sub-account">
-      ${who && html`<p>Signed in as <b>${who}</b></p>`}
-      <div class="sub-account-actions">
-        <button disabled=${!!busy} onClick=${onSignOut}>Sign Out</button>
-        <span aria-hidden="true">·</span>
-        <button disabled=${!!busy} onClick=${() => setDeleting(true)}>Delete Account</button>
-      </div>
-    </div>`;
+  const accountLinks = html`<${AccountLinks} busy=${!!busy} onSignOut=${onSignOut} onDelete=${() => setDeleting(true)} />`;
   const deleteSheet = deleting && html`<${DeleteSheet} subscribed=${!!sub && !['canceled', 'incomplete_expired'].includes(sub.status)}
     onDelete=${onDeleteAccount} onClose=${() => setDeleting(false)} />`;
 
@@ -149,8 +141,8 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
             <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${72} activity="working" />
             <h1 class="device-title">${waiting === 'slow' ? 'Still waiting for Stripe' : 'Setting up your subscription'}</h1>
             <p class="device-text">${waiting === 'slow'
-              ? "Stripe hasn't confirmed your payment yet. Holly Bot opens as soon as it does."
-              : 'Thanks! Holly Bot opens as soon as Stripe confirms your payment.'}</p>
+              ? "Stripe hasn't confirmed your payment yet. Setting up your computer starts as soon as it does."
+              : 'Thanks! Setting up your computer starts as soon as Stripe confirms your payment.'}</p>
             ${waiting === 'yes' && html`<span class="spinner" role="status" aria-label="Waiting for Stripe"></span>`}
             ${error && html`<p class="auth-error" role="alert">${error}</p>`}
           </div>
@@ -204,7 +196,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
   }
 
   const plan = plans.find((p) => p.id === chosen) || plans[0];
-  const free = monthsFree(plans);
+  const percent = yearlyPercent(plans);
   const ended = sub?.status === 'canceled' && (sub.endsAt || sub.periodEnd);
   const notice = back === 'cancelled'
     ? 'Checkout was cancelled, and nothing was charged.'
@@ -218,7 +210,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
         <header class="sub-head">
           <${Avatar} shape="cloud" color="#111113" eyeColor="#ffffff" size=${64} live />
           <h1 class="sub-title">Choose your plan</h1>
-          <p class="sub-lead">Every plan runs your bots on a dedicated server of their own.</p>
+          <p class="sub-lead">Every plan runs your bots on a dedicated server of their own, set up for you as soon as you subscribe.</p>
         </header>
         ${notice && html`<p class="sub-notice" role="status">${notice}</p>`}
 
@@ -227,7 +219,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
             <label key=${id} class=${every === id ? 'on' : ''}>
               <input type="radio" name="every" value=${id} checked=${every === id} onChange=${() => setEvery(id)} />
               <span>${label}</span>
-              ${id === 'year' && free > 0 && html`<span class="sub-free">${free} ${free === 1 ? 'month' : 'months'} free</span>`}
+              ${id === 'year' && percent > 0 && html`<span class="sub-free">Save ${percent}%</span>`}
             </label>`)}
         </div>
 
@@ -241,7 +233,11 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
                 ${every === 'year' && yearlySaving(p) > 0 && html`<span class="sub-save">Save ${money(yearlySaving(p))}</span>`}
               </span>
               ${p.note && html`<span class="sub-note">${p.note}</span>`}
-              <span class="sub-price" key=${every}><b>${money(p.price[every])}</b><span>/${every}</span></span>
+              <span class="sub-price" key=${every}>
+                <b>${money(every === 'year' ? Math.round(p.price.year / 12) : p.price.month)}</b>
+                <span>/month</span>
+                ${every === 'year' && html`<span>${money(p.price.year)} a year</span>`}
+              </span>
               <span class="sub-specs">
                 <span><${Icon.cpu} size=${15} /> ${p.cpu} CPU</span>
                 <span><${Icon.memory} size=${15} /> ${p.memoryGb} GB RAM</span>
@@ -270,17 +266,32 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
           <button class="hello-cta" disabled=${!!busy || !status.ready || !plan} onClick=${subscribe}>
             ${busy === 'checkout' ? html`<span class="spinner"></span>` : plan ? `Subscribe for ${money(plan.price[every])}/${every}` : 'Subscribe'}
           </button>
-          <p class="sub-fine">Renews every ${every} until you cancel. Secure checkout with Stripe.</p>
+          <p class="sub-fine">${every === 'year' ? 'Paid yearly' : 'Month to month'}, and renews every ${every} until you cancel. Secure checkout with Stripe.</p>
         </div>
       </div>
       ${deleteSheet}
     </div>`;
 }
 
+/** Who is signed in, with Sign Out and Delete Account: before the app opens,
+ * Settings (where they usually are) can't be reached. */
+export function AccountLinks({ busy, onSignOut, onDelete }) {
+  const who = account.user?.email || account.user?.name || '';
+  return html`
+    <div class="sub-account">
+      ${who && html`<p>Signed in as <b>${who}</b></p>`}
+      <div class="sub-account-actions">
+        <button disabled=${busy} onClick=${onSignOut}>Sign Out</button>
+        <span aria-hidden="true">·</span>
+        <button disabled=${busy} onClick=${onDelete}>Delete Account</button>
+      </div>
+    </div>`;
+}
+
 /** Deleting the account from here, for someone who'd rather not subscribe:
  * the same as Settings → Delete Account, which they can't reach without a
  * subscription. */
-function DeleteSheet({ subscribed, onDelete, onClose }) {
+export function DeleteSheet({ subscribed, onDelete, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -304,7 +315,7 @@ function DeleteSheet({ subscribed, onDelete, onClose }) {
     <section class="hello-sheet" role="dialog" aria-modal="true" aria-label="Delete your account">
       <div class="hello-grabber"></div>
       <h2>Delete your account?</h2>
-      <p class="sub-sheet-text">This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys.${subscribed ? ' Your subscription is cancelled right away.' : ''} It can't be undone.</p>
+      <p class="sub-sheet-text">This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys.${subscribed ? ' Your subscription is cancelled right away, and your computer is deleted.' : ''} It can't be undone.</p>
       ${error && html`<p class="auth-error" role="alert">${error}</p>`}
       <button class="hello-cta danger" disabled=${busy} onClick=${remove}>${busy ? html`<span class="spinner"></span>` : 'Delete Account'}</button>
       <button class="hello-sheet-cancel" disabled=${busy} onClick=${onClose}>Cancel</button>

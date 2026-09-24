@@ -5,7 +5,7 @@
 
 import os from 'node:os';
 import { join, resolve, dirname } from 'node:path';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -94,6 +94,36 @@ function assetLoader() {
   };
 }
 
+/**
+ * A server Holly Bot set up for a subscriber (convex/lib/cloudinit.ts) comes
+ * with a one-time code in the data folder, `link-code`, that links it to the
+ * subscriber's account. It's tried a few times through network trouble, then
+ * deleted either way.
+ */
+async function linkWithCode(home, file) {
+  let code;
+  try {
+    code = readFileSync(file, 'utf8').trim();
+  } catch {
+    return;
+  }
+  for (let attempt = 1; code && !home.account.linked; attempt++) {
+    try {
+      await home.link(code);
+      console.log('  Linked to the Holly Bot account this server was set up for.');
+      break;
+    } catch (err) {
+      // A code that was refused (used, or too old) won't work on a second try.
+      if (/didn't work/i.test(err.message) || attempt >= 5) {
+        console.log(`  Couldn't link to the Holly Bot account: ${err.message}`);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
+    }
+  }
+  rmSync(file, { force: true });
+}
+
 function link(base, url, token) {
   const payload = Buffer.from(JSON.stringify({ url, token })).toString('base64url');
   return `${base}#connect=${payload}`;
@@ -153,6 +183,7 @@ export async function main(argv = process.argv.slice(2)) {
     server.once('error', fail);
     server.listen(args.port, args.host, ok);
   });
+  await linkWithCode(home, join(dataDir, 'link-code'));
 
   const port = server.address().port;
   const local = `http://localhost:${port}/`;

@@ -56,8 +56,8 @@ export const signInOptions = query({
 /**
  * Settings → Delete Account. Erases every record and upload the account owns,
  * its change count and routine claims, its linked computers and connected
- * services, and its subscription (cancelled at Stripe), then its sessions,
- * sign-in methods and the user itself, so the next sign-in
+ * services, and its subscription (cancelled at Stripe) and servers, then its
+ * sessions, sign-in methods and the user itself, so the next sign-in
  * with the same Apple or Google account starts from nothing. Convex bounds the
  * work one mutation may do, so this goes in batches and the app repeats it
  * until `done`.
@@ -113,13 +113,14 @@ export const deleteAccount = mutation({
       await ctx.db.delete(state._id);
     }
     // The subscription ends with the account: Stripe is asked to delete its
-    // customer, which cancels the subscription at once (convex/billing.ts).
-    for (const customer of await ctx.db.query("billingCustomers").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
-      await ctx.db.delete(customer._id);
-      await ctx.scheduler.runAfter(0, internal.billing.forget, { customerId: customer.customerId, attempt: 0 });
-    }
-    for (const sub of await ctx.db.query("subscriptions").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+    // customer, which cancels the subscription at once (convex/billing.ts),
+    // and its servers are deleted at Vultr (convex/servers.ts).
+    for (const sub of await ctx.db.query("subscribers").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       await ctx.db.delete(sub._id);
+      if (sub.stripeCustomerId) await ctx.scheduler.runAfter(0, internal.billing.forget, { customerId: sub.stripeCustomerId, attempt: 0 });
+      for (const id of [sub.serverId, sub.nextServerId]) {
+        if (id) await ctx.scheduler.runAfter(0, internal.servers.destroy, { id, attempt: 0 });
+      }
     }
 
     const sessions = await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", userId)).collect();

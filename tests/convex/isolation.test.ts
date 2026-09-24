@@ -64,15 +64,16 @@ async function account(email: string) {
     const sessionId = await ctx.db.insert("authSessions", { userId, expirationTime: Date.now() + 3_600_000 });
     // Holly Bot's server keeps an account's data only while it has an active
     // subscription (convex/lib/subscription.ts).
-    await ctx.db.insert("subscriptions", {
+    await ctx.db.insert("subscribers", {
       userId,
-      customerId: `cus_${userId}`,
-      subscriptionId: `sub_${userId}`,
-      status: "active",
-      plan: "starter",
-      interval: "month",
-      periodEnd: Date.now() + 30 * 86_400_000,
       livemode: false,
+      stripeCustomerId: `cus_${userId}`,
+      stripeSubscriptionId: `sub_${userId}`,
+      plan: "starter",
+      billingInterval: "month",
+      subscriptionStatus: "active",
+      currentPeriodEnd: Date.now() + 30 * 86_400_000,
+      serverStatus: "ready",
       updatedAt: Date.now(),
     });
     return { userId, sessionId };

@@ -6,18 +6,19 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 
 ## Plans
 
-Holly Bot is a subscription. Right after you create an account, you choose a plan, billed monthly or yearly, and pay with Stripe. The app opens as soon as the subscription is active, and only then.
+Holly Bot is a subscription, and every plan comes with a dedicated server of your own that runs your bots around the clock. Right after you create an account, you choose a plan, paid yearly or month to month, and pay with Stripe. Your server is set up in a few minutes while the app shows how far it's got, and the app opens once it's ready.
 
-| Plan | Monthly | Yearly | Runs on |
+| Plan | Paid yearly | Month to month | Your server |
 |---|---|---|---|
-| Starter (best for 1 bot) | $49 | $490 | A dedicated server with 2 CPU and 4 GB RAM |
-| Pro | $99 | $990 | A dedicated server with 4 CPU and 8 GB RAM |
-| Ultra | $179 | $1,790 | A dedicated server with 6 CPU and 16 GB RAM |
+| Starter (best for 1 bot) | $49 a month ($588 a year) | $58.80 a month | 2 CPU, 4 GB RAM |
+| Pro | $99 a month ($1,188 a year) | $118.80 a month | 4 CPU, 8 GB RAM |
+| Ultra | $179 a month ($2,148 a year) | $214.80 a month | 6 CPU, 16 GB RAM |
 
-- Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for.
-- Without an active subscription (never subscribed, cancelled, or a renewal that didn't go through), the app shows the subscription page instead, and Holly Bot's server keeps your account's data until you're back.
+- Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer (shell, files, a Chrome browser) that's always on. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
+- Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for; then the server and the files on it are deleted, and your bots, chats and memories stay in your account.
+- If a renewal doesn't go through, everything keeps working while Stripe tries your card again, and the app asks you to update it.
 - Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
-- Setting up Stripe (keys and webhook) is in [CONVEX.md](CONVEX.md#5-stripe-for-subscriptions).
+- Setting up Stripe and Vultr (prices, keys, webhook) is in [CONVEX.md](CONVEX.md#5-stripe-and-vultr-for-subscriptions).
 
 ## Your account
 
@@ -124,10 +125,10 @@ npm run check            # syntax check everything and confirm the bundle is cur
 
 Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
-- `src/ui`: the interface (`subscribe.js` is the subscription page).
+- `src/ui`: the interface (`subscribe.js` is the subscription page, `setup.js` the computer being set up).
 - `src/remote`: the phone-side remote-control client.
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
-- `convex`: that backend (accounts and everything in them, and subscriptions through Stripe in `billing.ts`). `.github/workflows/convex.yml` deploys it.
+- `convex`: that backend (accounts and everything in them, subscriptions through Stripe in `billing.ts`, and each subscriber's Vultr server in `servers.ts`). `.github/workflows/convex.yml` deploys it.
 - `computer/src`: Holly Computer.
   - `home.mjs`, `account.mjs`, `outbox.mjs`: where its bots are kept, its session on your account, and changes waiting to be saved.
   - `server.mjs`: HTTP API and long-poll events.

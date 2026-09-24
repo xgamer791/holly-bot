@@ -109,38 +109,40 @@ export interface SubscriptionState {
   subscriptionId: string;
   customerId: string;
   status: string;
+  livemode: boolean;
   priceId?: string;
-  productId?: string;
+  /** month or year. */
   interval?: string;
   /** When the period paid for ends. */
   periodEnd?: number;
   /** When it ended, or when it's set to end (cancelled at the end of the
    * period, or on a date). */
   endsAt?: number;
-  /** The account it was bought for (its metadata, set at checkout). */
+  /** The account and plan it was bought for (its metadata, set at checkout). */
   userId?: string;
+  plan?: string;
 }
 
-const idOf = (value: any): string | undefined => (typeof value === "string" ? value : value?.id);
+const idOf = (value: any): string | undefined => (typeof value === "string" ? value : value?.id) || undefined;
 
 /** The parts of a Stripe subscription Holly Bot keeps. The period's end is on
  * its item in this API version, and on the subscription in older ones. */
 export function subscriptionState(sub: any): SubscriptionState {
   const item = sub?.items?.data?.[0];
   const price = item?.price;
-  const end = item?.current_period_end ?? sub?.current_period_end;
-  const periodEnd = typeof end === "number" ? end * 1000 : undefined;
   const at = (seconds: unknown) => (typeof seconds === "number" ? seconds * 1000 : undefined);
-  const endsAt = at(sub?.ended_at) ?? at(sub?.cancel_at) ?? (sub?.cancel_at_period_end ? periodEnd : undefined);
+  const periodEnd = at(item?.current_period_end ?? sub?.current_period_end);
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
   return {
     subscriptionId: String(sub?.id ?? ""),
     customerId: idOf(sub?.customer) ?? "",
     status: String(sub?.status ?? ""),
+    livemode: !!sub?.livemode,
     priceId: idOf(price),
-    productId: idOf(price?.product),
-    interval: price?.recurring?.interval,
+    interval: text(price?.recurring?.interval),
     periodEnd,
-    endsAt,
-    userId: typeof sub?.metadata?.userId === "string" ? sub.metadata.userId : undefined,
+    endsAt: at(sub?.ended_at) ?? at(sub?.cancel_at) ?? (sub?.cancel_at_period_end ? periodEnd : undefined),
+    userId: text(sub?.metadata?.userId),
+    plan: text(sub?.metadata?.plan),
   };
 }

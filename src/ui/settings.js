@@ -51,14 +51,46 @@ function AccountGroup({ acct }) {
   <//>`;
 }
 
-/** The account's plan. Tapping it opens Stripe's billing portal to change the
- * plan, update the card, see invoices or cancel (convex/billing.ts); coming
- * back, the app checks the subscription again (src/main.js). */
+const SERVER_STATUS = { none: 'Not set up', provisioning: 'Setting up', ready: 'Ready', resizing: 'Changing size', deleting: 'Deleting', error: "Couldn't set up" };
+
+/** The account's plan, and its own computer (convex/servers.ts). Tapping the
+ * plan opens Stripe's billing portal to change it, update the card, see
+ * invoices or cancel (convex/billing.ts); coming back, the app checks the
+ * subscription again (src/main.js). A computer that couldn't be set up can be
+ * tried again. */
 function SubscriptionGroup({ acct }) {
+  const app = useApp();
   const ui = useUi();
   const [busy, setBusy] = useState(false);
-  const { data: status } = useAsync(() => (acct.signedIn ? account.authed('query', 'billing:status') : Promise.resolve(null)), [acct.signedIn]);
+  const { data: status, reload } = useAsync(() => (acct.signedIn ? account.authed('query', 'billing:status') : Promise.resolve(null)), [acct.signedIn]);
   if (!acct.signedIn) return null;
+  const server = status?.server;
+  const size = status?.plans?.find((p) => p.id === server?.plan);
+  const retry = async () => {
+    try {
+      await account.authed('mutation', 'servers:retry');
+      ui.toast('Setting up your computer again. It takes a few minutes.');
+      reload();
+    } catch (err) {
+      ui.toast(serverSays(err, "Couldn't start again. Check your connection and try again."), { error: true });
+    }
+  };
+  // Running bots in this app instead (or on another computer): this goes back to it.
+  const connect = async () => {
+    try {
+      const target = await account.authed('query', 'servers:connection');
+      if (!target) return ui.toast("Your computer can't be reached yet. Try again in a minute.", { error: true });
+      saveConnection({ url: target.url, token: target.token, name: target.name, managed: true });
+      location.reload();
+    } catch {
+      ui.toast("Couldn't reach Holly Bot's server. Check your connection and try again.", { error: true });
+    }
+    return null;
+  };
+  const connectable = server?.status === 'ready' && server.reachable && !app.remote;
+  const computer = server && server.status !== 'none' && html`<${Row} title="Your computer" value=${SERVER_STATUS[server.status] || server.status}
+    sub=${server.error || [size && `${size.cpu} CPU, ${size.memoryGb} GB RAM`, server.ip, connectable && 'Tap to run your bots on it'].filter(Boolean).join(' · ') || null}
+    onClick=${server.status === 'error' ? retry : connectable ? connect : null} />`;
   const sub = status?.subscription;
   const plan = status?.plans?.find((p) => p.id === sub?.plan);
   const when = sub?.endsAt ? `Ends ${longDate(sub.endsAt)}` : sub?.periodEnd ? `Renews ${longDate(sub.periodEnd)}` : '';
@@ -74,7 +106,8 @@ function SubscriptionGroup({ acct }) {
     }
   };
   return html`<${Group} note="Change your plan, update your card, see invoices or cancel, on Stripe.">
-    <${Row} title="Subscription" sub=${detail} value=${busy ? html`<span class="spinner"></span>` : plan ? `Holly Bot ${plan.name}` : ''} onClick=${manage} />
+    <${Row} title="Subscription" sub=${status?.pastDue ? "Your last payment didn't go through. Tap to update your card." : detail} value=${busy ? html`<span class="spinner"></span>` : plan ? `Holly Bot ${plan.name}` : ''} danger=${!!status?.pastDue} onClick=${manage} />
+    ${computer}
   <//>`;
 }
 
@@ -617,7 +650,9 @@ function LinkedComputers() {
   return html`
     <div class="group-label">Linked to your account</div>
     <${Group}>
-      ${devices.map((device) => html`<${Row} key=${device.id} title=${device.name}
+      ${devices.map((device) => device.server
+        ? html`<${Row} key=${device.id} title=${device.name} sub="Your plan's own computer, set up and kept linked by Holly Bot" />`
+        : html`<${Row} key=${device.id} title=${device.name}
         sub=${`Runs your bots and routines · linked ${new Date(device.linkedAt).toLocaleDateString()}`} value="Unlink" onClick=${async () => {
           if (!(await ui.confirm({ title: `Unlink ${device.name}?`, message: `${device.name} stops running your bots and routines. They stay in your account.`, confirmText: 'Unlink', danger: true }))) return;
           try {
@@ -898,6 +933,7 @@ function HelpPage() {
     <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
     <h3>Your subscription</h3>
     <p>Settings → <b>Subscription</b> shows your plan. Tap it to change plan, update your card, see invoices or cancel, on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.</p>
+    <p>Every plan comes with <b>your own computer</b>, a server that runs your bots around the clock. The app connects to it by itself, and Settings shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.</p>
     <h3>Install as an app</h3>
     <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>

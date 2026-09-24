@@ -712,6 +712,21 @@ html.signed-out #boot line { stroke: #fff; }
 .sub-fine { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
 .sub-sheet-text { margin: 0; color: var(--text-2); font-size: 15px; line-height: 21px; text-align: center; }
 @keyframes sub-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Setting up the subscriber's computer (src/ui/setup.js): a checklist that
+   fills in as the server is made, started and set up. */
+.setup-steps { width: 100%; max-width: 320px; margin: 8px 0 0; padding: 18px 20px; list-style: none; display: flex; flex-direction: column; gap: 14px;
+  border-radius: 18px; background: var(--surface-2); text-align: left; }
+.setup-steps li { display: flex; align-items: center; gap: 12px; color: var(--dim); font-size: 15px; line-height: 20px; font-weight: 600; transition: color .3s; }
+.setup-steps li.done { color: var(--text-2); }
+.setup-steps li.now { color: var(--text); }
+.setup-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: inset 0 0 0 2px var(--border-strong); transition: background .3s, box-shadow .3s; }
+.setup-steps li.done .setup-dot { background: var(--text); box-shadow: none; animation: sub-pop .35s cubic-bezier(.3, 1.6, .5, 1); }
+.setup-steps li.now .setup-dot { box-shadow: none; }
+.setup-dot .spinner { width: 20px; height: 20px; }
+.setup-time { margin: 0; color: var(--muted); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
+@keyframes sub-pop { from { transform: scale(.5); } to { transform: none; } }
 @media (min-width: 700px) {
   .sub-head { padding-top: 56px; }
   .sub-title { font-size: 34px; line-height: 40px; }
@@ -724,7 +739,11 @@ html.signed-out #boot line { stroke: #fff; }
 .legal-body .updated { color: var(--muted); font-size: 13px; }
 .legal-body a { color: inherit; text-decoration: underline; }
 
-/* Another device changed the account (src/main.js reloads when it's safe). */
-.stale-banner { position: fixed; top: calc(var(--safe-top) + 10px); left: 50%; transform: translateX(-50%); z-index: 90; max-width: calc(100vw - 32px);
-  min-height: 36px; padding: 8px 16px; border-radius: 18px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+/* Notices at the top of the app (src/main.js): another device changed the
+   account (it reloads when it's safe), or a payment didn't go through. */
+.banners { position: fixed; top: calc(var(--safe-top) + 10px); left: 50%; transform: translateX(-50%); z-index: 90; width: max-content; max-width: calc(100vw - 32px);
+  display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.stale-banner { max-width: 100%; min-height: 36px; padding: 8px 16px; border-radius: 18px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
   box-shadow: 0 6px 24px rgba(0, 0, 0, .25); font-size: 14px; line-height: 20px; font-weight: 600; animation: fade .2s ease-out; }
+.stale-banner.warn { background: #b3261e; color: #fff; border-color: transparent; }
+.stale-banner:disabled { opacity: .7; }
