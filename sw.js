@@ -32,7 +32,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
-    const network = fetch(req, { cache: 'no-cache' }).then((res) => {
+    const network = fetch(req, { cache: 'no-cache' }).catch(() => fetch(req)).then((res) => {
       if (res.ok && res.type === 'basic') cache.put(req, res.clone()).catch(() => {});
       return res;
     }).catch(() => null);

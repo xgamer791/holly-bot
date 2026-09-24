@@ -138,7 +138,7 @@ function MainPage({ go, onClose }) {
       ${acct.signedIn ? html`<${Row} title="Sign Out" sub="Signs you out of your Holly Bot account. Bots, chats, memories and keys stay on this device." danger onClick=${async () => {
         if (!(await ui.confirm({ title: 'Sign out?', message: "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay on this device.", confirmText: 'Sign Out', danger: true }))) return;
         await account.signOut();
-      }} />` : html`<${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
+      }} />` : html`<${Row} title="Sign Out" sub=${`Removes your API keys from this device${acct.here ? ' and goes back to the welcome screen' : ''}. Bots and memories stay.`} danger onClick=${async () => {
         if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed from this browser. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
@@ -146,6 +146,9 @@ function MainPage({ go, onClose }) {
         for (const [id, p] of Object.entries(s.services || {})) services[id] = { ...p, apiKey: '' };
         await set({ providers, services, computer: { url: s.computer?.url || '', token: '' } });
         app.computer.connected = false;
+        // On the Holly Bot site, signed out means the welcome screen (someone
+        // who carried on without an account lands back on it).
+        if (acct.here) return location.reload();
         ui.toast('Signed out — keys removed');
         onClose();
       }} />`}

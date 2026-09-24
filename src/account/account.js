@@ -234,14 +234,15 @@ class Account {
     return user;
   }
 
-  /** Ends the session on the server when it can be reached, and on this
-   * device either way. */
+  /** Ends the session on the server if it answers within a few seconds, and
+   * on this device either way, so signing out never hangs on a bad connection.
+   * An expired token isn't refreshed for this: once its refresh token is gone
+   * from here, the server session can only run out. */
   async signOut() {
-    try {
-      const token = await this.token();
-      if (token) await this.call('action', 'auth:signOut', {}, token);
-    } catch (err) {
-      console.warn('sign out', err);
+    const token = read(this.keys.jwt);
+    if (token && msLeft(token) > 0) {
+      const ended = this.call('action', 'auth:signOut', {}, token).catch((err) => console.warn('sign out', err));
+      await Promise.race([ended, sleep(3000)]);
     }
     this.store(null);
   }
