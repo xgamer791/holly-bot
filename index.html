@@ -25,10 +25,11 @@
   </div>
   <script>
     // Signed out on the Holly Bot site (src/account/account.js): start on the
-    // welcome screen's white rather than flashing the dark splash first.
+    // welcome screen's white rather than flashing the dark splash first. Only
+    // Holly Bot's own session counts: Macronaut shares this origin's storage.
     try {
       if (location.origin === 'https://xgamer791.github.io' && !/[?&]code=/.test(location.search)
-        && !Object.keys(localStorage).some((k) => k.startsWith('__convexAuthJWT_'))) {
+        && !localStorage.getItem('__convexAuthJWT_httpsimpressiveferret800convexcloud')) {
         document.documentElement.classList.add('signed-out');
         document.querySelector('meta[name="theme-color"]').content = '#ffffff';
       }

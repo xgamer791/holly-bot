@@ -48,7 +48,7 @@ In the [Google Cloud console](https://console.cloud.google.com/apis/credentials)
 
 - Authorized redirect URI: `https://impressive-ferret-800.convex.site/api/auth/callback/google`
 
-Then set `AUTH_GOOGLE_ID` (the client ID) and `AUTH_GOOGLE_SECRET` (the client secret), either in the Convex dashboard (Settings → Environment Variables) or as repository secrets for the workflow to copy.
+Then set `AUTH_GOOGLE_ID` (the client ID) and `AUTH_GOOGLE_SECRET` (the client secret) as repository secrets. The workflow copies them to the deployment on every run, over any value set in the Convex dashboard, so the repository secrets are the ones to change.
 
 ### 3. Apple
 
@@ -59,7 +59,7 @@ In the [Apple Developer portal](https://developer.apple.com/account/resources/id
 | Services ID → Domains | `impressive-ferret-800.convex.site` |
 | Services ID → Return URLs | `https://impressive-ferret-800.convex.site/api/auth/callback/apple` |
 
-Then set `AUTH_APPLE_ID` (the Services ID) and `AUTH_APPLE_SECRET`. The secret is not the `.p8` key: it's a JWT signed with it (the guide has a generator). Apple caps it at six months, so it has to be made again and re-set twice a year; Apple sign-in stops working when it lapses.
+Then set `AUTH_APPLE_ID` (the Services ID) and `AUTH_APPLE_SECRET` as repository secrets, like Google's. The secret is not the `.p8` key: it's a JWT signed with it (the guide has a generator). Apple caps it at six months, so twice a year make a new one, update the repository secret and run Deploy Convex; Apple sign-in stops working when it lapses.
 
 ### 4. Check
 
@@ -82,4 +82,4 @@ Deploy keys live in box secrets (not in this repo):
 - `/home/box/.secrets/holly-bot-convex-prod.env`
 - `/home/box/.secrets/holly-bot-convex-dev.env`
 
-The app always signs in against production. To try sign-in against dev, point `CONVEX_URL` in `src/account/account.js` at it locally and give it its own sign-in variables (steps 1–3 with `useful-wildebeest-212` in the URLs, `SITE_URL` set to your local address).
+`SITE_URL` stays `https://xgamer791.github.io/holly-bot` on both deployments, also while developing locally. Never set it to a local address: `http://localhost` is always allowed as a return address (`convex/auth.ts`), and prod was once set to `http://localhost:8080` by mistake, which broke sign-in. The app always signs in against production; to try sign-in against dev, point `CONVEX_URL` in `src/account/account.js` at `useful-wildebeest-212` locally.

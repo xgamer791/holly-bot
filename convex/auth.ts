@@ -2,10 +2,13 @@ import Apple from "@auth/core/providers/apple";
 import Google from "@auth/core/providers/google";
 import { convexAuth } from "@convex-dev/auth/server";
 
+/** The live app. Allowed whatever `SITE_URL` says, so a stray value there
+ * (prod was once set to http://localhost:8080) can't break sign-in. */
+const LIVE_SITE = "https://xgamer791.github.io/holly-bot";
+
 /**
- * Where Google and Apple may send someone back to: the live app (`SITE_URL`,
- * https://xgamer791.github.io/holly-bot) and local development on
- * http://localhost.
+ * Where Google and Apple may send someone back to: the live app, `SITE_URL`
+ * (the same address), and local development on http://localhost.
  *
  * Everything else is refused, Holly Computer's tunnel and LAN addresses
  * included. Whoever starts a sign-in holds the verifier its one-time code is
@@ -13,9 +16,8 @@ import { convexAuth } from "@convex-dev/auth/server";
  * controls would hand them the account.
  */
 export function isAllowedRedirect(redirectTo: string, siteUrl: string | undefined): boolean {
-  const site = siteUrl?.trim().replace(/\/+$/, "");
-  if (site && redirectTo.startsWith(site) && /^([/?#]|$)/.test(redirectTo.slice(site.length))) {
-    return true;
+  for (const site of [LIVE_SITE, siteUrl?.trim().replace(/\/+$/, "")]) {
+    if (site && redirectTo.startsWith(site) && /^([/?#]|$)/.test(redirectTo.slice(site.length))) return true;
   }
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(redirectTo);
 }

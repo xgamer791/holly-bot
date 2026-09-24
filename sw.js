@@ -1,7 +1,9 @@
 // Holly Bot service worker: offline app shell (stale-while-revalidate for this
 // site's own files) and notification clicks. API calls are never cached.
+// Copies are always checked with the server: GitHub Pages lets the browser
+// reuse a file for 10 minutes, which would otherwise keep an update away.
 
-const CACHE = 'holly-v3';
+const CACHE = 'holly-v4';
 // Only the app's own files are cached. Everything else — notably Holly
 // Computer's /api and /v1 calls when the app is served by it — goes straight
 // to the network.
@@ -9,7 +11,8 @@ const APP_FILE = /(\/|\/index\.html|\/styles\.css|\/manifest\.webmanifest|\/(src
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './vendor/preact.js', './vendor/markdown.js', './vendor/convex.js', './src/main.js', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' }))))
+    .catch(() => {}).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -29,7 +32,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
-    const network = fetch(req).then((res) => {
+    const network = fetch(req, { cache: 'no-cache' }).then((res) => {
       if (res.ok && res.type === 'basic') cache.put(req, res.clone()).catch(() => {});
       return res;
     }).catch(() => null);
