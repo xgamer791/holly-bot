@@ -338,6 +338,21 @@ button.row:active { background: var(--surface-2); }
 .bubble blockquote { margin: .4em 0; padding-left: 12px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
 .bubble img { max-width: 100%; border-radius: 12px; }
 .bubble hr { border: 0; border-top: 1px solid var(--border); margin: .8em 0; }
+/* Chat reads as plain text: no bold, italics, headings, bullets or quote bars,
+   close lines, and bubbles nearly as wide as the screen, for you and for bots
+   (who are asked to write that way too: src/core/prompts.js). Code keeps its
+   look. Help and the legal pages use bubbles outside .msg and keep theirs. */
+.msg .bubble { max-width: min(94%, 680px); padding: 10px 15px; line-height: 1.3; }
+.msg .bubble p { margin: 0 0 .55em; }
+.msg .bubble :is(strong, b, em, i), .agent-card .a :is(strong, b, em, i) { font-weight: inherit; font-style: inherit; }
+.msg .bubble :is(h1, h2, h3, h4, h5, h6), .agent-card .a :is(h1, h2, h3, h4, h5, h6) { font-size: 1em; font-weight: inherit; margin: 0 0 .55em; }
+.msg .bubble ul, .agent-card .a ul { list-style: none; padding-left: 0; margin: 0 0 .55em; }
+.msg .bubble ol, .agent-card .a ol { padding-left: 1.25em; margin: 0 0 .55em; }
+.msg .bubble li { margin: 0 0 .3em; }
+.msg .bubble li > p { margin: 0; }
+.msg .bubble blockquote, .agent-card .a blockquote { border: 0; padding: 0; margin: 0 0 .55em; color: inherit; }
+.msg .bubble hr, .agent-card .a hr { display: none; }
+.msg .bubble :is(p, ul, ol, li, blockquote, h1, h2, h3, h4, h5, h6):last-child { margin-bottom: 0; }
 .copy-code { position: absolute; top: 6px; right: 6px; font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--surface-3); color: var(--muted); opacity: .9; }
 .cursor::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text); margin-left: 4px; vertical-align: middle; animation: pulse 1s infinite; }
 .msg-meta { color: var(--dim); font-size: 12px; margin: 4px 8px 0; display: flex; gap: 10px; align-items: center; }

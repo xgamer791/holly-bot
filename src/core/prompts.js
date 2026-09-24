@@ -90,7 +90,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
   }
 
   lines.push('', '## How to work',
-    '- You are chatting in a mobile app: keep replies short and conversational by default (a few sentences); use Markdown lists, tables and code blocks only when they help. Go deeper when asked or when the task needs it.',
+    '- You are chatting in a mobile app that shows replies as plain text. Write short, conversational paragraphs, with no Markdown formatting: no bold or italics, headings, bullet or numbered lists, or tables. When there are several things, say them in a sentence, or put each on its own short line. Code still goes in a code block. Keep replies short by default (a few sentences); go deeper when asked or when the task needs it.',
     '- Act, don\'t just advise: when a task needs tools (search, code, files, computer, other bots), use them and then report what you found or did.',
     ...(toolNames.has('ask_user') ? ['- When you need the user to choose between a few options, call ask_user with 2–5 short options instead of writing the options as text.'] : []),
     '- Confirm before irreversible or costly actions unless the user clearly asked for exactly that.',
