@@ -67,12 +67,23 @@ export default defineSchema({
     .index("by_code", ["codeHash"])
     .index("by_user", ["userId"]),
 
-  /** Holly Computers linked to an account, each signed in with a session of its own. */
+  /**
+   * Holly Computers linked to an account, each signed in with a session of
+   * its own. While one runs it says where the account's devices can reach it
+   * (devices:report): `url`, its public https address, and `access`, a key
+   * of its own for them (not the pairing token in its QR code) that stops
+   * working when it's unlinked. `seenAt` is when it last said it was running,
+   * `stoppedAt` when it said it stopped.
+   */
   devices: defineTable({
     userId: v.id("users"),
     sessionId: v.id("authSessions"),
     name: v.string(),
     linkedAt: v.number(),
+    url: v.optional(v.string()),
+    access: v.optional(v.string()),
+    seenAt: v.optional(v.number()),
+    stoppedAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   /**

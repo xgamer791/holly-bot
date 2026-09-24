@@ -3,7 +3,8 @@ import { App } from './core/app.js';
 import { DB } from './core/db.js';
 import { Root } from './ui/app.js';
 import {
-  RemoteApp, holdConnection, savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useConnectionsOf,
+  RemoteApp, computerConnection, computerState, holdConnection, runsHere, sameComputer, savedConnection, saveConnection,
+  takeConnectLink, takeHeldConnection, useConnectionsOf,
 } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
 import {
@@ -26,14 +27,21 @@ import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/devi
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
 // Holly Computer linked to the account keeps its bots there too, and runs
 // them (computer/src/home.mjs); opening one that isn't linked yet offers the
-// link. Its Wi-Fi address can't sign in (convex/auth.ts); there the pairing
-// token alone protects it.
+// link. It tells the account where it can be reached, so every device signed
+// in to the account controls it without its link (openComputer). Its Wi-Fi
+// address can't sign in (convex/auth.ts); there the pairing token alone
+// protects it.
 
 const root = document.getElementById('app');
 /** A Holly Computer link opened just before this sign-in. */
 let adopted = null;
 /** What to say once the app opens (how connecting a service went). */
 let notice = null;
+/** The computers linked to the account as the app opened, each with what it
+ * was doing ({ id, name, state }: computerState, or 'unreachable'). */
+let computers = [];
+/** What to say about the linked computer when the bots run here instead. */
+let computerNotice = null;
 
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
@@ -185,14 +193,13 @@ function watchSubscription() {
 }
 
 /** Opens the signed-in account: first anything this device kept from before
- * accounts, then the bots, wherever they live. */
+ * accounts, then the bots, wherever they run. */
 async function startAccount() {
   const found = await deviceData().catch((err) => {
     console.warn('device data', err);
     return null;
   });
-  const conn = savedConnection();
-  if (conn && !found) return bootRemote(conn);
+  if (!found && await openComputer()) return;
   let db;
   try {
     const userId = account.userId;
@@ -205,7 +212,7 @@ async function startAccount() {
     show(html`<${ProblemScreen} message=${loadError(err)} onRetry=${startAccount} onSignOut=${() => signOut()} />`);
     return;
   }
-  if (!found) return runAccount(db);
+  if (!found) return bootLocal(db);
   show(html`<${DeviceDataScreen} found=${found}
     onAdd=${async () => {
       await moveDeviceDataInto(db);
@@ -218,11 +225,100 @@ async function startAccount() {
     onSignOut=${() => signOut(db)} />`);
 }
 
-function runAccount(db) {
-  const conn = savedConnection();
-  if (!conn) return bootLocal(db);
+/** After the question about this device's data from before accounts: the
+ * computer this device controls, or the bots here. */
+async function runAccount(db) {
+  if (!(await openComputer())) return bootLocal(db);
   db.close();
-  return bootRemote(conn);
+}
+
+/**
+ * Opens this app as the remote control of the Holly Computer this device
+ * uses: the one it saved (from a link Holly Computer showed, or Settings →
+ * Bot Computer), or else one linked to the account, where it told the
+ * account it can be reached (computer/src/home.mjs). So every device signed
+ * in to the account uses the linked computer, even one that never opened its
+ * link (on iPhone, the Home Screen app keeps its own storage apart from
+ * Safari's), and finds it at its new address after it restarts. True when the
+ * app opened as its remote control or a screen took over; false to run the
+ * bots here, with a word about the linked computer when there is one to say.
+ */
+async function openComputer() {
+  const saved = savedConnection();
+  const linked = await linkedComputers(); // null: couldn't tell
+  const mine = saved ? linked?.find((device) => sameComputer(device, saved)) : null;
+  // The saved computer first, then where the account says a linked one is
+  // now: the saved one at a new address, or, with none saved, any.
+  const tries = saved ? [saved] : [];
+  for (const device of saved ? [mine] : runsHere() ? [] : linked || []) {
+    const conn = computerConnection(device);
+    if (conn && !tries.some((t) => t.url === conn.url && t.token === conn.token)) tries.push(conn);
+  }
+  const failed = new Set();
+  let problem = null;
+  for (const conn of tries) {
+    const app = new RemoteApp(conn);
+    try {
+      await app.connect({ timeoutMs: 8000 });
+    } catch (err) {
+      problem ||= err;
+      failed.add(conn === saved ? mine?.id : conn.device);
+      continue;
+    }
+    controlComputer(app, conn);
+    return true;
+  }
+  if (saved && !mine) {
+    if (!linked || !saved.device) {
+      // Not a computer linked to the account (or the account couldn't say):
+      // its bots may be only there.
+      showConnectProblem(saved, problem?.message || '');
+      return true;
+    }
+    saveConnection(null); // found through the account, and unlinked since
+  }
+  computers = (linked || []).map((device) => {
+    const state = computerState(device);
+    return { id: device.id, name: device.name, state: state === 'running' && failed.has(device.id) ? 'unreachable' : state };
+  });
+  computerNotice = runsHere() ? null : noticeAbout(computers);
+  return false;
+}
+
+/** A banner for the bots running here although the account has a computer,
+ * when there's something to do about it (a computer that's off needs none). */
+function noticeAbout(list) {
+  const readme = () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener');
+  const find = (state) => list.find((c) => c.state === state);
+  let pc = find('unreachable');
+  if (pc) return { text: `Can't reach ${pc.name} · Your bots run in this app for now · Tap to retry`, onClick: () => location.reload() };
+  pc = find('old');
+  if (pc) return { text: `Update Holly Computer on ${pc.name} so your bots can use it · Tap for how`, onClick: readme };
+  pc = find('hidden');
+  if (pc) return { text: `Start Holly Computer on ${pc.name} with --tunnel so your bots can use it · Tap for how`, onClick: readme };
+  return null;
+}
+
+/** Runs this app as the remote control of Holly Computer (`app`, connected
+ * at `conn`). A computer linked to the account is followed to its new
+ * address when it restarts. */
+function controlComputer(app, conn) {
+  window.holly = app;
+  saveConnection({ ...conn, name: app.server?.name || conn.name || '' });
+  if (computerAccountStep(app, conn)) return;
+  if (signInWorksHere() && account.signedIn && app.server?.account?.linked) app.relocate = () => newAddress(app);
+  mount(app);
+}
+
+/** Where the account says the computer `app` controls is now, when that
+ * changed (it restarted: a quick tunnel's address changes each time), saved
+ * for next time. Null when it didn't. */
+async function newAddress(app) {
+  const here = { device: app.device, name: app.server?.name, url: app.base };
+  const conn = computerConnection((await linkedComputers())?.find((device) => sameComputer(device, here)));
+  if (!conn || (conn.url === app.base && conn.token === app.token)) return null;
+  saveConnection(conn);
+  return conn;
 }
 
 function loadError(err) {
@@ -302,19 +398,21 @@ async function bootRemote(conn) {
   try {
     await app.connect();
   } catch (err) {
-    render(null, root);
-    document.documentElement.classList.remove('signed-out');
-    render(html`<${ConnectProblem} conn=${conn} error=${err.message} onRetry=${async () => {
-      render(null, root);
-      await bootRemote(savedConnection() || conn);
-    }} />`, root);
-    document.getElementById('boot')?.remove();
+    showConnectProblem(conn, err.message);
     return;
   }
-  window.holly = app;
-  if (app.server?.name && app.server.name !== conn.name) saveConnection({ ...conn, name: app.server.name });
-  if (computerAccountStep(app, conn)) return;
-  mount(app);
+  controlComputer(app, conn);
+}
+
+/** The Holly Computer this device controls can't be reached. */
+function showConnectProblem(conn, error) {
+  render(null, root);
+  document.documentElement.classList.remove('signed-out');
+  render(html`<${ConnectProblem} conn=${conn} error=${error} onRetry=${async () => {
+    render(null, root);
+    await bootRemote(savedConnection() || conn);
+  }} />`, root);
+  document.getElementById('boot')?.remove();
 }
 
 /**
@@ -363,10 +461,12 @@ async function bootLocal(db) {
   window.holly = app;
   if (db.cloud) {
     watchOtherDevices(app, db);
-    // A computer linked to the account runs the routines; this app doesn't too.
-    app.routinesOnComputer = await linkedComputers();
+    // A computer linked to the account runs the routines, so this app
+    // doesn't, and its bots know the computer is there (src/core/prompts.js).
+    app.linkedComputers = computers;
   }
   mount(app);
+  if (db.cloud && computerNotice) banner(computerNotice.text, computerNotice.onClick);
   app.start().catch((err) => console.warn('startup services', err));
 }
 
@@ -399,13 +499,13 @@ function watchOtherDevices(app, db) {
   if (db.stale) db.onStale();
 }
 
-/** The names of the computers linked to the account ([] if that can't be told quickly). */
+/** The computers linked to the account, with where each can be reached
+ * (convex/devices.ts); null if that can't be told quickly. */
 async function linkedComputers() {
   try {
-    const list = await Promise.race([account.authed('query', 'devices:list'), new Promise((resolve) => setTimeout(resolve, 4000, []))]);
-    return (list || []).map((device) => device.name);
+    return await Promise.race([account.authed('query', 'devices:list'), new Promise((resolve) => setTimeout(resolve, 4000, null))]);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -439,12 +539,15 @@ async function finishConnecting() {
   }
 }
 
-/** A small notice at the top of the app that does something when tapped. */
+/** A small notice at the top of the app that does something when tapped,
+ * below any already there. */
 function banner(text, onClick) {
   const button = document.createElement('button');
   button.className = 'stale-banner';
   button.textContent = text;
   button.onclick = onClick;
+  const above = [...document.querySelectorAll('.stale-banner')].pop();
+  if (above) button.style.top = `${above.getBoundingClientRect().bottom + 8}px`;
   document.body.append(button);
 }
 

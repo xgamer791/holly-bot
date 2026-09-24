@@ -9,10 +9,15 @@ import { DEFAULT_SETTINGS } from '../core/app.js';
 // can't tell the difference.
 
 export class RemoteApp {
-  constructor({ url, token, name = '' }) {
+  constructor({ url, token, name = '', device = null }) {
     this.base = String(url || '').replace(/\/+$/, '');
     this.token = token;
     this.name = name;
+    this.device = device; // the computer's id in the account, when it's linked (convex/devices.ts)
+    /** Set by src/main.js for a computer linked to the account: resolves to
+     * where it is now ({url, token}) when that has changed, else null. */
+    this.relocate = null;
+    this.relocatedAt = 0;
     this.remote = true;
     this.host = 'computer';
     this.clientId = uid('client');
@@ -195,11 +200,30 @@ export class RemoteApp {
           this.connection = 'offline';
           this.emit('connection');
         }
+        // Holly Computer restarted, so it's at a new address (a quick
+        // tunnel's changes each time), or has a new key: the account knows.
+        if (this.relocate && Date.now() - this.relocatedAt > 20_000) {
+          this.relocatedAt = Date.now();
+          const next = await this.relocate().catch(() => null);
+          if (next && !this.closed) {
+            this.moveTo(next);
+            backoff = 1000;
+            continue;
+          }
+        }
         await new Promise((r) => setTimeout(r, backoff));
         backoff = Math.min(backoff * 2, 15000);
       }
     }
     this.eventsRunning = false;
+  }
+
+  /** Talks to Holly Computer at its new address from now on. The next poll
+   * finds a new server there and reloads everything (resync). */
+  moveTo({ url, token }) {
+    this.base = String(url || '').replace(/\/+$/, '');
+    this.token = token;
+    this.computer.configure({ url: this.base, token });
   }
 
   /** After a reconnect: refresh state and any chats that are open. */
@@ -443,6 +467,7 @@ export class RemoteApp {
 // there are no accounts (Wi-Fi links, browser automation), it's per device.
 const KEY = 'holly.connection';
 const PENDING = 'holly.connection.pending';
+const HERE = 'holly.runHere';
 let scope = '';
 
 function readJson(key) {
@@ -469,8 +494,53 @@ export function savedConnection() {
   return readJson(KEY + scope);
 }
 
+/** Saves the computer this device controls, or forgets it (null). Either way
+ * a choice to run the bots here (runHere) is over. */
 export function saveConnection(conn) {
   writeJson(KEY + scope, conn);
+  writeJson(HERE + scope, null);
+}
+
+/** This device runs the account's bots itself, and doesn't connect to the
+ * account's computer by itself, until it's connected to one again. */
+export function runHere() {
+  writeJson(KEY + scope, null);
+  writeJson(HERE + scope, true);
+}
+
+export function runsHere() {
+  return !!readJson(HERE + scope);
+}
+
+// ----- computers linked to the account -------------------------------------------
+
+/** A linked computer says it's running every five minutes
+ * (computer/src/home.mjs); one not heard from for longer than this is off. */
+const RUNNING_MS = 12 * 60_000;
+
+/**
+ * What a computer linked to the account (convex/devices.ts `list`) is doing:
+ * 'running' where this app can reach it; 'hidden', running with no address
+ * the app can reach (no --tunnel or --public-url, or its tunnel closed);
+ * 'off', stopped or not heard from lately; or 'old', never heard from (a
+ * Holly Computer older than 1.8.0, which doesn't say).
+ */
+export function computerState(device, now = Date.now()) {
+  if (!device?.seenAt) return 'old';
+  if (device.stoppedAt || now - device.seenAt > RUNNING_MS) return 'off';
+  return device.url && device.access ? 'running' : 'hidden';
+}
+
+/** How to reach a linked computer that's running where this app can reach it, or null. */
+export function computerConnection(device) {
+  if (computerState(device) !== 'running') return null;
+  return { url: device.url, token: device.access, name: device.name, device: device.id };
+}
+
+/** Whether `conn` (a saved connection) is the linked computer `device`. */
+export function sameComputer(device, conn) {
+  if (!device || !conn) return false;
+  return device.id === conn.device || (!!conn.name && device.name === conn.name) || (!!device.url && device.url === conn.url);
 }
 
 /** A pairing link opened before signing in, held for whoever signs in next (for an hour). */

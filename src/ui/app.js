@@ -141,7 +141,7 @@ export function Root({ app }) {
   // When a Holly Computer runs them (this app controls it, or it's linked to
   // the account), it runs routines 24/7 instead.
   useEffect(() => {
-    if (app.remote || app.routinesOnComputer?.length) return undefined;
+    if (app.remote || app.linkedComputers?.length) return undefined;
     app.startScheduler({
       lock: navigator.locks?.request ? (fn) => navigator.locks.request('holly-routines', { ifAvailable: true }, (l) => (l ? fn() : null)) : null,
     });

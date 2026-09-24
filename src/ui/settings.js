@@ -4,12 +4,14 @@ import { Sheet, Group, Row, Field, Toggle, downloadBlob } from './components.js'
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
 import { PROVIDERS, PROVIDER_ORDER } from '../core/providers/index.js';
-import { initials } from '../core/util.js';
+import { formatShort, initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
 import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
-import { RemoteApp, savedConnection, saveConnection } from '../remote/remote-app.js';
+import {
+  RemoteApp, computerConnection, computerState, runHere, savedConnection, saveConnection,
+} from '../remote/remote-app.js';
 import { account, noticeAfterReload, signInWorksHere, takeNotice, SITE } from '../account/account.js';
 import { longDate } from './subscribe.js';
 
@@ -135,7 +137,7 @@ function MainPage({ go, onClose }) {
       <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
         onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
       <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />
-      <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : 'Set up'} onClick=${() => go('computer')} />
+      <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : app.linkedComputers?.length ? 'Not connected' : 'Set up'} onClick=${() => go('computer')} />
       <${Row} title="Memory & Context" onClick=${() => go('memory')} />
       <${Row} title="Routines" onClick=${() => ui.openSheet('routines', {})} />
     <//>
@@ -191,11 +193,15 @@ function MainPage({ go, onClose }) {
 
 /** Signs out of the account, leaving nothing of it on this device: unsent
  * changes go up first (for a few seconds), and the link to a Holly Computer is
- * forgotten here (opening its link again reconnects). */
+ * forgotten here (signing in again finds one linked to the account; one that
+ * isn't needs its link opened again). */
 async function signOut(app, ui) {
-  const message = app.remote
-    ? `You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay ${app.server?.account?.linked ? 'in your account, and the computer keeps running them' : 'on the computer'}.`
-    : "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.";
+  const name = app.server?.name || 'your computer';
+  const message = app.remote && app.server?.account?.linked
+    ? `You'll be back at the welcome screen. Your bots stay in your account and ${name} keeps running them. Sign in again and this device connects to it by itself.`
+    : app.remote
+      ? "You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer."
+      : "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.";
   if (!(await ui.confirm({ title: 'Sign out?', message, confirmText: 'Sign Out', danger: true }))) return;
   ui.toast('Signing out…');
   if (!app.remote) {
@@ -609,26 +615,61 @@ function ConnectedAccounts() {
     <div class="group-note">Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.</div>`;
 }
 
-/** Computers linked to the account (convex/devices.ts), each with Unlink. */
+/** What a computer linked to the account is doing (computerState), in words. */
+function computerStatus(device) {
+  const state = computerState(device);
+  if (state === 'running') return 'Running';
+  if (state === 'hidden') return "Running without --tunnel, so this app can't reach it";
+  if (state === 'old') return 'Needs the latest Holly Computer (below) before this app can use it';
+  return device.seenAt ? `Not running · last seen ${formatShort(device.seenAt)}` : 'Not running';
+}
+
+/**
+ * Computers linked to the account (convex/devices.ts): what each is doing,
+ * Connect to control a running one from here, and Unlink. This app connects
+ * to a running one by itself when it opens (src/main.js), so Connect is for
+ * one that started since, or after Disconnect this device.
+ */
 function LinkedComputers() {
   const ui = useUi();
   const { data: devices = [], reload } = useAsync(() => account.authed('query', 'devices:list'), []);
+  const [busy, setBusy] = useState(null);
   if (!devices.length) return null;
+  const connect = async (device) => {
+    const conn = computerConnection(device);
+    if (!conn || busy) return;
+    setBusy(device.id);
+    try {
+      const remote = new RemoteApp(conn);
+      await remote.connect();
+      remote.close();
+      saveConnection({ ...conn, name: remote.server?.name || device.name });
+      location.reload();
+    } catch (err) {
+      setBusy(null);
+      ui.toast(`Couldn't reach ${device.name}. ${err.message}`, { error: true });
+    }
+  };
+  const unlink = async (device) => {
+    if (!(await ui.confirm({ title: `Unlink ${device.name}?`, message: `${device.name} stops running your bots and routines. They stay in your account.`, confirmText: 'Unlink', danger: true }))) return;
+    try {
+      await account.authed('mutation', 'devices:unlink', { id: device.id });
+      reload();
+    } catch {
+      ui.toast("Couldn't unlink it. Check your connection and try again.", { error: true });
+    }
+  };
+  const running = devices.filter((device) => computerConnection(device));
   return html`
     <div class="group-label">Linked to your account</div>
     <${Group}>
       ${devices.map((device) => html`<${Row} key=${device.id} title=${device.name}
-        sub=${`Runs your bots and routines · linked ${new Date(device.linkedAt).toLocaleDateString()}`} value="Unlink" onClick=${async () => {
-          if (!(await ui.confirm({ title: `Unlink ${device.name}?`, message: `${device.name} stops running your bots and routines. They stay in your account.`, confirmText: 'Unlink', danger: true }))) return;
-          try {
-            await account.authed('mutation', 'devices:unlink', { id: device.id });
-            reload();
-          } catch {
-            ui.toast("Couldn't unlink it. Check your connection and try again.", { error: true });
-          }
-        }} />`)}
+        sub=${`${computerStatus(device)} · linked ${new Date(device.linkedAt).toLocaleDateString()}`} value="Unlink" onClick=${() => unlink(device)} />`)}
     <//>
-    <div class="group-note">To control it from here, open the link Holly Computer shows.</div>`;
+    ${running.map((device) => html`<button key=${device.id} class="btn primary block" style="margin-bottom:10px" disabled=${!!busy} onClick=${() => connect(device)}>
+      ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> Connect to ${device.name}`}
+    </button>`)}
+    <div class="group-note">While Holly Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.</div>`;
 }
 
 function ComputerPage() {
@@ -658,7 +699,7 @@ function ComputerPage() {
       ${info.notes?.length > 0 && html`<div class="group-note">${info.notes.join(' ')}</div>`}
       ${app.server?.account?.linked && html`
         <div class="group-label">Your account</div>
-        <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them.`} /><//>`}
+        <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them. Holly Bot on any device signed in to your account connects to it by itself.`} /><//>`}
       <div class="group-note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</div>
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
       ${app.server?.account?.linked && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
@@ -673,8 +714,15 @@ function ComputerPage() {
         location.reload();
       }}>Unlink from My Account</button>`}
       <button class="btn block danger" style="margin-top:10px" onClick=${async () => {
-        if (!(await ui.confirm({ title: 'Disconnect from your computer?', message: `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`, confirmText: 'Disconnect', danger: true }))) return;
-        saveConnection(null);
+        // A computer linked to the account would be found again as the app
+        // reopens, so this device is set to run the bots itself instead.
+        const linked = app.server?.account?.linked && account.signedIn && signInWorksHere();
+        const message = linked
+          ? `Your bots stay in your account and ${name} keeps running them. This device will run them itself, without ${name}, until you connect again here.`
+          : `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`;
+        if (!(await ui.confirm({ title: 'Disconnect from your computer?', message, confirmText: 'Disconnect', danger: true }))) return;
+        if (linked) runHere();
+        else saveConnection(null);
         location.reload();
       }}>Disconnect this device</button>`;
   }
@@ -727,9 +775,9 @@ function ComputerPage() {
             }
           }}>${cmd}</button>
         </div>`)}
-      <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer${app.db?.cloud ? ', then tap Add to My Account' : ''}. That's it.</p>
+      <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer${app.db?.cloud ? ', then tap Add to My Account' : ''}. That's it.${app.db?.cloud ? ' From then on, Holly Bot on any device signed in to your account connects to it by itself while it runs.' : ''}</p>
       <p><b>Keep that link private, like a password.</b> Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</p>
-      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
+      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts${app.db?.cloud ? ", and once it's linked to your account the app finds the new one by itself" : ''}. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
     </div>
     <div class="group-label">Or connect manually</div>
     <${Field} label="Computer URL"><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>

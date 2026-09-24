@@ -5,6 +5,17 @@ import { formatMemories } from './memory/store.js';
 // once per turn and kept stable (it only changes when the bot's settings, core
 // memory, team or the date change), which keeps provider prompt caches warm.
 
+/** Why the app isn't connected to the computer linked to the account, and
+ * what the user can do about it, by what the computer was doing as the app
+ * opened (src/main.js). */
+const COMPUTER_AWAY = {
+  running: 'this device was set to run the bots itself; the user can connect to it in Settings → Bot Computer',
+  unreachable: "Holly Computer says it's running there, but this app couldn't reach it; the user should check the computer is on and online, then reopen Holly Bot",
+  hidden: "Holly Computer runs there without --tunnel, so this app can't reach it; the user should restart it with --tunnel",
+  off: "Holly Computer isn't running there; the user should start it (node holly-computer.mjs --tunnel), then reopen Holly Bot",
+  old: 'the Holly Computer there is out of date; the user should download holly-computer.mjs again, start it with --tunnel, then reopen Holly Bot',
+};
+
 export function buildSystemPrompt({ app, agent, thread, tools }) {
   const s = app.settings;
   const profile = s.profile || {};
@@ -59,6 +70,15 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
       + 'The mouse and keyboard are shared with the user and other bots, so re-check the screen before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. '
       + 'Risky actions may need the user\'s approval — that is normal, just continue after. '
       + 'If you need the user to log in, enter a code or decide something, ask them clearly and wait. Never enter passwords or payment details the user did not give you for that purpose.');
+  }
+
+  // The bots run in the app, although the account has a computer: the bot
+  // should know it's there, and why it can't use it now.
+  const away = !app.computer?.connected && agent.tools?.computer !== false ? app.linkedComputers?.[0] : null;
+  if (away) {
+    lines.push('', '## The user\'s computer',
+      `The user's computer, ${away.name}, is linked to their Holly Bot account. When this app is connected to it, the user's bots run there and can use its shell, files, a real browser, and its screen, mouse and keyboard. `
+      + `This app isn't connected to it now (${COMPUTER_AWAY[away.state] || COMPUTER_AWAY.off}), so you can't use that computer in this chat. If the user asks for something on it, say so plainly and tell them how to fix it.`);
   }
 
   const linked = [['gmail', 'Gmail'], ['outlook', 'Outlook'], ['github', 'GitHub']]
