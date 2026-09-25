@@ -881,7 +881,7 @@ async function linkedComputers() {
   }
 }
 
-const SERVICES = { gmail: 'Gmail', outlook: 'Outlook', github: 'GitHub' };
+const SERVICES = { gmail: 'Gmail', outlook: 'Outlook', github: 'GitHub', higgsfield: 'Higgsfield' };
 
 /**
  * Back from Gmail, Outlook or GitHub after Connect in Settings → Plugins: the

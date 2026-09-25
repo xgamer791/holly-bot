@@ -1,4 +1,4 @@
-// Connecting Gmail, Outlook or GitHub to an account with OAuth 2.0
+// Connecting Gmail, Outlook, GitHub or Higgsfield to an account with OAuth 2.0
 // (convex/connectors.ts): where to send the person, trading the code the
 // service sends back for tokens, renewing them, and handing them back. Plain
 // functions over fetch, so tests run them (tests/unit/connectors.test.mjs).
@@ -6,7 +6,7 @@
 
 type Fetch = typeof fetch;
 
-export type Service = "gmail" | "outlook" | "github";
+export type Service = "gmail" | "outlook" | "github" | "higgsfield";
 
 export interface Tokens {
   accessToken: string;
@@ -14,7 +14,15 @@ export interface Tokens {
   /** When the access token stops working (ms); none for tokens that don't expire (GitHub). */
   expiresAt?: number;
   scopes: string[];
+  /** The client the tokens were issued to, for a service Holly Bot registers
+   * with as each connection starts (Higgsfield: registerClient). */
+  clientId?: string;
 }
+
+/** Higgsfield's MCP server: the tools bots use (convex/lib/higgsfield.ts), and
+ * the resource its sign-in grants access to. */
+export const HIGGSFIELD_MCP = "https://mcp.higgsfield.ai/mcp";
+const HIGGSFIELD_AUTH = "https://clerk.higgsfield.ai/oauth";
 
 export interface OAuthApp {
   clientId: string;
@@ -68,16 +76,63 @@ export const SERVICES: Record<Service, ServiceConfig> = {
     pkce: false,
     params: { allow_signup: "false" },
   },
+  // Higgsfield's own sign-in (Clerk), for its MCP server. There's no app to
+  // set up: Holly Bot registers a client as each connection starts
+  // (registerClient), a public one, so PKCE is what keeps the code safe.
+  higgsfield: {
+    label: "Higgsfield",
+    authorizeUrl: `${HIGGSFIELD_AUTH}/authorize`,
+    tokenUrl: `${HIGGSFIELD_AUTH}/token`,
+    scopes: ["openid", "email", "offline_access"],
+    pkce: true,
+    params: { resource: HIGGSFIELD_MCP },
+  },
 };
 
 export const SERVICE_NAMES = Object.keys(SERVICES) as Service[];
 
-/** The deployment variables that hold each service's OAuth app (CONVEX.md). */
-export const APP_VARIABLES: Record<Service, [string, string]> = {
+/** The deployment variables that hold each service's OAuth app (CONVEX.md).
+ * Higgsfield has none: its client is registered as a connection starts. */
+export const APP_VARIABLES: Partial<Record<Service, [string, string]>> = {
   gmail: ["CONNECT_GOOGLE_ID", "CONNECT_GOOGLE_SECRET"],
   outlook: ["CONNECT_MICROSOFT_ID", "CONNECT_MICROSOFT_SECRET"],
   github: ["CONNECT_GITHUB_ID", "CONNECT_GITHUB_SECRET"],
 };
+
+/** Services whose client Holly Bot registers as a connection starts
+ * (RFC 7591), instead of an app set up in the deployment's variables. */
+const REGISTRATION: Partial<Record<Service, string>> = {
+  higgsfield: `${HIGGSFIELD_AUTH}/register`,
+};
+
+/** Whether a service's client is registered as each connection starts. */
+export function registersClient(service: Service): boolean {
+  return !!REGISTRATION[service];
+}
+
+/** Registers Holly Bot with a service as a public client that comes back to
+ * `redirectUri`: the client ID to connect through. */
+export async function registerClient(service: Service, o: { redirectUri: string; fetch?: Fetch }): Promise<string> {
+  const url = REGISTRATION[service];
+  if (!url) throw new OAuthError(`${SERVICES[service].label} has no client registration`, "invalid_request");
+  const res = await (o.fetch ?? fetch)(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      client_name: "Holly Bot",
+      redirect_uris: [o.redirectUri],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+      scope: SERVICES[service].scopes.join(" "),
+    }),
+  });
+  const data: any = await res.json().catch(() => null);
+  if (!res.ok || !data?.client_id) {
+    throw new OAuthError(String(data?.error_description || data?.error || `HTTP ${res.status}`), String(data?.error || ""));
+  }
+  return String(data.client_id);
+}
 
 /**
  * The OAuth app a service is connected through, from the deployment's
@@ -87,7 +142,9 @@ export const APP_VARIABLES: Record<Service, [string, string]> = {
  * so Connect never leads to an error page.
  */
 export function oauthApp(service: Service, env: Record<string, string | undefined>): OAuthApp | null {
-  const [id, secret] = APP_VARIABLES[service];
+  const vars = APP_VARIABLES[service];
+  if (!vars) return null;
+  const [id, secret] = vars;
   const clientId = env[id]?.trim() ?? "";
   const clientSecret = env[secret]?.trim() ?? "";
   return clientId && clientSecret ? { clientId, clientSecret } : null;
@@ -153,6 +210,18 @@ async function tokenRequest(service: Service, form: Record<string, string>, f: F
   };
 }
 
+/** Who's asking, in a token request: the client, and its secret when it has
+ * one (a registered public client has none). */
+function client(app: OAuthApp): Record<string, string> {
+  return { client_id: app.clientId, ...(app.clientSecret ? { client_secret: app.clientSecret } : {}) };
+}
+
+/** The resource a service's tokens are for, when it names one (RFC 8707). */
+function resource(service: Service): Record<string, string> {
+  const r = SERVICES[service].params.resource;
+  return r ? { resource: r } : {};
+}
+
 /** Trades the code a service sent back for tokens. */
 export function exchangeCode(service: Service, o: { app: OAuthApp; code: string; redirectUri: string; verifier?: string; fetch?: Fetch }): Promise<Tokens> {
   return tokenRequest(
@@ -161,9 +230,9 @@ export function exchangeCode(service: Service, o: { app: OAuthApp; code: string;
       grant_type: "authorization_code",
       code: o.code,
       redirect_uri: o.redirectUri,
-      client_id: o.app.clientId,
-      client_secret: o.app.clientSecret,
+      ...client(o.app),
       ...(SERVICES[service].pkce && o.verifier ? { code_verifier: o.verifier } : {}),
+      ...resource(service),
     },
     o.fetch ?? fetch,
   );
@@ -177,16 +246,21 @@ export async function refreshTokens(service: Service, o: { app: OAuthApp; tokens
     {
       grant_type: "refresh_token",
       refresh_token: o.tokens.refreshToken,
-      client_id: o.app.clientId,
-      client_secret: o.app.clientSecret,
+      ...client(o.app),
       // Microsoft wants the scopes named again: the ones this connection was
       // granted, so one made before Holly Bot asked for more keeps working.
       ...(service === "outlook" ? { scope: outlookScope(o.tokens.scopes) } : {}),
+      ...resource(service),
     },
     o.fetch ?? fetch,
   );
   // Google keeps the refresh token; Microsoft hands out a new one each time.
-  return { ...fresh, refreshToken: fresh.refreshToken ?? o.tokens.refreshToken, scopes: fresh.scopes.length ? fresh.scopes : o.tokens.scopes };
+  return {
+    ...fresh,
+    refreshToken: fresh.refreshToken ?? o.tokens.refreshToken,
+    scopes: fresh.scopes.length ? fresh.scopes : o.tokens.scopes,
+    ...(o.tokens.clientId ? { clientId: o.tokens.clientId } : {}),
+  };
 }
 
 function outlookScope(granted: string[]): string {
@@ -197,12 +271,19 @@ function outlookScope(granted: string[]): string {
 /**
  * Takes the access back from the service where it can be, when the person
  * disconnects or deletes their account. Google ends Holly Bot's whole grant
- * to that mailbox; GitHub ends just this token. Microsoft has no such
- * endpoint for one app: its tokens simply stop being renewed.
+ * to that mailbox; GitHub and Higgsfield end just this connection's token.
+ * Microsoft has no such endpoint for one app: its tokens simply stop being
+ * renewed.
  */
 export async function revokeTokens(service: Service, o: { app: OAuthApp | null; tokens: Tokens; fetch?: Fetch }): Promise<void> {
   const f = o.fetch ?? fetch;
-  if (service === "gmail") {
+  if (service === "higgsfield" && o.app) {
+    await f(`${HIGGSFIELD_AUTH}/token/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: o.tokens.refreshToken ?? o.tokens.accessToken, ...client(o.app) }).toString(),
+    });
+  } else if (service === "gmail") {
     await f(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(o.tokens.refreshToken ?? o.tokens.accessToken)}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -231,7 +312,9 @@ export function missingScopes(service: Service, granted: string[]): string[] {
       ? ["https://mail.google.com/"]
       : service === "outlook"
         ? ["mail.readwrite", "mail.send"]
-        : ["repo"];
+        : service === "github"
+          ? ["repo"]
+          : [];
   // A service that doesn't list what it granted (some don't on refresh) is taken at its word.
   return have.size ? need.filter((s) => !have.has(s.toLowerCase())) : [];
 }

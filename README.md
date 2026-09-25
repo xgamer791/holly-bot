@@ -113,6 +113,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - MCP plugins, including local stdio servers through Holly Computer.
   - Gmail and Outlook: bots search and read your email, send or reply as you, and delete email (to the trash, where it can be restored, or for good when you say so), when you ask.
   - GitHub: bots list, create, change and delete your repositories, read and write their files, and make any other GitHub request (issues, pull requests, branches…).
+  - Higgsfield: bots make images and videos with Higgsfield's own tools (its image and video models), paid for with your Higgsfield credits. Connect signs you in to Higgsfield: no key to make. Higgsfield only takes these calls from servers, so they go through Holly Bot's (`convex/lib/higgsfield.ts`, `src/core/plugins.js`). What a bot asks for is checked against the content rules first, and Higgsfield moderates what it makes. Bots share what they made as links. With Auto-review on, they ask before each one.
   - Connect them in Settings → Plugins. The tokens stay encrypted on Holly Bot's server ([CONVEX.md](CONVEX.md#gmail-outlook-and-github)).
 - **Computer:**
   - Shell and files.

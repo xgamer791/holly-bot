@@ -23,6 +23,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as lib_cloudinit from "../lib/cloudinit.js";
 import type * as lib_credits from "../lib/credits.js";
 import type * as lib_github from "../lib/github.js";
+import type * as lib_higgsfield from "../lib/higgsfield.js";
 import type * as lib_mail from "../lib/mail.js";
 import type * as lib_oauth from "../lib/oauth.js";
 import type * as lib_plans from "../lib/plans.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "lib/cloudinit": typeof lib_cloudinit;
   "lib/credits": typeof lib_credits;
   "lib/github": typeof lib_github;
+  "lib/higgsfield": typeof lib_higgsfield;
   "lib/mail": typeof lib_mail;
   "lib/oauth": typeof lib_oauth;
   "lib/plans": typeof lib_plans;

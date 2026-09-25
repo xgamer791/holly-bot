@@ -99,7 +99,7 @@ export class BotHome {
       const access = url ? this.account.accessKey || '' : '';
       const args = { url, access, ...(stopping ? { stopping } : {}) };
       // Why there's no address, for the app to say (an account server from
-      // before 1.30 doesn't take it: then it's left out).
+      // before 1.31 doesn't take it: then it's left out).
       if (!url && !stopping && this.tunnel && !this.oldAccountServer) args.tunnel = this.tunnel;
       try {
         let answer;
