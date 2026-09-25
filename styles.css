@@ -216,14 +216,14 @@ svg { display: block; }
 .row-bot:active, .row-bot.active { background: var(--surface); }
 .row-bot .meta { flex: 1; min-width: 0; }
 .row-bot .line1 { display: flex; align-items: baseline; gap: 10px; }
-.row-bot .title { flex: 1; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-bot .time { color: var(--muted); font-size: 15px; flex: none; }
+.row-bot .title { flex: 1; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-bot .time { color: var(--muted); font-size: 13px; flex: none; }
 /* The Chief Coordinator's chat, pinned at the top of the list. */
 .row-bot .line1.tagged .title { flex: 0 1 auto; }
 .row-bot .line1.tagged .time { margin-left: auto; }
 .row-bot .chief-tag { flex: none; align-self: center; padding: 2px 7px; border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: 12px; line-height: 15px; font-weight: 600; }
 .row-bot .line2 { display: flex; align-items: center; gap: 10px; margin-top: 3px; }
-.row-bot .preview { flex: 1; color: var(--muted); font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-bot .preview { flex: 1; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-bot .preview.waiting { color: var(--orange); }
 .row-bot .preview.error { color: var(--red); }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
