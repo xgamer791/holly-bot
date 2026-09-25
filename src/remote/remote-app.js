@@ -423,6 +423,12 @@ export class RemoteApp {
   }
 
   updateThread(id, patch) {
+    const t = this.threads.get(id);
+    if (t) {
+      this.threads.set(id, { ...t, ...patch });
+      this.emit('threads');
+      this.emit(`thread:${id}`);
+    }
     return this.rpc('threads.update', id, patch);
   }
 

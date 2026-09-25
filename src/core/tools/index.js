@@ -30,14 +30,25 @@ export function enabledGroups(agent) {
   return { core: true, ...(agent.tools || {}) };
 }
 
+/** A chat's workspace (thread.workspace, src/ui/workspace.js) puts its bot on
+ * GitHub repositories or on a server, never both, and its tools follow:
+ * GitHub's without the computer's, or the other way round. */
+export function workspaceGroups(thread) {
+  const ws = thread?.workspace;
+  if (ws?.kind === 'github' && ws.repos?.length) return { github: true, computer: false };
+  if (ws?.kind === 'server') return { computer: true, github: false };
+  return {};
+}
+
 /**
  * Tools this bot can use right now.
  * @param {object} app
  * @param {object} agent
- * @param {{ nativeSearch?: boolean }} opts - provider already has server-side web search
+ * @param {{ nativeSearch?: boolean, thread?: object }} opts - provider already has
+ *   server-side web search; the chat, for its workspace
  */
-export function toolsForAgent(app, agent, { nativeSearch = false } = {}) {
-  const groups = enabledGroups(agent);
+export function toolsForAgent(app, agent, { nativeSearch = false, thread = null } = {}) {
+  const groups = { ...enabledGroups(agent), ...workspaceGroups(thread) };
   const isOn = (g) => g === 'core' || groups[g] !== false;
   const tools = BUILTIN_TOOLS.filter((t) => {
     if (!isOn(t.group)) return false;

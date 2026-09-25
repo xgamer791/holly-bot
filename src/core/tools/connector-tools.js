@@ -261,6 +261,16 @@ function emailTools(service) {
 const hasGitHub = on('github');
 const REPO = { type: 'string', description: 'The repository as owner/name, e.g. octocat/hello-world.' };
 
+/** In a chat whose workspace is GitHub repositories (src/ui/workspace.js), the
+ * bot works on those only: what to tell it about any other, or null. */
+function outsideWorkspace(ctx, repo) {
+  const ws = ctx.thread?.workspace;
+  if (ws?.kind !== 'github' || !ws.repos?.length || !repo) return null;
+  const name = String(repo).trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, '').toLowerCase();
+  if (ws.repos.some((r) => r.toLowerCase() === name)) return null;
+  return { content: `${repo} isn't in this chat's workspace (${ws.repos.join(', ')}). Ask the user to add it to the chat's Workspace first.`, isError: true };
+}
+
 function repoLine(r) {
   return `${r.repo}${r.private ? ' (private)' : ' (public)'}${r.archived ? ' (archived)' : ''}${r.description ? ` — ${r.description}` : ''}`;
 }
@@ -342,6 +352,8 @@ const githubTools = [
       a.name && `Rename it to ${a.name}.`,
     ].filter(Boolean).join('\n'),
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'update_repo', {
         repo: args.repo, name: args.name, description: args.description, homepage: args.homepage,
         private: args.private, archived: args.archived, defaultBranch: args.default_branch,
@@ -362,6 +374,8 @@ const githubTools = [
     alwaysAsk: true,
     approval: (a) => `Delete ${a.repo} on GitHub, with its code, issues, pull requests and history.\nThis can't be undone.`,
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'delete_repo', { repo: args.repo }, { signal: ctx.signal });
       ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Deleted ${r.repo}`, detail: '' });
       return { content: `Deleted ${r.repo}.`, display: { kind: 'github', repo: r.repo } };
@@ -384,6 +398,8 @@ const githubTools = [
     },
     risk: 'low',
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const list = await ctx.app.connector('github', 'list_files', { repo: args.repo, path: args.path || '', ref: args.ref || '' }, { signal: ctx.signal });
       const lines = list.map((f) => `${f.type === 'dir' ? `${f.path}/` : f.path}${f.type === 'file' ? ` (${kb(f.size)})` : ''}`);
       return { content: lines.length ? lines.join('\n') : 'Empty.', display: { kind: 'github', repo: args.repo } };
@@ -406,6 +422,8 @@ const githubTools = [
     },
     risk: 'low',
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const f = await ctx.app.connector('github', 'read_file', { repo: args.repo, path: args.path, ref: args.ref || '' }, { signal: ctx.signal });
       if (f.binary) return { content: `${f.path} isn't a text file (${kb(f.size)}). ${f.note || ''} ${f.url}`.trim(), display: { kind: 'github', repo: f.repo, url: f.url } };
       return { content: `${f.repo}/${f.path} (${kb(f.size)})\n\n${untrusted('file', f.text)}`, display: { kind: 'github', repo: f.repo, url: f.url } };
@@ -431,6 +449,8 @@ const githubTools = [
     },
     risk: 'low',
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'write_file', {
         repo: args.repo, path: args.path, content: args.content, message: args.message || '', branch: args.branch || '',
       }, { signal: ctx.signal });
@@ -456,6 +476,8 @@ const githubTools = [
     },
     risk: 'low',
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, args.repo);
+      if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'delete_file', { repo: args.repo, path: args.path, message: args.message || '', branch: args.branch || '' }, { signal: ctx.signal });
       ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Deleted ${r.path} from ${r.repo}`, detail: '' });
       return { content: `Deleted ${r.path} from ${r.repo} (commit ${r.commit.slice(0, 7)}).`, display: { kind: 'github', repo: r.repo } };
@@ -481,6 +503,8 @@ const githubTools = [
     risk: (a) => (readOnly(a.method) ? 'low' : 'high'),
     approval: (a) => `${String(a.method || 'GET').toUpperCase()} ${a.path}${a.body && Object.keys(a.body).length ? `\n${truncate(JSON.stringify(a.body, null, 1), 1500)}` : ''}`,
     async run(args, ctx) {
+      const blocked = outsideWorkspace(ctx, /^\/?repos\/([^/]+\/[^/?#]+)/.exec(String(args.path || ''))?.[1]);
+      if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'request', { method: args.method, path: args.path, body: args.body }, { signal: ctx.signal });
       if (!readOnly(args.method)) ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `${String(args.method).toUpperCase()} ${args.path}`, detail: `HTTP ${r.status}` });
       return { content: `HTTP ${r.status}\n${r.body ? untrusted('github_response', r.body) : ''}`.trim(), display: { kind: 'github' } };

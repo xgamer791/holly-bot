@@ -49,6 +49,12 @@ export class ComputerClient {
     return data;
   }
 
+  /** The computer's apps (project folders and running containers), for a
+   * chat's workspace (computer/src/apps.mjs). */
+  apps({ signal } = {}) {
+    return this.request('/v1/apps', undefined, { signal });
+  }
+
   async connect({ signal } = {}) {
     try {
       this.info = await this.request('/v1/info', undefined, { signal });

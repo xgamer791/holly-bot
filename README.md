@@ -108,6 +108,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - Shell and files.
   - A real browser: pages come back as text with clickable element refs, and new tabs, dialogs and downloads are handled.
   - The screen, mouse and keyboard.
+- **Workspace:** the button in the prompt bar sets what a chat's bot works on: one or more GitHub repositories, or one of your servers (a computer linked to your account, running Holly Computer) and, if you like, some of its apps, which Holly Computer finds among its project folders and running Docker containers. Never both. In that chat the bot gets GitHub's tools or the server's, and GitHub's tools stay inside the chosen repositories. Picking a server this app isn't connected to connects to it.
+- **Prompt bar**, after Perplexity's: attach, web search on or off for the chat's bots, the bot's computer (white while one is connected, gray when not; tap it for the computer), Workspace, dictation, and the round button for voice, send or stop.
 - **Safety:** with Auto-review on, risky actions wait for your approval on the phone. That covers shell commands that change things, taking over the mouse and keyboard or the browser (once per task), MCP calls, sending email (you see exactly what goes out), deleting email (you see exactly which emails, looked up in the mailbox itself), and making a repository public. Deleting email for good, and deleting a repository, always asks.
 - **Voice mode, question cards and an activity drawer**, in a design that follows Grok Bot.
 

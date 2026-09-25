@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { RPC, stateSnapshot, sanitizeMessage, findImage, redactSettings } from './remote-api.mjs';
+import { findApps } from './apps.mjs';
 
 const MAX_BODY = 60 * 1024 * 1024;
 
@@ -317,6 +318,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
     const p = url.pathname;
     if (p === '/v1/info' && req.method === 'GET') return json(res, 200, await computer.connect());
     if (p === '/v1/export' && req.method === 'GET') return exportFiles(res, computer);
+    if (p === '/v1/apps' && req.method === 'GET') return json(res, 200, await findApps({ workspace: computer.workspace }));
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (p === '/v1/exec') {
       const job = jobs.start(body);

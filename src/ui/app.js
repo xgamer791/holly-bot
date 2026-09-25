@@ -7,6 +7,7 @@ import { SettingsSheet } from './settings.js';
 import { BotProfileSheet, ModelPickerSheet } from './bot-profile.js';
 import { MemorySheet } from './memory.js';
 import { ComputerSheet } from './computer.js';
+import { WorkspaceSheet } from './workspace.js';
 import { RoutinesSheet } from './routines.js';
 import { ActivityDrawer, GroupInfoSheet } from './drawer.js';
 import { Dialog, Toasts } from './components.js';
@@ -22,6 +23,7 @@ const SHEETS = {
   modelPicker: ModelPickerSheet,
   memory: MemorySheet,
   computer: ComputerSheet,
+  workspace: WorkspaceSheet,
   routines: RoutinesSheet,
   groupInfo: GroupInfoSheet,
 };

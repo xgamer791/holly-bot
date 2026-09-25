@@ -287,7 +287,7 @@ export class Runtime {
       const serverTools = app.providers.serverToolsFor(cfg, agent);
       // Gmail, Outlook or GitHub connected (or disconnected) on another device since.
       await untilAborted(app.refreshConnections({ maxAge: 60_000 }), controller.signal);
-      tools = toolsForAgent(app, agent, { nativeSearch: serverTools.includes('web_search') });
+      tools = toolsForAgent(app, agent, { nativeSearch: serverTools.includes('web_search'), thread: app.getThread(threadId) });
       if (!msg.turn) {
         if (!resumeFrom) await untilAborted(this.attachContext(agent, thread, msg, controller.signal), controller.signal);
         msg.turn = {

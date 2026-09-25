@@ -75,11 +75,34 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
 
   // The bots run in the app, although the account has a computer: the bot
   // should know it's there, and why it can't use it now.
-  const away = !app.computer?.connected && agent.tools?.computer !== false ? app.linkedComputers?.[0] : null;
+  const away = !app.computer?.connected && agent.tools?.computer !== false && thread.workspace?.kind !== 'github' ? app.linkedComputers?.[0] : null;
   if (away) {
     lines.push('', '## The user\'s computer',
       `The user's computer, ${away.name}, is linked to their Holly Bot account. When this app is connected to it, the user's bots run there and can use its shell, files, a real browser, and its screen, mouse and keyboard. `
       + `This app isn't connected to it now (${COMPUTER_AWAY[away.state] || COMPUTER_AWAY.off}), so you can't use that computer in this chat. If the user asks for something on it, say so plainly and tell them how to fix it.`);
+  }
+
+  // The chat's workspace (src/ui/workspace.js): GitHub repositories or a
+  // server, never both. Its tools follow (src/core/tools/index.js).
+  const ws = thread.workspace;
+  if (ws?.kind === 'github' && ws.repos?.length) {
+    lines.push('', '## Workspace',
+      `In this chat you work on ${ws.repos.length === 1 ? 'the GitHub repository' : 'the GitHub repositories'} ${ws.repos.join(', ')}, with your GitHub tools. `
+      + 'Other repositories are outside this chat\'s workspace: to work on one, the user adds it to the chat\'s Workspace. There\'s no computer or server in this chat.');
+  } else if (ws?.kind === 'server') {
+    const i = app.computer?.info || {};
+    const here = !!app.computer?.connected && (!ws.name || ws.name === i.name || ws.name === i.hostname);
+    const folders = (ws.apps || []).filter((a) => a.path).map((a) => `${a.name} in ${a.path}`);
+    const containers = (ws.apps || []).filter((a) => !a.path).map((a) => a.name);
+    const on = [
+      ...(folders.length ? [`${folders.length === 1 ? 'the app' : 'the apps'} ${folders.join(', ')} (cd there in the shell first)`] : []),
+      ...(containers.length ? [`${containers.length === 1 ? 'the Docker container' : 'the Docker containers'} ${containers.join(', ')} (docker exec, docker logs)`] : []),
+    ];
+    lines.push('', '## Workspace',
+      `In this chat you work on the server ${ws.name}`
+      + (on.length ? `, on ${on.join(' and ')}. Leave the rest of the server alone unless the user asks. ` : ', with its shell, files and browser. ')
+      + 'GitHub\'s API isn\'t part of this chat; git on the server is fine.'
+      + (here ? '' : ` This app isn't connected to ${ws.name} right now, so you can't reach it: tell the user to connect to it from the chat's Workspace.`));
   }
 
   const linked = [['gmail', 'Gmail'], ['outlook', 'Outlook'], ['github', 'GitHub']]
