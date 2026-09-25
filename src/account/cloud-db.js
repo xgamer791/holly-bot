@@ -271,10 +271,13 @@ export class CloudDB {
    *   calls a Convex function as that account, and throws "Not signed in" once
    *   it can't (signed out, or another account signed in meanwhile)
    * @param {object} [o.outbox]  where unsent changes wait (default: IndexedDB)
+   * @param {(o?: { force?: boolean }) => Promise<string>} [o.token]  that
+   *   account's session token, for Holly Bot's AI (src/core/providers)
    */
-  static async open({ userId, call, outbox = null }) {
+  static async open({ userId, call, outbox = null, token = null }) {
     if (!userId) throw new Error('Not signed in');
     const db = new CloudDB(userId, outbox || await Outbox.open(CloudDB.outboxName(userId)), call);
+    db.sessionToken = token;
     const hold = await CloudDB.holdOutbox(userId);
     db.release = hold.release;
     try {

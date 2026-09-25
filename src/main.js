@@ -228,7 +228,11 @@ async function startAccount() {
   let db;
   try {
     const userId = account.userId;
-    db = await CloudDB.open({ userId, call: (kind, name, args) => account.authed(kind, name, args, { as: userId }) });
+    db = await CloudDB.open({
+      userId,
+      call: (kind, name, args) => account.authed(kind, name, args, { as: userId }),
+      token: (o) => account.tokenOf(userId, o),
+    });
   } catch (err) {
     console.error('account storage', err);
     // Signed out meanwhile, or the subscription just ended (the reload lands

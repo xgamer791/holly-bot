@@ -1,4 +1,5 @@
 import { httpRouter } from "convex/server";
+import { chat, preflight } from "./ai";
 import { auth } from "./auth";
 import { webhook } from "./billing";
 import { callback } from "./connectors";
@@ -20,5 +21,10 @@ http.route({ path: "/stripe/webhook", method: "POST", handler: webhook });
 // /servers/ready: a subscriber's server reporting that Holly is running on it,
 // or what went wrong (convex/servers.ts, convex/lib/cloudinit.ts).
 http.route({ path: "/servers/ready", method: "POST", handler: ready });
+
+// /ai/chat/completions: bots' requests to Holly Bot's AI, DeepSeek on Holly
+// Bot's key, charged to the account's monthly credits (convex/ai.ts).
+http.route({ path: "/ai/chat/completions", method: "POST", handler: chat });
+http.route({ path: "/ai/chat/completions", method: "OPTIONS", handler: preflight });
 
 export default http;

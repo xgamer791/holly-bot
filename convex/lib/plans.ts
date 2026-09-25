@@ -1,5 +1,6 @@
-// Holly Bot's plans: what each costs, and the dedicated server each runs on at
-// Vultr. This is the one place they're set. The subscription page lists them
+// Holly Bot's plans: what each costs, the dedicated server each runs on at
+// Vultr, and the AI credits each gives every month. This is the one place
+// they're set. The subscription page lists them
 // (billing:status), checkout refuses a Stripe price that doesn't match them
 // (convex/billing.ts), and each subscriber's server is made at its plan's size
 // (convex/servers.ts). No imports: plain data.
@@ -18,6 +19,9 @@ export interface Plan {
   memoryGb: number;
   /** A line under the name, for a plan that has one. */
   note?: string;
+  /** Its AI credits every month, in US cents of DeepSeek use at DeepSeek's
+   * list prices (convex/credits.ts). The app shows them as credits, 1 per cent. */
+  credits: number;
 }
 
 /** Month to month ($60, $120 or $200), or a year paid up front for less
@@ -25,9 +29,9 @@ export interface Plan {
  * Starter is $5 a month while the owner tests subscribing (its monthly price
  * at Stripe too); it goes back to 6000 after. */
 export const PLANS: Plan[] = [
-  { id: "starter", name: "Starter", price: { month: 500, year: 49000 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot" },
-  { id: "pro", name: "Pro", price: { month: 12000, year: 99000 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8 },
-  { id: "ultra", name: "Ultra", price: { month: 20000, year: 179000 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16 },
+  { id: "starter", name: "Starter", price: { month: 500, year: 49000 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot", credits: 1000 },
+  { id: "pro", name: "Pro", price: { month: 12000, year: 99000 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8, credits: 2000 },
+  { id: "ultra", name: "Ultra", price: { month: 20000, year: 179000 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16, credits: 3500 },
 ];
 
 /** Where subscribers' servers run, and how they're found at Vultr. */

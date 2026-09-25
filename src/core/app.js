@@ -155,6 +155,7 @@ export class App {
     if (this.computer.configured) this.computer.connect().then(() => this.emit('computer')).catch(() => this.emit('computer'));
     this.plugins.refresh().catch((err) => console.warn('plugins', err));
     this.refreshConnections();
+    this.refreshCredits();
     await this.repairInterruptedMessages();
   }
 
@@ -721,6 +722,34 @@ export class App {
     return Promise.race([this.connectionsLoading, waited]).then(() => {
       clearTimeout(timer);
       return this.connections || [];
+    });
+  }
+
+  // ----- AI credits -------------------------------------------------------------
+
+  /** This month's AI credits (convex/credits.ts `mine`): what the plan gives,
+   * what's left and when they refill, and `ready`, whether Holly Bot's server
+   * can run its AI; null without a subscription. Loaded like connections:
+   * when what's held is older than `maxAge`, never throwing, and waiting at
+   * most a few seconds. Only storage that is the account's has credits. */
+  refreshCredits({ maxAge = 0 } = {}) {
+    if (!this.db?.cloud || typeof this.db.call !== 'function') return Promise.resolve(null);
+    if (maxAge && this.creditsAt && Date.now() - this.creditsAt < maxAge) return Promise.resolve(this.credits);
+    if (!this.creditsLoading) {
+      this.creditsLoading = this.db.call('query', 'credits:mine')
+        .then((credits) => {
+          this.credits = credits;
+          this.creditsAt = Date.now();
+          this.emit('credits');
+        })
+        .catch((err) => console.warn('credits', err?.message || err))
+        .finally(() => { this.creditsLoading = null; });
+    }
+    let timer;
+    const waited = new Promise((resolve) => { timer = setTimeout(resolve, 4000); });
+    return Promise.race([this.creditsLoading, waited]).then(() => {
+      clearTimeout(timer);
+      return this.credits ?? null;
     });
   }
 

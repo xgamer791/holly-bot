@@ -248,6 +248,15 @@ class Account {
     }
   }
 
+  /** The session's JWT, for a request that carries it itself (Holly Bot's AI,
+   * src/core/providers), when it's still `as`'s: throws "Not signed in"
+   * otherwise. `force` renews it first. */
+  async tokenOf(as, { force = false } = {}) {
+    const token = await this.token({ force });
+    if (!token || userIdOf(token) !== as) throw new Error('Not signed in');
+    return token;
+  }
+
   /** Loads who is signed in from the database and keeps it for the next
    * launch, so Settings can show it offline. Signs out if the account is gone. */
   async refreshUser() {

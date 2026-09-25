@@ -236,6 +236,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
               <span class="sub-specs">
                 <span><${Icon.cpu} size=${15} /> ${p.cpu} CPU</span>
                 <span><${Icon.memory} size=${15} /> ${p.memoryGb} GB RAM</span>
+                ${p.credits > 0 && html`<span><${Icon.sparkle} size=${15} /> ${p.credits.toLocaleString()} AI credits a month</span>`}
               </span>
             </label>`)}
         </div>
@@ -244,7 +245,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
           <h2>Every plan includes</h2>
           <ul>
             <li><${Icon.bot} size=${18} /><span>Your bots, chats and memories in your account, on every device</span></li>
-            <li><${Icon.key} size=${18} /><span>Use your own AI key: DeepSeek, Claude, OpenAI, Grok and more</span></li>
+            <li><${Icon.brain} size=${18} /><span>Holly Bot's AI, DeepSeek, with AI credits that refill every month</span></li>
             <li><${Icon.mail} size=${18} /><span>Gmail, Outlook and GitHub for your bots to use</span></li>
             <li><${Icon.check} size=${18} /><span>Cancel anytime in Settings</span></li>
           </ul>

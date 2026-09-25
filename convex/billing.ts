@@ -63,6 +63,8 @@ const planInfo = v.object({
   cpu: v.number(),
   memoryGb: v.number(),
   price: v.object({ month: v.number(), year: v.number() }),
+  /** Its AI credits every month (1 per US cent of DeepSeek use: convex/credits.ts). */
+  credits: v.number(),
 });
 
 /**
@@ -121,7 +123,7 @@ async function describe(ctx: QueryCtx, userId: Id<"users">): Promise<Status> {
     exempt,
     ready: configured(),
     check: needsCheck(row, now),
-    plans: PLANS.map(({ id, name, note, cpu, memoryGb, price }) => ({ id, name, note, cpu, memoryGb, price: { ...price } })),
+    plans: PLANS.map(({ id, name, note, cpu, memoryGb, price, credits }) => ({ id, name, note, cpu, memoryGb, price: { ...price }, credits })),
     subscription: sub
       ? { plan: sub.plan, interval: sub.billingInterval, status: sub.subscriptionStatus ?? "", periodEnd: sub.currentPeriodEnd, endsAt: sub.cancelAt }
       : null,

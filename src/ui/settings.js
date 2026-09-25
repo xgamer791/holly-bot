@@ -3,12 +3,11 @@ import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Sheet, Group, Row, Field, Toggle, downloadBlob } from './components.js';
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
-import { PROVIDERS, PROVIDER_ORDER } from '../core/providers/index.js';
+import { AI_MODELS } from '../core/providers/index.js';
 import { formatShort, initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
-import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
-import { modelsFor } from './bot-profile.js';
+import { MODEL_NAMES } from './bot-profile.js';
 import {
   RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
@@ -114,7 +113,7 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
   const go = (page, extra = {}) => setStack([...stack, { page, ...extra }]);
   const back = () => setStack(stack.slice(0, -1));
   const titles = {
-    profile: 'Profile', usage: 'Usage', keys: 'API Keys', provider: PROVIDERS[top?.provider]?.label || 'Provider', plugins: 'Plugins',
+    profile: 'Profile', usage: 'Usage', keys: 'Usage', plugins: 'Plugins',
     computer: 'Bot Computer', appearance: 'Appearance', language: 'Language', haptics: 'Haptics', timezone: 'Time Zone', data: 'Data & Backup',
     memory: 'Memory & Context', help: 'Help Center', privacy: 'Privacy Policy', terms: 'Terms of Service', voice: 'Voice',
   };
@@ -122,11 +121,11 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
     ? html`<button class="circle-btn" aria-label="Back" onClick=${back}><${Icon.back} /></button>`
     : html`<button class="circle-btn" aria-label="Close" onClick=${onClose}><${Icon.x} /></button>`;
   const pages = {
-    profile: ProfilePage, usage: UsagePage, keys: KeysPage, provider: ProviderPage, plugins: PluginsPage, computer: ComputerPage,
+    profile: ProfilePage, usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
     appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, timezone: TimeZonePage, data: DataPage, memory: MemorySettingsPage,
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
-  const Page = top ? pages[top.page] : MainPage;
+  const Page = (top && pages[top.page]) || MainPage;
   return html`<${Sheet} title=${top ? titles[top.page] : ''} left=${left} onClose=${onClose}>
     <${Page} go=${go} back=${back} onClose=${onClose} ...${top || {}} />
   <//>`;
@@ -137,8 +136,7 @@ function MainPage({ go, onClose }) {
   const ui = useUi();
   const acct = useAccount();
   const s = app.settings;
-  const ready = app.providers.readyProviders();
-  const cost = totalCost(s);
+  const { credits } = useCredits();
   const tz = app.timeZone();
   const set = (patch) => app.saveSettings(patch);
   return html`
@@ -150,10 +148,9 @@ function MainPage({ go, onClose }) {
         <div class="label"><div class="t">${s.profile?.name || 'Your profile'}</div><div class="s">${s.profile?.email || 'Add your name so bots know you'}</div></div>
         <${Icon.chevron} class="chev" />
       </button>
-      <${Row} title="Usage" value=${cost != null ? `$${cost.toFixed(cost < 1 ? 3 : 2)}` : '—'} onClick=${() => go('usage')} />
+      <${Row} title="Usage" value=${credits ? `${creditsShare(credits)}% left` : '—'} onClick=${() => go('usage')} />
     <//>
     <${Group}>
-      <${Row} title="API Keys" sub=${ready.length ? `Bring your own key · ${ready.map((id) => PROVIDERS[id].label.split(' ')[0]).join(', ')}` : 'Bring your own key — add one to start'} onClick=${() => go('keys')} />
       <${Row} title="Plugins" sub="Gmail, Outlook, GitHub, tools and skills" onClick=${() => go('plugins')} />
     <//>
     <div class="group-label">Bot</div>
@@ -211,7 +208,7 @@ function MainPage({ go, onClose }) {
     <div class="footer-brand">
       <${Avatar} shape="circle" color="white" size=${84} expression="upRight" />
       <div class="n">${APP_NAME}</div>
-      <div class="v">${APP_VERSION} · bring your own key</div>
+      <div class="v">${APP_VERSION}</div>
     </div>`;
 }
 
@@ -252,158 +249,51 @@ function ProfilePage() {
     <//>`;
 }
 
+/** This month's AI credits (convex/credits.ts `mine`), for the Usage row and
+ * page: null while unknown, or without a plan that gives any. */
+function useCredits() {
+  const here = account.signedIn && signInWorksHere();
+  const { data, loading, reload } = useAsync(() => (here ? account.authed('query', 'credits:mine').catch(() => null) : Promise.resolve(null)), [here]);
+  return { credits: data ?? null, loading, reload };
+}
+
+/** What's left of the month's credits, as a whole percent (1% while any are left). */
+function creditsShare(c) {
+  if (!c?.allowance || c.balance <= 0) return 0;
+  return Math.min(100, Math.max(1, Math.round((c.balance / c.allowance) * 100)));
+}
+
+/** Millionths of a dollar as credits (1 credit per cent), for showing. */
+const asCredits = (micros) => Math.floor(Math.max(0, micros) / 10_000).toLocaleString();
+
+/**
+ * Settings → Usage: this month's AI credits as a bar that drops as bots use
+ * them and fills up again when they refill, with no money shown. Read again
+ * every few seconds while it's open, so it follows the bots as they work.
+ */
 function UsagePage() {
-  const app = useApp();
-  const ui = useUi();
-  const rows = Object.entries(app.settings.usage?.byModel || {}).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
-  const cost = totalCost(app.settings);
-  const fmt = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
-  const hasDeepseek = app.providers.isReady('deepseek');
-  const { data: balance } = useAsync(() => (hasDeepseek ? app.providers.balance('deepseek').catch(() => null) : null), [hasDeepseek]);
+  const { credits, loading, reload } = useCredits();
+  useEffect(() => {
+    const t = setInterval(() => document.visibilityState === 'visible' && reload(), 5000);
+    return () => clearInterval(t);
+  }, []);
+  if (!account.signedIn || !signInWorksHere()) {
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">Your AI credits come with your Holly Bot plan. Sign in to Holly Bot at ${SITE.replace(/^https:\/\//, '')} to see them.</p>`;
+  }
+  if (!credits) {
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? 'Loading…' : 'Your AI credits come with your Holly Bot plan.'}</p>`;
+  }
+  const pct = creditsShare(credits);
+  const refill = new Date(credits.refillsAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
   return html`
-    ${hasDeepseek && html`<${Group} label="DeepSeek account">
-      <${Row} title="Balance" value=${balance?.length ? balance.map((b) => `${b.currency === 'USD' ? '$' : b.currency === 'CNY' ? '¥' : `${b.currency} `}${b.total.toFixed(2)}`).join(' · ') : balance === null ? '—' : '…'} />
-      <${Row} title="Price right now" sub="Off-peak is half price. Peak: 01–04 and 06–10 UTC on weekdays." value=${deepseekPeak() ? 'Peak' : 'Off-peak'} />
-    <//>`}
-    <p class="hint" style="font-size:14px;margin:4px">Tracked ${home(app).in} since ${app.settings.usage?.since ? new Date(app.settings.usage.since).toLocaleDateString() : 'first use'}. Costs are estimates from public list prices — your provider's dashboard is the source of truth.</p>
-    <div class="group" style="padding:6px 14px">
-      <table class="usage-table">
-        <thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Est.</th></tr></thead>
-        <tbody>${rows.map(([key, u]) => {
-          const model = key.split(':').slice(1).join(':');
-          const c = u.cost != null ? u.cost : estimateCost(model, u);
-          return html`<tr key=${key}><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${model}<br /><small style="color:var(--muted)">${PROVIDERS[key.split(':')[0]]?.label || key.split(':')[0]}</small></td>
-            <td>${u.calls}${u.images ? ` +${u.images}🖼` : ''}</td><td>${fmt(u.input)}</td><td>${fmt(u.output)}</td><td>${c != null ? `$${c.toFixed(3)}` : '—'}</td></tr>`;
-        })}</tbody>
-      </table>
-      ${!rows.length && html`<p class="hint" style="padding:10px 0">No usage yet.</p>`}
+    <div class="credits-card" role="meter" aria-label="AI credits left this month" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+      <div class="credits-head"><b>AI credits</b><span>${pct}% left</span></div>
+      <div class="credits-bar"><span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
+      <div class="credits-sub">${asCredits(credits.balance)} of ${asCredits(credits.allowance)} left · Refills ${refill}</div>
     </div>
-    <p style="text-align:center;font-size:20px;font-weight:600">${cost != null ? `≈ $${cost.toFixed(2)}` : ''}</p>
-    <button class="btn block" onClick=${async () => {
-      if (await ui.confirm({ title: 'Reset usage stats?', confirmText: 'Reset', danger: true })) app.saveSettings({ usage: { since: Date.now(), byModel: {} } });
-    }}>Reset</button>`;
-}
-
-function KeysPage({ go }) {
-  const app = useApp();
-  const ui = useUi();
-  const s = app.settings;
-  const ready = app.providers.readyProviders();
-  let defaultLabel = 'Not set';
-  try {
-    const cfg = app.providers.resolve(null);
-    defaultLabel = `${cfg.model}`;
-  } catch { /* none */ }
-  return html`
-    <p class="hint" style="font-size:14.5px;margin:2px 4px 6px">${app.remote
-      ? html`Keys are stored on your computer (${app.computer.info?.hostname || 'Holly Computer'}) and never sent back to this device. Your bots call the providers from there.`
-      : app.db?.cloud
-        ? 'Your keys are kept in your Holly Bot account, and this app sends them straight to each provider when a bot works. Holly Bot never uses them for anything else.'
-        : 'Your keys are stored only in this browser and sent straight to each provider.'} DeepSeek V4.1 Flash is the default for every bot; add others to give specific bots a different brain.</p>
-    <${Group}>
-      ${PROVIDER_ORDER.map((id) => {
-        const p = PROVIDERS[id];
-        const ok = app.providers.isReady(id);
-        return html`<button key=${id} class="row" onClick=${() => go('provider', { provider: id })}>
-          <span class="provider-logo">${p.label.slice(0, 1)}</span>
-          <div class="label"><div class="t">${p.label}</div>${id === 'xai' && html`<div class="s">Grok models + live web & X search</div>`}</div>
-          ${ok ? html`<span class="ok-check"><${Icon.check} /></span>` : html`<span class="value">Add</span>`}
-          <${Icon.chevron} class="chev" />
-        </button>`;
-      })}
-    <//>
-    <div class="group-label">Defaults</div>
-    <${Group}>
-      <${Row} title="Default model" sub="Used by bots that don't pick their own" value=${defaultLabel} onClick=${() => (ready.length ? ui.openSheet('modelPicker', {}) : ui.toast('Add a key first'))} />
-      <div class="row"><div class="label"><div class="t">Backup if it fails</div><div class="s">When the main provider is down, rate limited or out of credit, retry once with this</div></div>
-        <select aria-label="Backup model" value=${s.backup?.provider ? `${s.backup.provider}:${s.backup.model || PROVIDERS[s.backup.provider]?.defaultModel || ''}` : ''}
-          onChange=${(e) => {
-            const [provider, ...rest] = e.currentTarget.value.split(':');
-            app.saveSettings({ backup: { provider: provider || '', model: rest.join(':') } });
-          }}>
-          <option value="">Off</option>
-          ${ready.flatMap((id) => modelsFor(app, id).slice(0, 6).map((m) => html`<option key=${`${id}:${m}`} value=${`${id}:${m}`}>${PROVIDERS[id].label.split(' ')[0]} · ${m}</option>`))}
-        </select></div>
-      <${Row} title="Memory & summaries model" sub="Runs memory extraction and summaries" value=${memoryModelLabel(s)} onClick=${() => go('memory')} />
-      <div class="row"><div class="label"><div class="t">Image generation</div><div class="s">Provider for generate_image</div></div>
-        <select value=${s.defaults?.imageProvider || ''} onChange=${(e) => app.saveSettings({ defaults: { ...s.defaults, imageProvider: e.currentTarget.value } })}>
-          <option value="">Automatic</option>
-          ${['xai', 'openai'].filter((id) => app.providers.isReady(id)).map((id) => html`<option value=${id}>${PROVIDERS[id].label}</option>`)}
-        </select></div>
-    <//>`;
-}
-
-function memoryModelLabel(s) {
-  const mm = s.defaults?.memoryModel;
-  if (!mm || mm === 'same') return 'Same as bot';
-  return mm.split(':').slice(1).join(':') || mm;
-}
-
-function ProviderPage({ provider: id, back }) {
-  const app = useApp();
-  const ui = useUi();
-  const def = PROVIDERS[id];
-  const cur = app.settings.providers?.[id] || {};
-  const [key, setKey] = useState(cur.apiKey || '');
-  const [show, setShow] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [adv, setAdv] = useState(!!(cur.baseURL || cur.proxy) || id === 'custom' || id === 'ollama');
-  const save = (patch) => app.setProvider(id, patch);
-
-  const test = async () => {
-    await save({ apiKey: key.trim() });
-    setTesting(true);
-    setResult(null);
-    try {
-      const models = await app.providers.test(id);
-      setResult({ ok: true, text: `Connected — ${models.length} models available.` });
-      if (!app.settings.defaults?.provider) await app.saveSettings({ defaults: { ...app.settings.defaults, provider: id, model: def.defaultModel } });
-      app.plugins.refresh().catch(() => {});
-    } catch (err) {
-      setResult({ ok: false, text: err.message });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  return html`
-    ${def.noKey ? html`<${Group}><${Row} title="Enabled" toggle=${!!cur.enabled} onToggle=${(v) => save({ enabled: v })} /><//>
-      <p class="hint" style="font-size:14px">Ollama must allow this site: set <span class="kbd">OLLAMA_ORIGINS=*</span> before <span class="kbd">ollama serve</span>. Works when this page and Ollama are on the same computer (or via a tunnel).</p>`
-    : html`<${Field} label="API key" hint=${html`${app.remote ? 'Stored on your computer.' : app.db?.cloud ? 'Kept in your account.' : 'Stored only on this device.'} ${def.keyUrl ? html`<a href=${def.keyUrl} target="_blank" rel="noopener">Get a ${def.label} key ↗</a>` : ''}`}>
-        <div style="display:flex;gap:8px">
-          <input class="input mono" type=${show ? 'text' : 'password'} autocomplete="off" autocapitalize="off" spellcheck="false" placeholder=${def.keyHint || 'API key'} value=${key}
-            onInput=${(e) => setKey(e.currentTarget.value)} onBlur=${() => key.trim() !== (cur.apiKey || '') && save({ apiKey: key.trim() })} />
-          <button class="circle-btn" aria-label=${show ? 'Hide key' : 'Show key'} onClick=${() => setShow(!show)}>${show ? html`<${Icon.eyeOff} />` : html`<${Icon.eye} />`}</button>
-        </div>
-      <//>`}
-    <button class="btn block primary" disabled=${testing || (!def.noKey && !key.trim())} onClick=${test}>${testing ? html`<span class="spinner"></span> Testing…` : 'Save & test connection'}</button>
-    ${result && html`<p style=${`font-size:14.5px;color:${result.ok ? 'var(--green)' : 'var(--red)'};margin:10px 4px;line-height:1.4`}>${result.text}</p>`}
-    ${app.providers.isReady(id) && html`
-      <div class="group-label">Models</div>
-      <div class="group">${modelsFor(app, id).slice(0, 14).map((m) => html`<${Row} key=${m} title=${m} sub=${m === def.defaultModel ? 'Recommended default' : ''}
-        value=${app.settings.defaults?.provider === id && app.settings.defaults?.model === m ? 'Default' : ''}
-        onClick=${() => app.saveSettings({ defaults: { ...app.settings.defaults, provider: id, model: m } }).then(() => ui.toast(`Default model: ${m}`))} chevron=${false} />`)}</div>
-      <div class="group-note">Tap to make a model the default for bots that don't choose their own.</div>`}
-    ${def.nativeTools?.length > 0 && html`<${Group}>
-      <${Row} title="Built-in web search" sub=${id === 'xai' ? 'Grok searches the web and X itself (billed by xAI)' : 'The provider runs web search for the model (may be billed per search)'}
-        toggle=${cur.nativeSearch !== false} onToggle=${(v) => save({ nativeSearch: v })} />
-    <//>`}
-    <button class="btn block" style="margin-top:8px" onClick=${() => setAdv(!adv)}>${adv ? 'Hide' : 'Show'} advanced</button>
-    ${adv && html`
-      <${Field} label="Base URL" hint=${`Default: ${def.baseURL || '(required)'}`}>
-        <input class="input mono" value=${cur.baseURL || ''} placeholder=${def.baseURL || 'https://…/v1'} autocapitalize="off" onChange=${(e) => save({ baseURL: e.currentTarget.value.trim() })} />
-      <//>
-      <${Field} label="CORS proxy (optional)" hint="Only if this provider blocks browser requests. The provider URL is appended to the proxy, or replaces {url}. Your key passes through the proxy — use one you run yourself (see proxy/ in the repo).">
-        <input class="input mono" value=${cur.proxy || ''} placeholder="https://my-proxy.example.workers.dev" autocapitalize="off" onChange=${(e) => save({ proxy: e.currentTarget.value.trim() })} />
-      <//>
-      ${def.image && html`<${Field} label="Image model"><input class="input mono" value=${cur.imageModel || ''} placeholder=${def.image.model} onChange=${(e) => save({ imageModel: e.currentTarget.value.trim() })} /><//>`}`}
-    ${(cur.apiKey || cur.enabled) && html`<button class="btn block danger" style="margin-top:18px" onClick=${async () => {
-      await save({ apiKey: '', enabled: false, models: [] });
-      setKey('');
-      ui.toast('Key removed');
-      back();
-    }}>Remove key</button>`}`;
+    ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">Holly Bot's AI isn't switched on yet, so your bots aren't using these credits.</p>`}
+    <p class="hint" style="font-size:14px;margin:4px">Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.</p>
+    <p class="hint" style="font-size:14px;margin:10px 4px 4px">Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).</p>`;
 }
 
 function PluginsPage() {
@@ -851,9 +741,8 @@ function MemorySettingsPage() {
   const s = app.settings;
   const mem = s.memory || {};
   const set = (patch) => app.saveSettings({ memory: { ...mem, ...patch } });
-  const ready = app.providers.readyProviders();
-  const embedOptions = [['auto', 'Automatic'], ['off', 'Off (local matching)'], ...['openai', 'google', 'mistral'].filter((id) => ready.includes(id)).map((id) => [id, PROVIDERS[id].label])];
-  const memModels = [['same', 'Same as each bot'], ...ready.flatMap((id) => modelsFor(app, id).slice(0, 8).map((m) => [`${id}:${m}`, `${PROVIDERS[id].label.split(' ')[0]} · ${m}`]))];
+  const embedOptions = [['auto', 'Automatic'], ['off', 'Off (local matching)']];
+  const memModels = [['same', 'Same as each bot'], ...AI_MODELS.map((m) => [`deepseek:${m}`, MODEL_NAMES[m] || m])];
   const first = app.listAgents()[0];
   return html`
     <${Group}>
@@ -872,7 +761,7 @@ function MemorySettingsPage() {
           ${[32000, 64000, 128000, 256000, 400000].map((n) => html`<option value=${n}>${n / 1000}k tokens</option>`)}
         </select></div>
     <//>
-    <div class="group-note">Using a small, cheap model for memory work saves money; "Same as each bot" gives the best quality.</div>
+    <div class="group-note">DeepSeek V4.1 Flash for memory work saves credits; "Same as each bot" gives the best quality.</div>
     <${Group}>
       <${Row} title="Team memory" sub="Shared notes all bots can read" onClick=${() => (first ? ui.openSheet('memory', { agentId: first.id, tab: 'team' }) : ui.toast('Create a bot first'))} />
       <${Row} title="Re-index memories" sub="Compute embeddings for all bots now" onClick=${async () => {
@@ -933,13 +822,15 @@ function DataPage() {
 function HelpPage() {
   return html`<div class="bubble plain-bot" style="max-width:100%;line-height:1.5">
     <h3>Getting started</h3>
-    <p>1. <b>Add a key</b> in Settings → API Keys (xAI for Grok, or Anthropic, OpenAI, Google, OpenRouter…).<br />2. Tap <b>+ → New Bot</b>, name it and pick a look.<br />3. Chat. Your bot learns about you and remembers across conversations.</p>
+    <p>1. Tap <b>+ → New Bot</b>, name it and pick a look.<br />2. Chat. Your bot learns about you and remembers across conversations.</p>
+    <h3>AI credits</h3>
+    <p>Your bots think with Holly Bot's AI, DeepSeek, and your plan comes with <b>AI credits</b> for it every month. Settings → <b>Usage</b> shows what's left and when they refill. When they run out, your bots pause until the refill.</p>
     <h3>Multiple bots</h3>
     <p>Every bot has its own name, personality, model, memory, files and routines. Bots can <b>message each other</b> (“Ask Nova to review this”), <b>delegate</b> longer tasks, and share a <b>team memory</b>. Start a <b>group chat</b> with + → New Group Chat and @mention bots.</p>
     <h3>Memory</h3>
     <p>Tap a bot's name → Memories to see, edit, pin or delete what it knows. Core memory is always in view; long-term memories are recalled when relevant; older chat is summarized automatically.</p>
     <h3>Tools</h3>
-    <p>Web search, a Python/JavaScript sandbox, files, image generation, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
+    <p>Web search, a Python/JavaScript sandbox, files, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
     <h3>Email and GitHub</h3>
     <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
     <h3>Your subscription</h3>

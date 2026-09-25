@@ -346,6 +346,8 @@ export class Runtime {
     let tools;
     try {
       await app.updateThread(threadId, { status: 'working' });
+      // Whether Holly Bot's AI can run, and the credits for it (convex/credits.ts).
+      await untilAborted(app.refreshCredits({ maxAge: 60_000 }), controller.signal);
       cfg = app.providers.resolve(agent);
       const serverTools = app.providers.serverToolsFor(cfg, agent);
       // Gmail, Outlook or GitHub connected (or disconnected) on another device since.
@@ -466,7 +468,7 @@ export class Runtime {
       if (run.stopped || isAbort(err) || controller.signal.aborted) return await this.settleStopped(threadId, msg, agent, resumeFrom);
       msg.status = 'error';
       msg.error = errorMessage(err);
-      msg.errorKind = err?.kind || (err?.status === 401 || err?.status === 403 ? 'auth' : null);
+      msg.errorKind = err?.kind || (err?.code === 'no_credits' ? 'credits' : err?.status === 401 || err?.status === 403 ? 'auth' : null);
       const last = msg.steps[msg.steps.length - 1];
       if (last && !last.endedAt) {
         last.endedAt = now();

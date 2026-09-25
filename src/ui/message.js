@@ -312,12 +312,13 @@ function GeneratedImage({ fileId }) {
 function ErrorCard({ msg }) {
   const app = useApp();
   const ui = useUi();
-  const keyIssue = msg.errorKind === 'no_key' || msg.errorKind === 'auth' || /API key/i.test(msg.error || '');
+  // Credits used up: the bot pauses until they refill; Usage shows when.
+  const credits = msg.errorKind === 'credits';
   return html`
     <div class="error-card" role="alert">
       ${msg.error || 'Something went wrong.'}
       <div class="btn-row">
-        ${keyIssue && html`<button class="btn small primary" onClick=${() => ui.openSheet('settings', { page: 'keys' })}>API keys</button>`}
+        ${credits && html`<button class="btn small primary" onClick=${() => ui.openSheet('settings', { page: 'usage' })}>See credits</button>`}
         <button class="btn small" onClick=${() => app.runtime.retry(msg.id)}><${Icon.retry} size="16" /> Retry</button>
       </div>
     </div>`;

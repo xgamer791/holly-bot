@@ -4,7 +4,7 @@ import { Avatar, botActivity, thinkingOf } from './avatar.js';
 import { LookPicker, usePreview } from './create-bot.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
-import { PROVIDERS, PROVIDER_ORDER } from '../core/providers/index.js';
+import { AI_MODELS } from '../core/providers/index.js';
 import { TOOL_GROUPS } from '../core/constants.js';
 
 export function BotProfileSheet({ agentId, onClose }) {
@@ -42,7 +42,7 @@ export function BotProfileSheet({ agentId, onClose }) {
       <${Group} label="Brain">
         <${Row} title="Model" value=${cfgLabel} onClick=${() => ui.openSheet('modelPicker', { agentId })} />
         <div class="row-wrap"><div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
-          <div class="label"><div class="t">Reasoning effort</div><div class="s">Higher = smarter but slower and pricier (when the model supports it).</div></div>
+          <div class="label"><div class="t">Reasoning effort</div><div class="s">Higher = smarter, but slower and uses more credits.</div></div>
           <${Segmented} value=${agent.effort || ''} onChange=${(effort) => save({ effort })} options=${[{ value: '', label: 'Auto' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Med' }, { value: 'high', label: 'High' }]} />
         </div></div>
       <//>
@@ -91,7 +91,7 @@ export function BotProfileSheet({ agentId, onClose }) {
 
 function toolSub(app, key, g) {
   if (key === 'computer' && !app.computer.connected) return `${g.description} (not connected)`;
-  if (key === 'images' && !app.providers.imageProvider()) return `${g.description} (needs an xAI or OpenAI key)`;
+  if (key === 'images' && !app.providers.imageProvider()) return `${g.description} (not available with Holly Bot's AI)`;
   if (key === 'plugins' && !app.plugins.list().some((p) => p.status === 'ok')) return `${g.description} (none connected)`;
   if ((key === 'email' || key === 'github') && app.connection) {
     const accounts = (key === 'email' ? ['gmail', 'outlook'] : ['github']).map((s) => app.connection(s)?.account).filter(Boolean);
@@ -100,66 +100,47 @@ function toolSub(app, key, g) {
   return g.description;
 }
 
+/** What Holly Bot's AI models are called in the app. */
+export const MODEL_NAMES = { 'deepseek-flash': 'DeepSeek V4.1 Flash', 'deepseek-v4-pro': 'DeepSeek V4 Pro' };
+
+/** What each costs in credits, next to the other. */
+const MODEL_NOTES = { 'deepseek-flash': 'Smart, fast and light on credits', 'deepseek-v4-pro': 'Deeper thinking; uses credits about 4× as fast' };
+
 export function modelLabel(app, agent) {
   try {
     const cfg = app.providers.resolve(agent);
-    const own = agent.provider ? '' : ' (default)';
-    return `${cfg.model}${own}`;
+    return MODEL_NAMES[cfg.model] || cfg.model;
   } catch {
-    return agent.model || 'Not set';
+    return MODEL_NAMES[agent.model] || MODEL_NAMES[AI_MODELS[0]];
   }
 }
 
-export function ModelPickerSheet({ agentId, onClose, purpose = 'chat' }) {
+/** A bot's brain: one of Holly Bot's AI models, paid for with the account's
+ * credits (src/core/providers). Flash unless the bot picks Pro. */
+export function ModelPickerSheet({ agentId, onClose }) {
   const app = useApp();
   const ui = useUi();
   useTopics(['settings', 'agents']);
   const agent = agentId ? app.getAgent(agentId) : null;
-  const ready = app.providers.readyProviders();
-  const current = agent ? { provider: agent.provider, model: agent.model } : { provider: app.settings.defaults?.provider, model: app.settings.defaults?.model };
-  const [provider, setProvider] = useState(current.provider || ready[0] || '');
-  const [custom, setCustom] = useState('');
-  const models = provider ? modelsFor(app, provider) : [];
+  const current = AI_MODELS.includes(agent ? agent.model : app.settings.defaults?.model) ? (agent ? agent.model : app.settings.defaults.model) : AI_MODELS[0];
 
   const choose = async (model) => {
-    if (agent) await app.updateAgent(agent.id, { provider, model });
-    else await app.saveSettings({ defaults: { ...app.settings.defaults, provider, model } });
-    ui.toast(`Using ${model}`);
+    if (agent) await app.updateAgent(agent.id, { provider: 'deepseek', model });
+    else await app.saveSettings({ defaults: { ...app.settings.defaults, provider: 'deepseek', model } });
+    ui.toast(`Using ${MODEL_NAMES[model]}`);
     onClose();
   };
 
   return html`
     <${Sheet} title=${agent ? `${agent.name}'s model` : 'Default model'} onClose=${onClose}>
-      ${!ready.length && html`<p class="hint" style="font-size:15px">Add an API key first.</p>
-        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'keys' })}>Open API keys</button>`}
-      ${agent && html`<${Group}><${Row} title="Use the app default" sub="Follows Settings → API Keys → Default model" toggle=${!agent.provider}
-        onToggle=${(v) => v ? app.updateAgent(agent.id, { provider: '', model: '' }).then(onClose) : null} /><//>`}
-      ${ready.length > 0 && html`
-        <${Field} label="Provider">
-          <select class="select" value=${provider} onChange=${(e) => setProvider(e.currentTarget.value)}>
-            ${ready.map((id) => html`<option value=${id}>${PROVIDERS[id].label}</option>`)}
-          </select>
-        <//>
-        <div class="group">
-          ${models.map((m) => html`<button key=${m} class="row" onClick=${() => choose(m)}>
-            <div class="label"><div class="t" style="font-size:16px">${m}</div>${m === PROVIDERS[provider]?.defaultModel ? html`<div class="s">Recommended</div>` : null}</div>
-            ${current.provider === provider && current.model === m && html`<span class="ok-check"><${Icon.check} /></span>`}
-          </button>`)}
-        </div>
-        <${Field} label="Other model ID" hint="Any model your key can use, e.g. from the provider's docs.">
-          <div style="display:flex;gap:8px"><input class="input" value=${custom} placeholder="model-id" onInput=${(e) => setCustom(e.currentTarget.value)} />
-          <button class="btn" disabled=${!custom.trim()} onClick=${() => choose(custom.trim())}>Use</button></div>
-        <//>`}
+      <div class="group">
+        ${AI_MODELS.map((m) => html`<button key=${m} class="row" onClick=${() => choose(m)}>
+          <div class="label"><div class="t" style="font-size:16px">${MODEL_NAMES[m]}</div><div class="s">${MODEL_NOTES[m]}</div></div>
+          ${current === m && html`<span class="ok-check"><${Icon.check} /></span>`}
+        </button>`)}
+      </div>
+      <div class="group-note">Both run on your plan's AI credits (Settings → Usage).</div>
     <//>`;
 }
 
-export function modelsFor(app, provider) {
-  const def = PROVIDERS[provider];
-  const fetched = app.settings.providers?.[provider]?.models || [];
-  const chatLike = fetched.filter((m) => !/(embed|whisper|tts|dall-e|image|audio|moderation|transcribe|realtime|search-preview|davinci|babbage|guard|rerank)/i.test(m));
-  const list = [...new Set([...(def?.suggested || []), ...chatLike])];
-  return list.length ? list : [def?.defaultModel].filter(Boolean);
-}
-
-export const PROVIDER_IDS = PROVIDER_ORDER;
 export { Toggle };

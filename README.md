@@ -1,6 +1,6 @@
 # Holly Bot
 
-Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bots as you like, each with its own name, look, personality and deep memory. Your bots can talk to each other, and they can use your computer while you control them from your phone.
+Your own Grok Bot–style AI assistant, with the AI included. Make as many bots as you like, each with its own name, look, personality and deep memory. Your bots can talk to each other, and they can use your computer while you control them from your phone.
 
 **Open the app:** https://xgamer791.github.io/holly-bot/ (on a phone, use "Add to Home Screen" to install it)
 
@@ -8,21 +8,21 @@ Your own Grok Bot–style AI assistant, with bring-your-own-key. Make as many bo
 
 Holly Bot is a subscription, and every plan comes with a dedicated server of your own that runs your bots around the clock. Right after you create an account, you choose a plan, paid yearly or month to month, and pay with Stripe. Your server is set up in a few minutes while the app shows how far it's got, and the app opens once it's ready.
 
-| Plan | Paid yearly | Month to month | Your server |
-|---|---|---|---|
-| Starter (best for 1 bot) | $490 a year | $60 a month | 2 CPU, 4 GB RAM |
-| Pro | $990 a year | $120 a month | 4 CPU, 8 GB RAM |
-| Ultra | $1,790 a year | $200 a month | 6 CPU, 16 GB RAM |
+| Plan | Paid yearly | Month to month | Your server | AI credits a month |
+|---|---|---|---|---|
+| Starter (best for 1 bot) | $490 a year | $60 a month | 2 CPU, 4 GB RAM | 1,000 ($10 of DeepSeek) |
+| Pro | $990 a year | $120 a month | 4 CPU, 8 GB RAM | 2,000 ($20) |
+| Ultra | $1,790 a year | $200 a month | 6 CPU, 16 GB RAM | 3,500 ($35) |
 
 - Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer that's always on: the shell, files, an XFCE desktop, and for each bot a screen of its own with its own Chrome window, which you can watch and use from the app (Screen, in that bot's chat). Like Grok Bot's, your bots share the one computer (files, apps, and the browser's logins) and only the screen is each one's own. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
 - Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for; then the server and the files on it are deleted, and your bots, chats and memories stay in your account.
 - If a renewal doesn't go through, everything keeps working while Stripe tries your card again, and the app asks you to update it.
-- Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
+- The AI is included: every plan comes with AI credits each month for Holly Bot's AI (below).
 - Setting up Stripe and Vultr (prices, keys, webhook) is in [CONVEX.md](CONVEX.md#5-stripe-and-vultr-for-subscriptions).
 
 ## Your account
 
-The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. You need an account, and everything Holly Bot keeps for you lives in it, in Holly Bot's own Convex database: bots, chats, memories, files, routines, settings and API keys. The server only ever hands an account its own data. Sign in on another device and your bots are there.
+The app opens on a welcome screen: Create Account or Sign In, with your Apple or Google account. You need an account, and everything Holly Bot keeps for you lives in it, in Holly Bot's own Convex database: bots, chats, memories, files, routines, settings and keys for other services. The server only ever hands an account its own data. Sign in on another device and your bots are there.
 
 - Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. Without a subscription, it's on the subscription page. The apps don't delete accounts: the privacy policy says to ask by email.
 - A browser that kept bots in it before accounts (1.2.0 and older) asks the first account to sign in there whether to add them to that account or delete them. Either way they leave the browser.
@@ -74,15 +74,15 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 **Bot browser:** bots use their own Chrome, Edge, Brave or Chromium profile, so your logins there persist. Each bot gets its own tab. On a Holly Bot server each bot has its own window instead, on its own screen, and the logins are the same for every bot: sign in once, and they all are.
 
-## Brains (bring your own key)
+## Brains: Holly Bot's AI and AI credits
 
-- **DeepSeek V4.1 Flash** (`deepseek-flash`) is the default for every bot. It's smart and very cheap, has a 1M-token context, and can see images. DeepSeek bills half price off-peak (outside 01:00–04:00 and 06:00–10:00 UTC on weekdays). Note that DeepSeek's servers are in China.
-- Also supported: DeepSeek V4 Pro, Anthropic Claude, OpenAI, xAI Grok (with live web and X search), Google Gemini, OpenRouter, Groq, Mistral, Ollama and any OpenAI-compatible endpoint. Each bot can use a different model.
-- **Backup if it fails:** choose a second provider in Settings → API Keys. When the main one is down, rate limited or out of credit, the reply is retried once on the backup.
-- Where keys live:
-  - In your Holly Bot account, so they're on every device you sign in on and on your linked Holly Computer. A Holly Computer that isn't linked keeps them on the computer.
-  - Holly Computer never sends keys back to the phone it's controlled from.
-  - Requests go straight from the app (or the computer) to the provider. Holly Bot's server stores your keys but never calls a provider with them.
+- Bots think with **Holly Bot's AI**: DeepSeek, which Holly Bot's server calls with its own key (`convex/ai.ts`). Nobody brings a key. Each bot runs **DeepSeek V4.1 Flash** (`deepseek-flash`, the default: smart, fast, a 1M-token context, and it sees images) or **DeepSeek V4 Pro** (`deepseek-v4-pro`: deeper thinking, about 4× the credits), picked in the bot's profile. Note that DeepSeek's servers are in China.
+- **AI credits:** every plan gives credits each month: Starter 1,000, Pro 2,000, Ultra 3,500. A credit is a cent of DeepSeek use at DeepSeek's list prices, so the plans hold $10, $20 and $35 of it (`convex/lib/plans.ts`). Members never see money: Settings → Usage shows a bar of what's left this month, the credits left, and when they refill.
+- **Metered per request:** after each reply DeepSeek says exactly how many tokens it used (from its cache, new input, output), and the server prices them at DeepSeek's rates, half price off-peak (outside 01:00–04:00 and 06:00–10:00 UTC on weekdays), and takes that off the account's credits. So the bar moves exactly with what the requests cost. While a request runs, the most it could cost is held back, so requests at once can't spend more than is left (`convex/credits.ts`).
+- **Refills:** monthly, on the day the plan renews (monthly on yearly plans too). Unused credits don't carry over. Upgrading adds the difference for the rest of the month; downgrading keeps at most the new plan's amount.
+- **At zero,** bots pause until the refill: they say the credits are used up and when they refill, with a See credits button.
+- **Credits only:** there are no API keys for AI any more, no other providers, and no backup provider. Image generation and embedding-based memory search need providers Holly Bot doesn't use, so they're off (memory search uses keywords, recency and importance). Web search keys (Tavily, Exa, Jina, Brave) are still in Settings → Plugins.
+- Holly Bot's server keeps no content of requests: only each account's credits and this month's token counts. Setting it up (`DEEPSEEK_API_KEY`) is in [CONVEX.md](CONVEX.md#holly-bots-ai-and-ai-credits).
 
 ## What bots can do
 
@@ -102,7 +102,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Tools:**
   - Web search and page reading.
   - Code sandbox (in the browser).
-  - Files, image generation and scheduled routines.
+  - Files and scheduled routines.
   - MCP plugins, including local stdio servers through Holly Computer.
   - Gmail and Outlook: bots search and read your email, send or reply as you, and delete email (to the trash, where it can be restored, or for good when you say so), when you ask.
   - GitHub: bots list, create, change and delete your repositories, read and write their files, and make any other GitHub request (issues, pull requests, branches…).

@@ -200,6 +200,28 @@ export default defineSchema({
     .index("by_event", ["eventId"])
     .index("by_time", ["processedAt"]),
 
+  /**
+   * Each account's AI credits (convex/credits.ts): what's left of this
+   * month's allowance from its plan, in millionths of a US dollar of DeepSeek
+   * use at DeepSeek's list prices. Months count from `anchor`, and a new one
+   * refills `balance` to `allowance`. The rest are this month's totals. See
+   * Ledger in convex/lib/credits.ts.
+   */
+  credits: defineTable({
+    userId: v.id("users"),
+    anchor: v.number(),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    allowance: v.number(),
+    balance: v.number(),
+    spent: v.number(),
+    requests: v.number(),
+    cachedTokens: v.number(),
+    freshTokens: v.number(),
+    outputTokens: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   meta: defineTable({
     key: v.string(),
     value: v.string(),

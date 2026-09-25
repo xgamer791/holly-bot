@@ -132,6 +132,16 @@ export class AccountLink {
     return result.tokens.token;
   }
 
+  /** The link's JWT, for a request that carries it itself (Holly Bot's AI,
+   * src/core/providers); "Not signed in" once the link has ended. `force`
+   * renews it first. */
+  async tokenOf({ force = false } = {}) {
+    const as = this.userId;
+    const token = await this.token({ force });
+    if (!token || userIdOf(token) !== as) throw new Error('Not signed in');
+    return token;
+  }
+
   /** Calls a Convex function as the linked account; "Not signed in" once the
    * link has ended (or was replaced by another account's). */
   async authed(kind, name, args = {}) {

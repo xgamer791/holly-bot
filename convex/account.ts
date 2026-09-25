@@ -55,7 +55,7 @@ export const signInOptions = query({
 
 /**
  * Deletes an account on request (the apps don't offer it). Erases every
- * record and upload the account owns, its change count and routine claims,
+ * record and upload the account owns, its change count, AI credits and routine claims,
  * its linked computers and connected services, and its subscription
  * (cancelled at Stripe) and servers, then its sessions, sign-in methods and
  * the user itself, so the next sign-in with the same Apple or Google account
@@ -87,6 +87,9 @@ export const deleteAccount = mutation({
     if (claims.length > BATCH_ROWS) return { done: false };
     for (const head of await ctx.db.query("heads").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       await ctx.db.delete(head._id);
+    }
+    for (const credits of await ctx.db.query("credits").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(credits._id);
     }
     // Linked computers lose their sessions with the rest below.
     for (const device of await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {

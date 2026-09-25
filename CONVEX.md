@@ -30,6 +30,7 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 - `convex/connectors.ts`: Gmail, Outlook and GitHub connected to an account for its bots (below), with `convex/lib/oauth.ts`, `mail.ts`, `github.ts` and `seal.ts`.
 - `convex/billing.ts`: subscriptions through Stripe (below), with `convex/lib/plans.ts` (the plans, their prices and their servers: the one place they're set), `convex/lib/stripe.ts` (Stripe's API and webhook signatures) and `convex/lib/subscription.ts` (whether an account's subscription lets it in). Stripe's webhook is `https://impressive-ferret-800.convex.site/stripe/webhook`.
 - `convex/servers.ts`: each subscriber's dedicated server at Vultr (below), with `convex/lib/vultr.ts` (Vultr's API) and `convex/lib/cloudinit.ts` (the script that sets a server up). Servers report in at `https://impressive-ferret-800.convex.site/servers/ready`.
+- `convex/ai.ts` and `convex/credits.ts`: Holly Bot's AI, DeepSeek on Holly Bot's key at `https://impressive-ferret-800.convex.site/ai/chat/completions`, and each account's monthly AI credits for it (below), with `convex/lib/credits.ts` (DeepSeek's prices, what a request costs, the months of credits).
 
 The browser side is `src/account/account.js` (the sign-in protocol, sessions in `localStorage`), `src/account/cloud-db.js` (the app's storage) and `src/ui/welcome.js` (the welcome, Sign In and Create Account screens).
 
@@ -94,7 +95,19 @@ Holly Bot opens only for an account with an active subscription. Right after an 
 - **What still works without a subscription:** signing in and out, the subscription itself, deleting the account (on the subscription page too), unlinking a computer and disconnecting a service. `data:*` and connecting or using Gmail, Outlook and GitHub need one.
 - **Test and live.** A subscriber's row remembers which Stripe mode made it, and only the mode of the current `STRIPE_SECRET_KEY` counts, so a test subscription never opens Holly Bot once the key is live (and the nightly reconcile then deletes its server).
 - **Deleting the account** deletes its Stripe customer, which cancels the subscription at once (`billing:forget`, retried for most of a day), and its servers.
-- Bring your own key is unchanged: bots still call AI providers with the account's own keys, so a plan's price doesn't include AI.
+- The AI is included: each plan comes with monthly AI credits for Holly Bot's AI (below).
+
+## Holly Bot's AI and AI credits
+
+Bots think with DeepSeek on Holly Bot's own key, `DEEPSEEK_API_KEY`, which only the deployment holds. Each plan gives the account AI credits every month (`credits` in `convex/lib/plans.ts`: Starter $10, Pro $20, Ultra $35 of DeepSeek use at DeepSeek's list prices, which the app shows as 1,000, 2,000 and 3,500 credits). There are no API keys for AI in the app any more.
+
+- **Requests.** The app and Holly Computer send each bot request, OpenAI-style, to `POST /ai/chat/completions` (`convex/ai.ts`) with the account's session JWT as the bearer token (`sessionToken` on `src/account/cloud-db.js`, used by `src/core/providers/index.js`). The route checks the session is still open and the subscription lets the account in (as `requireSubscriber` does), takes only DeepSeek's chat parameters and the models `deepseek-flash` and `deepseek-v4-pro`, caps the output at 65,536 tokens, and passes it to `https://api.deepseek.com/chat/completions`. Streamed answers go back to the app as DeepSeek sends them. Nothing of a request or answer is kept.
+- **Metering.** DeepSeek's last event says what the request used: tokens from its cache, new input, output. `credits:charge` prices them (`PRICES` in `convex/lib/credits.ts`, half price outside DeepSeek's peak hours) and takes that off the account's balance, in millionths of a dollar. Keep `PRICES` in step with DeepSeek's pricing page. A request the app cut off before that last event is charged an estimate: its input split the way the account's own was cached that month, and what was streamed.
+- **Holds.** Before a request goes to DeepSeek, `credits:admit` holds back the most it could cost (all its input new, all the output it may ask for), or what's left when that's less, and `charge` gives the hold back as it charges. So requests at once can't spend more than is left, and an account never goes more than one request's worth below zero.
+- **Months.** An account's credits (`credits` table) count months from the day its paid period renews, so a monthly plan's refill as it's billed, and a yearly plan's refill monthly on that day. A new month sets the balance to the plan's allowance; nothing carries over. A plan changed during the month adds the difference (bigger) or caps what's left (smaller). All of it happens as the account's credits are next read or used, with no cron.
+- **At zero,** `/ai/chat/completions` answers 402 with `code: "no_credits"` and when they refill; the app shows that on the bot's reply, with a See credits button, and the bot pauses until then. Exempt accounts get the biggest plan's credits.
+- **The app** reads `credits:mine` for Settings → Usage: a bar of what's left, the credits left and the refill date. It also says `ready` (whether `DEEPSEEK_API_KEY` is set); until it is, bots keep using a DeepSeek key an account had saved before credits, and accounts without one can't run bots.
+- **DeepSeek's balance** pays for everyone. When DeepSeek turns Holly Bot's key down (out of balance, or a wrong key), members see "Holly Bot's AI is unavailable right now", and the deployment's logs say `DeepSeek refused Holly Bot's key` with the reason. Keep the DeepSeek account topped up: at most, a month costs the sum of every subscriber's allowance.
 
 ## Subscribers' servers
 
@@ -122,7 +135,7 @@ A subscriber's row in `subscribers` holds `serverId` (the Vultr instance), `serv
 - sets `SITE_URL` to `https://xgamer791.github.io/holly-bot`,
 - creates the session signing keys `JWT_PRIVATE_KEY` and `JWKS` if the deployment has none (`scripts/convex-auth-keys.mjs`),
 - copies `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_APPLE_ID` and `AUTH_APPLE_SECRET` from repository secrets, when they exist there,
-- copies the connector apps' secrets, and the Stripe and Vultr variables, the same way (steps 4 and 5),
+- copies the connector apps' secrets, the Stripe and Vultr variables, and the DeepSeek key, the same way (steps 4 to 6),
 - runs `npx convex deploy`.
 
 It needs one repository secret, **`CONVEX_DEPLOY_KEY`**: in the Convex dashboard open the holly-bot production deployment → Settings and generate a production deploy key. Add it under GitHub → Settings → Secrets and variables → Actions, then run the workflow.
@@ -191,7 +204,11 @@ Nobody gets past the subscription page until this is done, you included; until t
 
 If Subscribe, the webhook or a server fails, the deployment's logs in the Convex dashboard say why (Stripe's and Vultr's own messages, and which variable is off). Stripe Tax is off: turn it on in Stripe and add `automatic_tax` to `billing:checkout` if you need to charge tax.
 
-### 6. Check
+### 6. Holly Bot's AI
+
+Bots run on Holly Bot's DeepSeek key and the account's AI credits (above). In the [DeepSeek platform](https://platform.deepseek.com/api_keys), make an API key for Holly Bot and top up the balance, then set it as the repository secret **`DEEPSEEK_API_KEY`** (or in the Convex dashboard) and run Deploy Convex. Until it's set, the app says Holly Bot's AI isn't set up yet, and bots only work for accounts that saved their own DeepSeek key before credits.
+
+### 7. Check
 
 Open https://xgamer791.github.io/holly-bot/ and tap Sign In. A button that isn't ready says so ("Apple sign-in isn't set up yet"). The app needs an account, so there's no way past the sign-in screen until one works, and a subscription, so there's no way past the subscription page until Stripe and Vultr are set up (step 5).
 

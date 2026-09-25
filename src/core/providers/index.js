@@ -2,10 +2,14 @@ import { chatCompletion, listChatModels, chatEmbeddings } from './openai-chat.js
 import { anthropicMessage, listAnthropicModels, claudeTraits } from './anthropic.js';
 import { responsesCall } from './openai-responses.js';
 import { ProviderError, explainFetchError } from './common.js';
+import { AI_URL } from '../../account/config.js';
 
-// Bring-your-own-key provider catalog and dispatcher. Keys live only in this
-// browser (IndexedDB) and requests go straight from the browser to the
-// provider (optionally through a CORS proxy the user configures).
+// The AI bots think with. It's Holly Bot's own: DeepSeek, which Holly Bot's
+// server calls on its key, paid for with the account's monthly credits
+// (convex/ai.ts, convex/credits.ts). Requests go there with the account's
+// session instead of a key. Until the server says it can run it (credits:mine
+// `ready`), a DeepSeek key kept from before bots ran on credits still works.
+// The other providers below aren't offered: bots run on credits only.
 
 export const PROVIDERS = {
   xai: {
@@ -150,6 +154,10 @@ export const PROVIDER_ORDER = ['deepseek', 'xai', 'anthropic', 'openai', 'google
 /** Everything defaults to DeepSeek V4.1 Flash. */
 export const DEFAULT_PROVIDER = 'deepseek';
 
+/** The models Holly Bot's AI runs (convex/lib/credits.ts): Flash, the default,
+ * and Pro, which uses credits about four times as fast. */
+export const AI_MODELS = ['deepseek-flash', 'deepseek-v4-pro'];
+
 const CONTEXT_WINDOWS = [
   [/^deepseek-/, 1000000], [/^claude-(opus-(4-[678]|5)|sonnet-(4-6|5)|fable|mythos)/, 1000000], [/^claude-/, 200000],
   [/^gpt-5/, 400000], [/^gpt-4\.1/, 1000000], [/^o[34]/, 200000], [/^gpt-4o/, 128000],
@@ -176,10 +184,20 @@ export class ProviderHub {
     this.app = app;
   }
 
+  /** Whether bots run on Holly Bot's AI and the account's credits: signed in,
+   * with a server that can run it. */
+  onCredits() {
+    return !!this.app.credits?.ready && typeof this.app.db?.sessionToken === 'function';
+  }
+
   /** Effective config for a provider (key, base URL, proxy, headers). */
   config(id) {
     const def = PROVIDERS[id];
     if (!def) throw new ProviderError(`Unknown provider "${id}"`);
+    // Holly Bot's AI: the key is the account's session, added as a request goes out (chat).
+    if (id === 'deepseek' && this.onCredits()) {
+      return { ...def, id, label: "Holly Bot's AI", apiKey: '', baseURL: AI_URL, headers: {}, models: [], credits: true };
+    }
     const user = this.app.settings.providers?.[id] || {};
     let baseURL = (user.baseURL || def.baseURL || '').trim().replace(/\/+$/, '');
     const proxy = (user.proxy || '').trim();
@@ -195,42 +213,34 @@ export class ProviderHub {
     };
   }
 
+  /** Only DeepSeek: on credits, or on a key kept from before until the server can run them. */
   isReady(id) {
-    const def = PROVIDERS[id];
-    if (!def) return false;
-    const user = this.app.settings.providers?.[id] || {};
-    if (id === 'custom') return !!(user.baseURL && (user.apiKey || user.noKey));
-    if (def.noKey) return !!user.enabled;
-    return !!user.apiKey?.trim();
+    if (id !== 'deepseek') return false;
+    return this.onCredits() || !!this.app.settings.providers?.deepseek?.apiKey?.trim();
   }
 
   readyProviders() {
     return PROVIDER_ORDER.filter((id) => this.isReady(id));
   }
 
-  /** Provider + model a bot uses (bot override → app default → first ready provider). */
+  /** The model a bot uses: its own choice of Holly Bot's AI models, else the
+   * app's, else Flash. A model from another provider (a bot set up before
+   * bots ran on credits) counts as no choice. */
   resolve(agent, purpose = 'chat') {
-    const defaults = this.app.settings.defaults || {};
-    let providerId = agent?.provider || defaults.provider || DEFAULT_PROVIDER;
-    if (!providerId || !this.isReady(providerId)) {
-      const fallback = this.isReady(DEFAULT_PROVIDER) ? DEFAULT_PROVIDER : this.readyProviders()[0];
-      if (!providerId || (!agent?.provider && fallback)) providerId = fallback || providerId;
-    }
-    if (!providerId || !this.isReady(providerId)) {
-      const err = new ProviderError(providerId
-        ? `No API key for ${PROVIDERS[providerId]?.label || providerId}. Add one in Settings → API Keys.`
-        : 'Add your DeepSeek API key (or another provider) in Settings → API Keys to start chatting.');
+    if (!this.isReady(DEFAULT_PROVIDER)) {
+      const err = new ProviderError(this.app.db?.cloud
+        ? "Holly Bot's AI isn't ready yet. Try again in a minute."
+        : 'Link this computer to your Holly Bot account (Settings → Bot Computer) so your bots can use its AI.');
       err.kind = 'no_key';
       throw err;
     }
-    const provider = this.config(providerId);
-    let model = (agent?.provider === providerId && agent?.model) || (defaults.provider === providerId && defaults.model) || provider.defaultModel;
+    const defaults = this.app.settings.defaults || {};
+    const ours = (model) => (AI_MODELS.includes(model) ? model : '');
+    const provider = this.config(DEFAULT_PROVIDER);
+    let model = ours(agent?.model) || ours(defaults.model) || provider.defaultModel;
     if (purpose === 'memory') {
       const mm = agent?.memoryModel || defaults.memoryModel;
-      if (mm && mm !== 'same') {
-        const [pid, ...rest] = mm.includes(':') ? mm.split(':') : [providerId, mm];
-        if (this.isReady(pid)) return { provider: this.config(pid), model: rest.join(':'), purpose };
-      }
+      if (mm && mm !== 'same') model = ours(mm.includes(':') ? mm.split(':').slice(1).join(':') : mm) || model;
     }
     return { provider, model, purpose };
   }
@@ -249,9 +259,30 @@ export class ProviderHub {
     return tools;
   }
 
-  /** Streamed chat with tools. Returns the neutral result. */
-  async chat({ cfg, system, messages, tools, serverTools = [], reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking }) {
-    const { provider, model } = cfg;
+  /** Streamed chat with tools. Returns the neutral result. On Holly Bot's AI
+   * the request carries the account's session, renewed once if it's turned down. */
+  async chat(opts) {
+    const { provider } = opts.cfg;
+    if (!provider.credits) return this.send(opts, provider);
+    const session = async (force) => {
+      try {
+        return await this.app.db.sessionToken({ force });
+      } catch {
+        const err = new ProviderError('Sign in to Holly Bot again so your bots can keep using its AI.', { status: 401, provider: provider.label });
+        err.kind = 'no_key';
+        throw err;
+      }
+    };
+    try {
+      return await this.send(opts, { ...provider, apiKey: await session(false) });
+    } catch (err) {
+      if (err?.status !== 401 || err.kind === 'no_key' || opts.signal?.aborted) throw err;
+      return this.send(opts, { ...provider, apiKey: await session(true) });
+    }
+  }
+
+  async send({ cfg, system, messages, tools, serverTools = [], reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking }, provider) {
+    const { model } = cfg;
     const req = {
       provider, model, system, messages, tools, serverTools, reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking,
       vision: supportsVision(provider.id, model),
@@ -274,6 +305,11 @@ export class ProviderHub {
         replayReasoning: !!provider.replayReasoning && !!tools?.length,
       });
     } catch (err) {
+      if (provider.credits && err instanceof TypeError) {
+        const e = new ProviderError("Couldn't reach Holly Bot's AI. Check your internet connection and try again.", { provider: provider.label, retryable: true });
+        e.cause = err;
+        throw e;
+      }
       throw explainFetchError(err, provider.label, provider.baseURL);
     }
   }
@@ -283,7 +319,8 @@ export class ProviderHub {
    * Not for requests that were themselves invalid (400/404/413/422) or cancelled.
    */
   backupFor(cfg, err) {
-    if (!err || err.name === 'AbortError' || err.kind === 'no_key') return null;
+    // Bots run on Holly Bot's AI only: there's no other to fall back on.
+    if (this.onCredits() || !err || err.name === 'AbortError' || err.kind === 'no_key') return null;
     if ([400, 404, 413, 422].includes(err.status)) return null;
     const b = this.app.settings.backup;
     if (!b?.provider || !this.isReady(b.provider)) return null;

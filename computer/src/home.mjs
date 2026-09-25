@@ -118,6 +118,7 @@ export class BotHome {
         return await CloudDB.open({
           userId,
           call: (kind, name, args) => this.account.authed(kind, name, args),
+          token: (o) => this.account.tokenOf(o),
           outbox: await FileOutbox.open(this.outboxDir(userId)),
         });
       } catch (err) {
