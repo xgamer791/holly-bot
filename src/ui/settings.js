@@ -10,7 +10,7 @@ import { resolveLanguage } from '../core/i18n.js';
 import { voices } from './speech.js';
 import { MODEL_NAMES } from './bot-profile.js';
 import {
-  RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, saveConnection,
+  RemoteApp, chooseComputer, computerConnection, computerState, declineComputer, isPaired, probeComputer, reachComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
 import { account, signInWorksHere, SITE } from '../account/account.js';
 import {
@@ -441,10 +441,13 @@ function ConnectedAccounts() {
     <div class="group-note">${tr('Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.')}</div>`;
 }
 
-/** What a computer linked to the account is doing (computerState), in words. */
-function computerStatus(device) {
+/** What a computer linked to the account is doing (computerState), in
+ * words. `answers`: whether it answered at its address just now. */
+function computerStatus(device, answers) {
   const state = computerState(device);
-  if (state === 'running') return tr('Running');
+  if (state === 'running') return answers === false ? tr("Running, but this app can't reach it") : tr('Running');
+  if (state === 'hidden' && device.tunnel === 'starting') return tr('Running · opening its connection…');
+  if (state === 'hidden' && device.tunnel === 'blocked') return tr('Running, but its network blocks the secure tunnel (Cloudflare, port 7844)');
   if (state === 'hidden') return tr("Running without --tunnel, so this app can't reach it");
   if (state === 'old') return tr('Needs the latest Holly Computer (below) before this app can use it');
   return device.seenAt ? tr('Not running · last seen {when}', { when: shortTime(device.seenAt) }) : tr('Not running');
@@ -457,23 +460,28 @@ function computerStatus(device) {
  * one that started since, or after Disconnect this device.
  */
 function LinkedComputers() {
+  const app = useApp();
   const ui = useUi();
   const { data: devices = [], reload } = useAsync(() => account.authed('query', 'devices:list'), []);
   const [busy, setBusy] = useState(null);
+  // Whether each running one answers at its address.
+  const running = devices.filter((device) => computerConnection(device));
+  const answering = useAsync(async () => {
+    const answers = await Promise.all(running.map((device) => probeComputer(device.url)));
+    return Object.fromEntries(running.map((device, i) => [device.id, answers[i]]));
+  }, [running.map((device) => `${device.id}|${device.url}`).join(',')]);
   if (!devices.length) return null;
   const connect = async (device) => {
-    const conn = computerConnection(device);
-    if (!conn || busy) return;
+    if (!computerConnection(device) || busy) return;
     setBusy(device.id);
     try {
-      const remote = new RemoteApp(conn);
-      await remote.connect();
-      remote.close();
-      saveConnection({ ...conn, name: remote.server?.name || device.name });
+      const conn = await reachComputer(device, { latest: async () => (await account.authed('query', 'devices:list')).find((d) => d.id === device.id) });
+      const here = app.remote ? devices.find((d) => sameComputer(d, { device: app.device, name: app.server?.name, url: app.base })) : null;
+      chooseComputer(conn, { from: here, hello: isPaired(device) ? 'auto' : 'first' });
       location.reload();
     } catch (err) {
       setBusy(null);
-      ui.toast(tr("Couldn't reach {name}. {error}", { name: device.name, error: err.message }), { error: true });
+      ui.toast(err?.message || tr("Couldn't connect to {name}.", { name: device.name }), { error: true });
     }
   };
   const unlink = async (device) => {
@@ -485,14 +493,14 @@ function LinkedComputers() {
       ui.toast(serverSays(err, tr("Couldn't unlink it. Check your connection and try again.")), { error: true });
     }
   };
-  const running = devices.filter((device) => computerConnection(device));
+  const status = (device) => computerStatus(device, answering.data?.[device.id]);
   return html`
     <div class="group-label">${tr('Linked to your account')}</div>
     <${Group}>
       ${devices.map((device) => (device.server
-        ? html`<${Row} key=${device.id} title=${device.name} sub=${tr("{status} · your plan's own computer, kept linked by Holly Bot", { status: computerStatus(device) })} />`
+        ? html`<${Row} key=${device.id} title=${device.name} sub=${tr("{status} · your plan's own computer, kept linked by Holly Bot", { status: status(device) })} />`
         : html`<${Row} key=${device.id} title=${device.name}
-          sub=${tr('{status} · linked {date}', { status: computerStatus(device), date: dateText(device.linkedAt) })} value=${tr('Unlink')} onClick=${() => unlink(device)} />`))}
+          sub=${tr('{status} · linked {date}', { status: status(device), date: dateText(device.linkedAt) })} value=${tr('Unlink')} onClick=${() => unlink(device)} />`))}
     <//>
     ${running.map((device) => html`<button key=${device.id} class="btn primary block" style="margin-bottom:10px" disabled=${!!busy} onClick=${() => connect(device)}>
       ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> ${tr('Connect to {name}', { name: device.name })}`}

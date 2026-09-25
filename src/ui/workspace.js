@@ -3,7 +3,7 @@ import { useApp, useUi, useTopics, useAsync, haptic } from './hooks.js';
 import { Sheet, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { account } from '../account/account.js';
-import { RemoteApp, computerConnection, computerState, sameComputer, saveConnection } from '../remote/remote-app.js';
+import { chooseComputer, computerConnection, computerState, isPaired, probeComputer, reachComputer, sameComputer } from '../remote/remote-app.js';
 import { shortTime, tr } from './i18n.js';
 
 // A chat's workspace (thread.workspace): what its bot works on. GitHub
@@ -125,6 +125,13 @@ function ServerPane({ ws, save }) {
   const isHere = (d) => d.local || (!!here && sameComputer(d, here));
   const picked = (d) => ws?.kind === 'server' && (d.id ? ws.device === d.id : ws.name === d.name);
   const current = list.find(picked);
+  // Whether each running computer answers at its address: the account can
+  // list one as on while its address is dead.
+  const running = list.filter((d) => d.id && !isHere(d) && computerConnection(d));
+  const answering = useAsync(async () => {
+    const answers = await Promise.all(running.map((d) => probeComputer(d.url)));
+    return Object.fromEntries(running.map((d, i) => [d.id, answers[i]]));
+  }, [running.map((d) => `${d.id}|${d.url}`).join(',')]);
 
   const pick = async (d) => {
     if (picked(d)) return;
@@ -132,9 +139,12 @@ function ServerPane({ ws, save }) {
       save({ kind: 'server', device: d.id, name: d.name, apps: [] });
       return;
     }
-    const conn = computerConnection(d);
-    if (!conn) {
-      ui.toast(tr('{name} is off. Start Holly Computer on it, then pick it here.', { name: d.name }));
+    if (!computerConnection(d)) {
+      ui.toast(computerState(d) === 'hidden' && d.tunnel === 'blocked'
+        ? tr("{name} is on, but its network blocks the secure tunnel Holly Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: d.name })
+        : computerState(d) === 'hidden' && d.tunnel === 'starting'
+          ? tr('{name} is on and opening its connection. Try again in a moment.', { name: d.name })
+          : tr('{name} is off. Start Holly Computer on it, then pick it here.', { name: d.name }), { error: true });
       return;
     }
     if (!(await ui.confirm({
@@ -144,16 +154,15 @@ function ServerPane({ ws, save }) {
     }))) return;
     setBusy(d.id);
     try {
-      const remote = new RemoteApp(conn);
-      await remote.connect();
-      remote.close();
+      // It has to answer first (its address may have changed since this list came).
+      const conn = await reachComputer(d, { latest: async () => (await account.authed('query', 'devices:list')).find((x) => x.id === d.id) });
       await save({ kind: 'server', device: d.id, name: d.name, apps: [] });
       await app.db?.drain?.(5000)?.catch?.(() => {});
-      saveConnection({ ...conn, name: remote.server?.name || d.name });
+      chooseComputer(conn, { from: here && list.find((x) => x.id && sameComputer(x, here)), hello: isPaired(d) ? 'auto' : 'first' });
       location.reload();
     } catch (err) {
       setBusy(null);
-      ui.toast(tr("Couldn't reach {name}. {error}", { name: d.name, error: err?.message || '' }).trim(), { error: true });
+      ui.toast(err?.message || tr("Couldn't connect to {name}.", { name: d.name }), { error: true });
     }
   };
 
@@ -179,7 +188,7 @@ function ServerPane({ ws, save }) {
             <span class="ws-icon"><${Icon.server} size="18" /></span>
             <span class="ws-text">
               <span class="ws-title">${d.name}</span>
-              <span class="ws-sub">${serverStatus(d, isHere(d))}${d.server ? ` · ${tr("your plan's server")}` : ''}</span>
+              <span class="ws-sub">${serverStatus(d, isHere(d), answering.data?.[d.id])}${d.server ? ` · ${tr("your plan's server")}` : ''}</span>
             </span>
             ${busy === d.id && html`<span class="spinner"></span>`}
           </button>`;
@@ -189,10 +198,14 @@ function ServerPane({ ws, save }) {
     ${current && !isHere(current) && html`<p class="ws-note">${tr("This app isn't connected to {name}, so its bots can't work there yet. Tap it to connect.", { name: current.name })}</p>`}`;
 }
 
-function serverStatus(d, here) {
+/** What a server in the list is doing. `answers`: whether it answered at
+ * its address just now (undefined while that's being asked). */
+function serverStatus(d, here, answers) {
   if (here) return tr('Connected');
   const state = computerState(d);
-  if (state === 'running') return computerConnection(d) ? tr('On') : tr("On, but this app can't reach it");
+  if (state === 'running') return answers === false ? tr("On, but this app can't reach it") : tr('On');
+  if (state === 'hidden' && d.tunnel === 'starting') return tr('On · connecting…');
+  if (state === 'hidden' && d.tunnel === 'blocked') return tr('On, but its network blocks the connection');
   if (state === 'hidden') return tr("On, but this app can't reach it");
   if (state === 'old') return tr('Needs the latest Holly Computer');
   return d.seenAt ? tr('Off · seen {when}', { when: shortTime(d.seenAt) }) : tr('Off');

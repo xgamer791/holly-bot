@@ -84,6 +84,37 @@ test('health is public, everything else needs the pairing token', async () => {
   assert.equal(state.computer.capabilities.shell, true);
 });
 
+test('health says which run of Holly Computer answers, so its tunnel can tell it apart', async () => {
+  const h = await (await fetch(`${base()}/v1/health`)).json();
+  assert.equal(h.app, 'holly-computer');
+  assert.match(h.instance, /^[0-9a-f-]{36}$/);
+  assert.equal(h.account, undefined, 'not which account it is linked to');
+  const state = await (await fetch(`${base()}/api/state`, { headers: auth() })).json();
+  assert.equal(state.server.instance, h.instance);
+});
+
+test('a phone connecting says hello: every device watching the computer hears it', async () => {
+  const state = await (await fetch(`${base()}/api/state`, { headers: auth() })).json();
+  const said = [];
+  const log = console.log;
+  console.log = (...args) => said.push(args.join(' '));
+  try {
+    const res = await fetch(`${base()}/api/rpc`, { method: 'POST', headers: auth(), body: JSON.stringify({ method: 'devices.hello', args: [{ kind: 'iphone', first: true }], clientId: 'phone-1' }) });
+    assert.deepEqual(await res.json(), { result: { ok: true } });
+    await fetch(`${base()}/api/rpc`, { method: 'POST', headers: auth(), body: JSON.stringify({ method: 'devices.hello', args: [{ kind: '<script>', first: 'yes' }], clientId: 'phone-2' }) });
+  } finally {
+    console.log = log;
+  }
+  assert.ok(said.some((line) => /Holly Bot on your iPhone is connected to this computer/.test(line)), said.join('\n'));
+  const r = await (await fetch(`${base()}/api/poll?since=${state.seq}&boot=${state.boot}&client=desktop`, { headers: auth() })).json();
+  const hellos = r.events.filter((e) => e.topic === 'hello').map((e) => e.data);
+  // The latest stands for them all; one that isn't a known device, or first, is just a device connecting.
+  assert.equal(hellos.length, 1);
+  assert.deepEqual({ ...hellos[0], at: 0 }, { kind: 'other', first: false, clientId: 'phone-2', at: 0 });
+  // Without the key, nobody can say hello.
+  assert.equal((await fetch(`${base()}/api/rpc`, { method: 'POST', body: JSON.stringify({ method: 'devices.hello', args: [{}] }) })).status, 401);
+});
+
 test('shell and files on the computer', async () => {
   const res = await fetch(`${base()}/v1/exec`, { method: 'POST', headers: auth(), body: JSON.stringify({ command: 'echo hello-from-shell' }) });
   const quick = await res.json();

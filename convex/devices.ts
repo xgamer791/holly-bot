@@ -14,8 +14,9 @@ import { requireUserId } from "./lib/auth";
 //
 // While it runs, the computer says where the account's devices can reach it
 // (report), so the app on any device signed in to the account connects to it
-// by itself (src/main.js), and finds it again at its new address after it
-// restarts.
+// (src/main.js), and finds it again at its new address after it restarts.
+// The first time, the app asks (Connect, on the phone); once a device has
+// connected to it (pair), the account's devices connect to it by themselves.
 
 /** How long a link code can be used. */
 const LINK_MS = 10 * 60 * 1000;
@@ -68,14 +69,24 @@ export const createLink = mutation({
     if (!/^[0-9a-f]{64}$/.test(codeHash)) throw new ConvexError("Bad link code");
     const sessionId = await getAuthSessionId(ctx);
     let serverKey: string | undefined;
+    let pairedAt: number | undefined;
     for (const old of await ctx.db.query("deviceLinks").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       if (!old.serverKey) await ctx.db.delete(old._id);
     }
     for (const device of await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
-      if (device.sessionId === sessionId) serverKey = device.serverKey;
+      if (device.sessionId === sessionId) {
+        serverKey = device.serverKey;
+        pairedAt = device.pairedAt;
+      }
       if (!(await ctx.db.get(device.sessionId))) await ctx.db.delete(device._id);
     }
-    await ctx.db.insert("deviceLinks", { userId, codeHash, expiresAt: Date.now() + LINK_MS, ...(serverKey ? { serverKey } : null) });
+    await ctx.db.insert("deviceLinks", {
+      userId,
+      codeHash,
+      expiresAt: Date.now() + LINK_MS,
+      ...(serverKey ? { serverKey } : null),
+      ...(pairedAt ? { pairedAt } : null),
+    });
     return null;
   },
 });
@@ -101,14 +112,17 @@ export const redeem = internalMutation({
       name: name.trim().slice(0, 60) || "Holly Computer",
       linkedAt: now,
       ...(link.serverKey ? { serverKey: link.serverKey } : null),
+      ...(link.pairedAt ? { pairedAt: link.pairedAt } : null),
     });
     return { userId: link.userId, sessionId };
   },
 });
 
 /** The computers linked to the signed-in account, with where the account's
- * devices can reach each one while it runs. `server`: the subscriber's own
- * server, which Holly Bot links and unlinks itself (convex/servers.ts). */
+ * devices can reach each one while it runs (or why they can't: `tunnel`).
+ * `server`: the subscriber's own server, which Holly Bot links and unlinks
+ * itself (convex/servers.ts). `paired`: a device has connected to it before,
+ * so the account's devices connect to it by themselves (pair). */
 export const list = query({
   args: {},
   returns: v.array(v.object({
@@ -119,7 +133,9 @@ export const list = query({
     access: v.optional(v.string()),
     seenAt: v.optional(v.number()),
     stoppedAt: v.optional(v.number()),
+    tunnel: v.optional(v.string()),
     server: v.boolean(),
+    paired: v.boolean(),
   })),
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
@@ -127,10 +143,25 @@ export const list = query({
     const linked = [];
     for (const device of devices) {
       if (!(await ctx.db.get(device.sessionId))) continue;
-      const { _id, name, linkedAt, url, access, seenAt, stoppedAt } = device;
-      linked.push({ id: _id, name, linkedAt, url, access, seenAt, stoppedAt, server: !!device.serverKey });
+      const { _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel } = device;
+      linked.push({ id: _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel, server: !!device.serverKey, paired: !!device.pairedAt });
     }
     return linked;
+  },
+});
+
+/** A device signed in to the account has connected to one of its computers
+ * (Connect, on the phone): from now on the account's devices connect to it
+ * by themselves, and it isn't offered with Connect again. */
+export const pair = mutation({
+  args: { id: v.id("devices") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const userId = await requireUserId(ctx);
+    const device = await ctx.db.get(id);
+    if (!device || device.userId !== userId || device.pairedAt) return null;
+    await ctx.db.patch(id, { pairedAt: Date.now() });
+    return null;
   },
 });
 
@@ -140,20 +171,24 @@ const ADDRESS = /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~%-]+)*$/;
 /** The computer's access key: random, base64url. */
 const ACCESS = /^[A-Za-z0-9_-]{32,128}$/;
 
+/** Why a running computer has no address (report). */
+const TUNNEL_STATES = ["off", "starting", "blocked"];
+
 /**
  * A linked computer says where the account's devices can reach it
  * (computer/src/home.mjs): its address and access key, or `url: ""` when it
- * has no address they can reach (no tunnel, or the tunnel closed). It says
- * so as it starts, every few minutes while it runs, and once more with
- * `stopping` as it stops. Only a linked computer's own session can, and only
- * for itself; it needs no subscription, like the rest of devices:*. The
- * answer says whether it's the server that comes with the plan, which stays
- * linked to the account (unlink).
+ * has no address they can reach, and then why (`tunnel`: 'off', no tunnel
+ * wanted; 'starting', opening one; 'blocked', its network blocks it). It says
+ * so as it starts, whenever that changes, every few minutes while it runs,
+ * and once more with `stopping` as it stops. Only a linked computer's own
+ * session can, and only for itself; it needs no subscription, like the rest
+ * of devices:*. The answer says whether it's the server that comes with the
+ * plan, which stays linked to the account (unlink).
  */
 export const report = mutation({
-  args: { url: v.string(), access: v.string(), stopping: v.optional(v.boolean()) },
+  args: { url: v.string(), access: v.string(), stopping: v.optional(v.boolean()), tunnel: v.optional(v.string()) },
   returns: v.object({ server: v.boolean() }),
-  handler: async (ctx, { url, access, stopping }) => {
+  handler: async (ctx, { url, access, stopping, tunnel }) => {
     const userId = await requireUserId(ctx);
     const sessionId = await getAuthSessionId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
@@ -161,7 +196,7 @@ export const report = mutation({
     if (!device) throw new ConvexError("Only a linked Holly Computer can say where it is");
     const server = !!device.serverKey;
     if (stopping) {
-      await ctx.db.patch(device._id, { url: undefined, access: undefined, stoppedAt: Date.now() });
+      await ctx.db.patch(device._id, { url: undefined, access: undefined, tunnel: undefined, stoppedAt: Date.now() });
       return { server };
     }
     if (url && (url.length > 300 || !ADDRESS.test(url))) throw new ConvexError("That address isn't a public https address");
@@ -169,6 +204,7 @@ export const report = mutation({
     await ctx.db.patch(device._id, {
       url: url || undefined,
       access: url ? access : undefined,
+      tunnel: !url && tunnel && TUNNEL_STATES.includes(tunnel) ? tunnel : undefined,
       seenAt: Date.now(),
       stoppedAt: undefined,
     });
