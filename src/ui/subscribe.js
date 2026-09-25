@@ -245,7 +245,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
           <h2>Every plan includes</h2>
           <ul>
             <li><${Icon.bot} size=${18} /><span>Your bots, chats and memories in your account, on every device</span></li>
-            <li><${Icon.brain} size=${18} /><span>Holly Bot's AI, with AI credits that refill every month</span></li>
+            <li><${Icon.brain} size=${18} /><span>Holly Bot's AI, DeepSeek, with AI credits that refill every month</span></li>
             <li><${Icon.mail} size=${18} /><span>Gmail, Outlook and GitHub for your bots to use</span></li>
             <li><${Icon.check} size=${18} /><span>Cancel anytime in Settings</span></li>
           </ul>

@@ -21,7 +21,7 @@ import { BUILTIN_TOOLS } from './tools/index.js';
 export const DEFAULT_SETTINGS = {
   profile: { name: '', email: '', about: '' },
   providers: {},
-  defaults: { provider: 'deepseek', model: 'glm-flash', memoryModel: 'same', effort: '' },
+  defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same', effort: '' },
   // Retry once with this provider/model when the main one fails (outage, rate limit, no credit).
   backup: { provider: '', model: '' },
   memory: { auto: true, embeddings: 'auto', contextBudget: 'auto' },

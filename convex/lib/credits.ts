@@ -9,23 +9,23 @@ export const MICROS_PER_CENT = 10_000;
 
 /**
  * The models Holly Bot's AI runs, by the app's names for them: OpenRouter's
- * name for each, the reasoning efforts it takes (lowest first), whether it
- * always thinks, and its usual price on OpenRouter in US dollars per million
- * tokens (input it had cached, other input, output), which sizes holds and
- * prices an answer cut off before OpenRouter said what it cost. A price per
- * million tokens is also a price in millionths of a dollar per token.
+ * name for each (the releases DeepSeek's own API serves), the reasoning
+ * efforts it takes (lowest first), and DeepSeek's list prices in US dollars
+ * per million tokens (input it had cached, other input, output), which size
+ * holds and price an answer cut off before OpenRouter said what it cost. A
+ * price per million tokens is also a price in millionths of a dollar per token.
  */
-export const AI: Record<string, { id: string; efforts: string[]; alwaysThinks: boolean; prices: { cached: number; input: number; output: number } }> = {
-  "glm-flash": { id: "z-ai/glm-5.3-flash", efforts: ["low", "high", "max"], alwaysThinks: true, prices: { cached: 0.03, input: 0.15, output: 0.5 } },
-  "deepseek-v4-pro": { id: "deepseek/deepseek-v4-pro-0813", efforts: ["low", "high", "max"], alwaysThinks: false, prices: { cached: 0.044, input: 1.32, output: 3.96 } },
+export const AI: Record<string, { id: string; efforts: string[]; prices: { cached: number; input: number; output: number } }> = {
+  "deepseek-flash": { id: "deepseek/deepseek-v4.1-flash", efforts: ["low", "high", "max"], prices: { cached: 0.006, input: 0.3, output: 1.2 } },
+  "deepseek-v4-pro": { id: "deepseek/deepseek-v4-pro-0813", efforts: ["low", "high", "max"], prices: { cached: 0.044, input: 1.32, output: 3.96 } },
 };
 
 /** The models' names in the app. */
 export const MODELS = Object.keys(AI);
 
-/** Older versions of the app's names for them: Flash was DeepSeek V4.1 Flash
- * until 1.25.0, and requests that still ask for it get GLM 5.3 Flash. */
-export const RENAMED: Record<string, string> = { "deepseek-flash": "glm-flash" };
+/** 1.25.0's name for Flash, when it ran GLM 5.3 Flash: requests that still
+ * ask for it get DeepSeek V4.1 Flash. */
+export const RENAMED: Record<string, string> = { "glm-flash": "deepseek-flash" };
 
 /** The reasoning effort OpenRouter takes for `model` nearest the app's (low, high or max). */
 export function effortFor(model: string, effort: string): string {
@@ -57,7 +57,7 @@ export function usageOf(u: any): Usage | null {
 }
 
 /** What `usage` of `model` costs, in millionths of a dollar: what OpenRouter
- * said, or else the model's usual price. An unknown model is charged at the
+ * said, or else the model's list price. An unknown model is charged at the
  * dearest one's. */
 export function costOf(model: string, usage: Usage): number {
   if (usage.cost != null) return usage.cost;

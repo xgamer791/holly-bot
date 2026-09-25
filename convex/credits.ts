@@ -7,7 +7,7 @@ import { PLANS, planById } from "./lib/plans";
 import { INACTIVE, hasAccess, isExempt, subscriberOf } from "./lib/subscription";
 import { MICROS_PER_CENT, anchorFor, costOf, estimateUsage, refillIn, settle, type Ledger } from "./lib/credits";
 
-// AI credits. Holly Bot's AI is GLM 5.3 Flash and DeepSeek V4 Pro on Holly
+// AI credits. Holly Bot's AI is DeepSeek V4.1 Flash and V4 Pro on Holly
 // Bot's own OpenRouter account (convex/ai.ts), and each account gets its
 // plan's allowance of it every month (convex/lib/plans.ts): Starter $10, Pro
 // $20, Ultra $35 of use, which the app shows as credits, 1 per cent. Every

@@ -3,8 +3,8 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { AI, MODELS, RENAMED, costOf, effortFor, promptTokens, usageOf, type Usage } from "./lib/credits";
 
-// Holly Bot's AI: GLM 5.3 Flash and DeepSeek V4 Pro (convex/lib/credits.ts)
-// on OpenRouter, with Holly Bot's own key (OPENROUTER_API_KEY), paid for with
+// Holly Bot's AI: DeepSeek V4.1 Flash and V4 Pro (convex/lib/credits.ts) on
+// OpenRouter, with Holly Bot's own key (OPENROUTER_API_KEY), paid for with
 // each account's monthly credits (convex/credits.ts). The app and Holly
 // Computer send their bots' chat requests here in DeepSeek's form, the form
 // the app has always used (src/core/providers), with the account's session in
@@ -26,10 +26,6 @@ const PASSED = [
 /** The most output a request may ask for, and what it gets when it doesn't say. */
 const MAX_TOKENS = 65_536;
 const DEFAULT_TOKENS = 8_192;
-
-/** Room for thinking added to a request that asks a model that always thinks
- * not to (a short background job, say), so its answer still fits. */
-const THINKING_ROOM = 8_192;
 
 // Requests carry the session as a bearer token, never a cookie, so any page may send one.
 const CORS = {
@@ -75,24 +71,17 @@ const PROVIDER = { data_collection: "deny" };
 /**
  * A request in DeepSeek's form as OpenRouter takes it: OpenRouter's name for
  * the model; DeepSeek's `thinking` and `reasoning_effort` as OpenRouter's
- * `reasoning` (high effort unless it says; earlier answers'
- * `reasoning_content` OpenRouter takes as it is); the providers it may use;
- * and `session`, which keeps the account's requests on one provider, where
- * its input is cached. A model that always thinks, asked not to, thinks as
- * little as it can, with room for that on top of the answer.
+ * `reasoning` (earlier answers' `reasoning_content` OpenRouter takes as it
+ * is); the providers it may use; and `session`, which keeps the account's
+ * requests on one provider, where its input is cached.
  */
 function forOpenRouter(out: Record<string, any>, model: string, session: string): Record<string, any> {
   const { thinking, reasoning_effort: effort, stream_options: _usageIsAlwaysSent, ...rest } = out;
-  const spec = AI[model];
   const off = thinking?.type === "disabled";
-  const reasoning = !off
-    ? { enabled: true, effort: effortFor(model, typeof effort === "string" ? effort : "high") }
-    : spec.alwaysThinks ? { enabled: true, effort: spec.efforts[0] } : { enabled: false };
   return {
     ...rest,
-    model: spec.id,
-    max_tokens: off && spec.alwaysThinks ? Math.min(MAX_TOKENS, rest.max_tokens + THINKING_ROOM) : rest.max_tokens,
-    reasoning,
+    model: AI[model].id,
+    reasoning: off ? { enabled: false } : { enabled: true, ...(typeof effort === "string" ? { effort: effortFor(model, effort) } : {}) },
     provider: PROVIDER,
     session_id: session,
   };
@@ -146,7 +135,7 @@ export const chat = httpAction(async (ctx, request) => {
   }
   const asked = String(body?.model ?? "");
   const model = RENAMED[asked] ?? asked;
-  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holly Bot's AI runs GLM 5.3 Flash and DeepSeek V4 Pro, not ${asked || "that model"}.`);
+  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holly Bot's AI runs DeepSeek V4.1 Flash and V4 Pro, not ${asked || "that model"}.`);
 
   const stream = body.stream === true;
   const out: Record<string, any> = { model };

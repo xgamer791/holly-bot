@@ -754,13 +754,13 @@ function MemorySettingsPage() {
         <select value=${mem.embeddings || 'auto'} onChange=${(e) => set({ embeddings: e.currentTarget.value })}>
           ${embedOptions.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
         </select></div>
-      <div class="row"><div class="label"><div class="t">History kept verbatim</div><div class="s">Auto keeps up to ~400k tokens of raw chat with GLM 5.3 Flash (1M window); only older turns get summarized</div></div>
+      <div class="row"><div class="label"><div class="t">History kept verbatim</div><div class="s">Auto keeps up to ~400k tokens of raw chat with DeepSeek Flash (1M window); only older turns get summarized</div></div>
         <select value=${String(mem.contextBudget || 'auto')} onChange=${(e) => set({ contextBudget: e.currentTarget.value === 'auto' ? 'auto' : +e.currentTarget.value })}>
           <option value="auto">Auto (half the model's window)</option>
           ${[32000, 64000, 128000, 256000, 400000].map((n) => html`<option value=${n}>${n / 1000}k tokens</option>`)}
         </select></div>
     <//>
-    <div class="group-note">GLM 5.3 Flash for memory work saves credits; "Same as each bot" gives the best quality.</div>
+    <div class="group-note">DeepSeek V4.1 Flash for memory work saves credits; "Same as each bot" gives the best quality.</div>
     <${Group}>
       <${Row} title="Team memory" sub="Shared notes all bots can read" onClick=${() => (first ? ui.openSheet('memory', { agentId: first.id, tab: 'team' }) : ui.toast('Create a bot first'))} />
       <${Row} title="Re-index memories" sub="Compute embeddings for all bots now" onClick=${async () => {
@@ -823,7 +823,7 @@ function HelpPage() {
     <h3>Getting started</h3>
     <p>1. Tap <b>+ → New Bot</b>, name it and pick a look.<br />2. Chat. Your bot learns about you and remembers across conversations.</p>
     <h3>AI credits</h3>
-    <p>Your bots think with Holly Bot's AI (GLM 5.3 Flash, or DeepSeek V4 Pro for deeper thinking), and your plan comes with <b>AI credits</b> for it every month. Settings → <b>Usage</b> shows what's left and when they refill. When they run out, your bots pause until the refill.</p>
+    <p>Your bots think with Holly Bot's AI, DeepSeek, and your plan comes with <b>AI credits</b> for it every month. Settings → <b>Usage</b> shows what's left and when they refill. When they run out, your bots pause until the refill.</p>
     <h3>Multiple bots</h3>
     <p>Every bot has its own name, personality, model, memory, files and routines. Bots can <b>message each other</b> (“Ask Nova to review this”), <b>delegate</b> longer tasks, and share a <b>team memory</b>. Start a <b>group chat</b> with + → New Group Chat and @mention bots.</p>
     <h3>Memory</h3>
