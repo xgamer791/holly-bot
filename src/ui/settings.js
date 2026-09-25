@@ -10,7 +10,7 @@ import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import {
-  RemoteApp, computerConnection, computerState, runHere, savedConnection, saveConnection,
+  RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, savedConnection, saveConnection,
 } from '../remote/remote-app.js';
 import { account, noticeAfterReload, signInWorksHere, takeNotice, SITE } from '../account/account.js';
 import { longDate } from './subscribe.js';
@@ -748,8 +748,15 @@ function ComputerPage() {
           ? `Your bots stay in your account and ${name} keeps running them. This device will run them itself, without ${name}, until you connect again here.`
           : `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`;
         if (!(await ui.confirm({ title: 'Disconnect from your computer?', message, confirmText: 'Disconnect', danger: true }))) return;
-        if (linked) runHere();
-        else saveConnection(null);
+        if (linked) {
+          runHere();
+          // Nor does it ask to connect again until the computer restarts.
+          const list = await account.authed('query', 'devices:list').catch(() => []);
+          const device = list.find((d) => sameComputer(d, { device: app.device, name: app.server?.name, url: app.base }));
+          if (device) declineComputer(device);
+        } else {
+          saveConnection(null);
+        }
         location.reload();
       }}>Disconnect this device</button>`;
   }
@@ -788,8 +795,8 @@ function ComputerPage() {
       <p style="margin-top:0">1. Install <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 22 or newer</a> on the computer.</p>
       <p>2. Download <a href=${scriptUrl} download>holly-computer.mjs</a> and run it. Or paste this into a terminal:</p>
       ${[
-        ['Mac or Linux (Terminal)', `curl -fsSLO ${scriptUrl} && node holly-computer.mjs --tunnel`],
-        ['Windows (PowerShell)', `iwr ${scriptUrl} -OutFile holly-computer.mjs; node holly-computer.mjs --tunnel`],
+        ['Mac or Linux (Terminal)', `curl -fsSLO ${scriptUrl} && node holly-computer.mjs`],
+        ['Windows (PowerShell)', `iwr ${scriptUrl} -OutFile holly-computer.mjs; node holly-computer.mjs`],
       ].map(([label, cmd]) => html`
         <div key=${label} style="margin:8px 0 12px">
           <div style="font-size:13px;color:var(--muted);margin-bottom:4px">${label}</div>
@@ -802,7 +809,7 @@ function ComputerPage() {
             }
           }}>${cmd}</button>
         </div>`)}
-      <p>3. Scan the QR code it shows with your phone, or open the link it opens on the computer${app.db?.cloud ? ', then tap Add to My Account' : ''}. That's it.${app.db?.cloud ? ' From then on, Holly Bot on any device signed in to your account connects to it by itself while it runs.' : ''}</p>
+      <p>3. ${app.db?.cloud ? "Sign in on the page it opens on the computer, with the account you use here. Holly Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it." : 'Open the page it opens on the computer. That\'s it.'}</p>
       <p><b>Keep that link private, like a password.</b> Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</p>
       <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts${app.db?.cloud ? ", and once it's linked to your account the app finds the new one by itself" : ''}. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
     </div>

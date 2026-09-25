@@ -27,9 +27,10 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Settings shows who you're signed in as. **Sign Out** takes you back to the welcome screen and leaves nothing of your account on the device. **Delete Account** erases the account and everything in it, and cancels the subscription. Without a subscription, both are on the subscription page.
 - A browser that kept bots in it before accounts (1.2.0 and older) asks the first account to sign in there whether to add them to that account or delete them. Either way they leave the browser.
 - Open on two devices at once? Each notices the other's changes and reloads when nothing would be lost. A routine runs once, on whichever device gets to it first.
-- Holly Computer keeps its bots in your account too, once it's linked. The first time you open it signed in, the app asks to link it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, whether each is running, Connect and Unlink, and deleting your account unlinks them.
-- A linked Holly Computer tells your account where your devices can reach it: its `--tunnel` (or `--public-url`) address and an access key of its own, again every five minutes while it runs, and that it stopped when it stops. So Holly Bot on every device signed in to your account connects to it by itself, including the Home Screen app on iPhone, which doesn't share Safari's storage, and follows it to its new address when it restarts. When it isn't running, the app runs your bots itself and they know why they can't use the computer. The access key stops working when you unlink the computer, and `--new-token` changes it along with the QR code.
-- Holly Computer's QR code opens the Holly Bot site, connected to your computer, so you sign in there and always get the current build. Its own page on the computer asks you to sign in too. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
+- Holly Computer keeps its bots in your account too, once it's linked. Signing in on the page it opens on the computer links it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, whether each is running, Connect and Unlink, and deleting your account unlinks them.
+- A linked Holly Computer tells your account where your devices can reach it: its tunnel (or `--public-url`) address and an access key of its own, again every five minutes while it runs, and that it stopped when it stops. So there's no link to open or QR code to scan. Holly Bot on every device signed in to your account connects to it as the app opens, and if the app is already open when the computer comes on (you start it, or sign in on it for the first time), a popup asks to connect. Not now leaves a Connect note at the top of the bot list. The app follows the computer to its new address when it restarts. When it isn't running, the app runs your bots itself and they know why they can't use the computer. The access key stops working when you unlink the computer, and `--new-token` changes it.
+- The app on your phone reloads onto a new version of Holly Bot as it comes back to the front, when nothing would be lost, and Holly Computer updates itself each time it starts (`--no-update` to skip that).
+- Holly Computer's own page on the computer asks you to sign in. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
 - [Privacy Policy](https://xgamer791.github.io/holly-bot/privacy.html) and [Terms of Service](https://xgamer791.github.io/holly-bot/terms.html) (`privacy.html`, `terms.html`), linked from the sign-in screens and Settings.
 - Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md).
 
@@ -49,17 +50,18 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
    Mac or Linux:
    ```sh
-   curl -fsSLO https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs && node holly-computer.mjs --tunnel
+   curl -fsSLO https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs && node holly-computer.mjs
    ```
    Windows (PowerShell):
    ```powershell
-   iwr https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs -OutFile holly-computer.mjs; node holly-computer.mjs --tunnel
+   iwr https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs -OutFile holly-computer.mjs; node holly-computer.mjs
    ```
-3. Scan the QR code it prints with your phone, sign in, and tap **Add to My Account** to link the computer. That's it. The code opens the Holly Bot site connected to your computer, so your phone always runs the current app. From then on Holly Bot on any device signed in to your account connects to the computer by itself while Holly Computer runs, with no QR code. (Holly Computer 1.7 and older don't tell the account where they are: run the command above again to update.)
+3. Sign in on the page it opens on the computer, with the Apple or Google account you use in Holly Bot. That links the computer to your account. Holly Bot on your phone then asks to connect: tap **Connect**. That's it. From then on, the app on any device signed in to your account connects to the computer by itself whenever Holly Computer is running, or asks to if it's already open. No link to open, no QR code.
 
-- The link and QR code work like a password: anyone who has them can control your computer and see your bots, chats and files, and a Wi-Fi link opens it without signing in. Keep them private. If one gets out, restart with `--new-token` and the old links stop working. The app says so where you link the computer and in Settings → Bot Computer.
-- `--tunnel` gives you a private https address that works from anywhere, through Cloudflare's free quick tunnels. The first run downloads `cloudflared` from Cloudflare's GitHub releases. The address changes each time Holly Computer restarts. Once the computer is linked to your account, the app finds the new address by itself; before that, scan the new QR code.
-- `--lan` lets phones on the same Wi-Fi connect instead.
+- Holly Computer reaches the internet through Cloudflare's free quick tunnels, so your phone can reach it from anywhere. The first run downloads `cloudflared` from Cloudflare's GitHub releases. The address changes each time Holly Computer restarts, and the app finds the new one by itself. `--no-tunnel` turns it off.
+- Holly Computer updates itself each time it starts, from the Holly Bot site. `--no-update` turns that off. (Holly Computer 1.10 and older don't: download it again with the command above once.)
+- The page it opens on the computer carries a link that works like a password: anyone who has it can control your computer and see your bots, chats and files. Keep it private. If it gets out, restart with `--new-token` and it stops working.
+- `--lan` lets phones on the same Wi-Fi connect without signing in, with a link it prints.
 - `--public-url https://…` uses your own permanent address, for example a named Cloudflare Tunnel or Tailscale Funnel pointing at the port.
 - Holly Computer keeps the computer awake while it runs. Use `--allow-sleep` to turn that off.
 - Run `node holly-computer.mjs --help` for all options.

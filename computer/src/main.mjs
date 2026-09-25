@@ -16,34 +16,40 @@ import { startQuickTunnel, ensureCloudflared, qrText } from './tunnel.mjs';
 import { keepAwake } from './awake.mjs';
 import { AccountLink } from './account.mjs';
 import { BotHome } from './home.mjs';
-
-const PAGES_URL = 'https://xgamer791.github.io/holly-bot/';
+import { runLatest } from './update.mjs';
 
 const USAGE = `Holly Computer — your Holly bots live on this computer; control them from your phone.
 
 Usage: node holly-computer.mjs [options]
 
-  --tunnel            Reach this computer from anywhere (Cloudflare quick tunnel; prints a QR code)
-  --lan               Allow phones on the same Wi-Fi
-  --public-url <url>  Your own permanent address for this computer (e.g. a named Cloudflare
-                      Tunnel or Tailscale Funnel pointing at this port) — used in the phone link
+Sign in on the page it opens, with the Apple or Google account you use in Holly
+Bot. Holly Bot on your phone then connects to this computer by itself.
+
+  --no-tunnel         Don't open a Cloudflare tunnel (then your phone can't reach this
+                      computer, unless you give it --public-url)
+  --public-url <url>  Your own permanent https address for this computer (e.g. a named
+                      Cloudflare Tunnel or Tailscale Funnel pointing at this port)
+  --lan               Allow phones on the same Wi-Fi, without signing in (prints a link)
   --port <n>          Port to listen on (default 8787)
   --workspace <dir>   Folder the bots work in (default ~/Holly)
   --data <dir>        Holly Computer's own files (default ~/.holly). Until this computer is
                       linked to your Holly Bot account, its bots are kept here too
   --headless-browser  Run the bots' Chrome without a window
   --allow-sleep       Let the computer sleep while Holly Computer runs
-  --new-token         Make a new pairing link (old links stop working)
-  --no-open           Don't open the app in a browser here
+  --new-token         New keys for this computer: every device has to find it again
+  --no-open           Don't open the sign-in page in a browser here
+  --no-update         Don't update Holly Computer as it starts
   -h, --help          Show this help`;
 
 function parseArgs(argv) {
-  const out = { port: 8787, host: '127.0.0.1', tunnel: false, open: true, headlessBrowser: false, newToken: false, awake: true };
+  const out = { port: 8787, host: '127.0.0.1', tunnel: true, open: true, update: true, headlessBrowser: false, newToken: false, awake: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === '--port') out.port = Number(next());
     else if (a === '--tunnel') out.tunnel = true;
+    else if (a === '--no-tunnel') out.tunnel = false;
+    else if (a === '--no-update') out.update = false;
     else if (a === '--lan') out.host = '0.0.0.0';
     else if (a === '--host') out.host = next();
     else if (a === '--workspace') out.workspace = next();
@@ -154,6 +160,8 @@ export async function main(argv = process.argv.slice(2)) {
     console.error(`Holly Computer needs Node.js 22 or newer (you have ${process.version}). Get it at https://nodejs.org`);
     process.exit(1);
   }
+  // The single-file build runs the latest one (computer/src/update.mjs).
+  if (args.update && globalThis.__HOLLY_BUNDLE__ && await runLatest({ file: fileURLToPath(import.meta.url), argv })) return null;
   const dataDir = resolve(expand(args.data || join(os.homedir(), '.holly')));
   const workspace = resolve(expand(args.workspace || defaultWorkspace()));
   mkdirSync(dataDir, { recursive: true });
@@ -194,10 +202,10 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`  Data:      ${dataDir}`);
   console.log(account.linked
     ? '  Bots:      kept in your Holly Bot account'
-    : '  Bots:      kept on this computer until you link it to your Holly Bot account (open the link below and sign in)');
+    : '  Bots:      kept on this computer until you sign in to your Holly Bot account here');
   console.log(`  Can use:   shell ✓  files ✓  web ✓  screen ${caps.screenshot ? '✓' : '✗'}  mouse/keyboard ${caps.desktop ? '✓' : '✗'}  Chrome ${caps.browser ? '✓' : '✗'}  plugins ✓`);
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
-  console.log(`\n  On this computer, open:\n    ${link(local, '', cfg.token)}\n`);
+  console.log('');
 
   let publicUrl = args.publicUrl ? args.publicUrl.replace(/\/+$/, '') : null;
   if (args.tunnel && !publicUrl) {
@@ -207,34 +215,50 @@ export async function main(argv = process.argv.slice(2)) {
       const t = await startQuickTunnel(port, { bin, onClose: () => home.setAddress(null) });
       publicUrl = t.url;
       process.on('exit', () => t.stop());
-      if (!t.connected) console.log('  The tunnel is slow to connect. If your phone can\'t open the link, this network may block Cloudflare Tunnel — try --lan on the same Wi-Fi.');
+      if (!t.connected) console.log('  The tunnel is slow to connect. If your phone can\'t reach this computer, this network may block Cloudflare Tunnel.');
     } catch (err) {
       console.log(`  Tunnel failed: ${err.message}`);
     }
   }
-  // Linked, it tells the account where the account's devices can reach it.
+  // Linked, it tells the account where the account's devices can reach it,
+  // so Holly Bot on each of them connects by itself (or asks to, when it's
+  // already open): no link to open or QR code to scan.
   home.setAddress(publicUrl);
-  const lan = args.host === '0.0.0.0' ? lanAddress() : null;
-  // A public address opens the Holly Bot site (always the current build, with
-  // sign-in), connected to this computer. A Wi-Fi address is opened directly,
-  // and Apple and Google can't send a sign-in back to it, so it goes without.
-  const phone = publicUrl ? link(PAGES_URL, publicUrl, cfg.token) : lan ? link(`http://${lan}:${port}/`, '', cfg.token) : null;
-  if (phone) {
-    console.log(`  On your phone, scan or open:\n    ${phone}\n`);
-    console.log(qrText(phone).split('\n').map((l) => `    ${l}`).join('\n'));
-    if (!publicUrl) console.log('\n  Wi-Fi links skip Holly Bot sign-in; start with --tunnel to sign in on your phone.');
-    else if (account.linked) console.log('\n  Or just open Holly Bot on any device signed in to your account: it connects to this computer by itself.');
-  } else {
-    console.log('  To control your bots from your phone, restart with --tunnel (from anywhere) or --lan (same Wi-Fi).');
+  const name = cfg.name;
+  const signIn = link(local, '', cfg.token);
+  if (!account.linked) {
+    // Signed in on its own page, the computer links itself to that account
+    // (src/main.js), and the phone signed in to the same one asks to connect.
+    console.log(args.open
+      ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holly Bot.`
+      : `  On this computer, open this page and sign in with the Apple or Google account you use in Holly Bot:\n    ${signIn}`);
+    console.log(`  Holly Bot on your phone then asks to connect to ${name}.`);
+  } else if (publicUrl) {
+    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account: it connects to ${name} by itself,`);
+    console.log('  or asks to if it\'s already open.');
   }
-  console.log('\n  Keep these links private, like a password: anyone who has one can control this computer and see your');
-  console.log('  bots, chats and files. If a link gets out, restart with --new-token and the old links stop working.');
+  if (!publicUrl) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
+  const lan = args.host === '0.0.0.0' ? lanAddress() : null;
+  if (lan) {
+    // A Wi-Fi address can't sign in (Apple and Google can't send a sign-in
+    // back to it), so it goes by this link alone.
+    const wifi = link(`http://${lan}:${port}/`, '', cfg.token);
+    console.log(`\n  On a phone on the same Wi-Fi, without signing in, scan or open:\n    ${wifi}\n`);
+    console.log(qrText(wifi).split('\n').map((l) => `    ${l}`).join('\n'));
+  }
+  if (lan || (!account.linked && !args.open)) {
+    console.log('\n  Keep that link private, like a password: anyone who has it can control this computer and see your');
+    console.log('  bots, chats and files. If it gets out, restart with --new-token and it stops working.');
+  }
   const awake = args.awake && args.port !== 0 ? keepAwake() : null;
   if (awake?.active) console.log('\n  Keeping this computer awake while Holly Computer runs (start with --allow-sleep to turn that off).');
   console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
-  if (args.open) openBrowser(link(local, '', cfg.token));
+  if (args.open && !account.linked) openBrowser(signIn);
 
+  let stopping = false;
   const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
     console.log('\n  Stopping Holly Computer…');
     awake?.stop();
     server.close();

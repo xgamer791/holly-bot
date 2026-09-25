@@ -1,5 +1,5 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../vendor/preact.js';
-import { AppCtx, UiCtx, useMedia, useApp, useTopics } from './hooks.js';
+import { AppCtx, UiCtx, useMedia, useApp, useTopics, haptic } from './hooks.js';
 import { HomeScreen } from './home.js';
 import { ChatScreen } from './chat.js';
 import { CreateBotSheet, NewGroupSheet } from './create-bot.js';
@@ -136,6 +136,23 @@ export function Root({ app }) {
     navigator.serviceWorker?.addEventListener('message', on);
     return () => navigator.serviceWorker?.removeEventListener('message', on);
   }, []);
+
+  // A computer linked to the account came on (watchComputers in src/main.js):
+  // ask whether this app should use it. Not while another question is open.
+  const asking = useRef(false);
+  asking.current = !!dialog;
+  useEffect(() => app.on('computer-offer', async (offer) => {
+    if (asking.current) return offer.later();
+    haptic(app);
+    const yes = await ui.confirm({
+      title: `Connect to ${offer.name}?`,
+      message: `${offer.name} is on. Connect, and your bots run there, using its apps, files, browser, screen, mouse and keyboard.`,
+      confirmText: 'Connect',
+      cancelText: 'Not now',
+    });
+    if (yes) offer.accept();
+    else offer.decline();
+  }), []);
 
   // Routine scheduler for bots that run in this app (one tab at a time when Web Locks exist).
   // When a Holly Computer runs them (this app controls it, or it's linked to

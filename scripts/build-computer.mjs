@@ -51,7 +51,7 @@ const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 const header = `#!/usr/bin/env node
 // Holly Computer — your Holly bots live on this computer; control them from your phone.
-// Run:  node holly-computer.mjs --tunnel      (needs Node.js 22 or newer: https://nodejs.org)
+// Run:  node holly-computer.mjs      (needs Node.js 22 or newer: https://nodejs.org)
 // Help: node holly-computer.mjs --help
 // Built from https://github.com/xgamer791/holly-bot (app ${version}). Generated file — edit computer/src and src instead.
 globalThis.__HOLLY_BUNDLE__ = true;

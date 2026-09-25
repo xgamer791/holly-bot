@@ -28,7 +28,7 @@ function sse(deltas, finish = 'stop') {
 }
 
 async function startHolly() {
-  holly = await main(['--port', String(PORT), '--data', join(dir, 'data'), '--workspace', join(dir, 'ws'), '--no-open']);
+  holly = await main(['--port', String(PORT), '--data', join(dir, 'data'), '--workspace', join(dir, 'ws'), '--no-open', '--no-tunnel']);
 }
 
 async function stopHolly() {

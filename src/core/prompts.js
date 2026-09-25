@@ -9,7 +9,7 @@ import { formatMemories } from './memory/store.js';
  * what the user can do about it, by what the computer was doing as the app
  * opened (src/main.js). */
 const COMPUTER_AWAY = {
-  running: 'this device was set to run the bots itself; the user can connect to it in Settings → Bot Computer',
+  running: "Holly Computer is running there, but this app isn't using it; the user can tap Connect in the note at the top of their bot list, or in Settings → Bot Computer",
   unreachable: "Holly Computer says it's running there, but this app couldn't reach it; the user should check the computer is on and online, then reopen Holly Bot",
   hidden: "Holly Computer runs there without --tunnel, so this app can't reach it; the user should restart it with --tunnel",
   off: "Holly Computer isn't running there; the user should start it (node holly-computer.mjs --tunnel), then reopen Holly Bot",

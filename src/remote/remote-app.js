@@ -537,6 +537,33 @@ export function computerConnection(device) {
   return { url: device.url, token: device.access, name: device.name, device: device.id };
 }
 
+/** A linked computer's current address, as this app remembers it (tried,
+ * or put away): a quick tunnel's changes each time the computer restarts. */
+export function addressOf(device) {
+  return device ? `${device.id}|${device.url || ''}` : '';
+}
+
+/** Computers this device doesn't connect to by itself: the person said Not
+ * now to one, or disconnected this device from it. Until it restarts at a
+ * new address, or for twelve hours. */
+const DECLINED = 'holly.declinedComputers';
+const DECLINE_MS = 12 * 60 * 60_000;
+
+function declinedList() {
+  const list = readJson(DECLINED);
+  return Array.isArray(list) ? list.filter((d) => Date.now() - d.at < DECLINE_MS) : [];
+}
+
+export function declined(device) {
+  const key = addressOf(device);
+  return declinedList().some((d) => d.key === key);
+}
+
+export function declineComputer(device) {
+  const key = addressOf(device);
+  if (key) writeJson(DECLINED, [...declinedList().filter((d) => d.key !== key), { key, at: Date.now() }].slice(-10));
+}
+
 /** Whether `conn` (a saved connection) is the linked computer `device`. */
 export function sameComputer(device, conn) {
   if (!device || !conn) return false;

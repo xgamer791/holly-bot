@@ -286,7 +286,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
  * in. Linking keeps its bots in the account: what it has now moves in, and it
  * goes on running them (computer/src/home.mjs). `onLink` can take a while.
  */
-export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect }) {
+export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const who = signedInAs();
@@ -301,6 +301,10 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect }) {
       setBusy(false);
     }
   };
+  // On the computer's own page, signing in is enough: it links right away (src/main.js).
+  useEffect(() => {
+    if (auto) link();
+  }, []);
   return html`
     <div class="hello">
       <div class="hello-canvas">

@@ -70,11 +70,12 @@ function dismissedNotices() {
  */
 function ComputerNotice() {
   const app = useApp();
+  useTopics(['computers']); // it changes while the app is open (watchComputers in src/main.js)
   const notice = app.computerNotice;
-  const [hidden, setHidden] = useState(() => !!notice?.key && dismissedNotices().includes(notice.key));
-  if (!notice || hidden) return null;
+  const [closed, setClosed] = useState(null); // the notice put away here
+  if (!notice || closed === notice || (notice.key && dismissedNotices().includes(notice.key))) return null;
   const dismiss = () => {
-    setHidden(true);
+    setClosed(notice);
     if (!notice.key) return;
     try {
       localStorage.setItem(DISMISSED, JSON.stringify([...dismissedNotices().filter((key) => key !== notice.key), notice.key].slice(-10)));

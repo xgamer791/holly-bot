@@ -55,7 +55,7 @@ before(async () => {
   });
   await new Promise((r) => modelServer.listen(0, '127.0.0.1', r));
   modelUrl = `http://127.0.0.1:${modelServer.address().port}/v1`;
-  holly = await main(['--port', '0', '--data', join(dir, 'data'), '--workspace', join(dir, 'ws'), '--no-open']);
+  holly = await main(['--port', '0', '--data', join(dir, 'data'), '--workspace', join(dir, 'ws'), '--no-open', '--no-tunnel']);
 });
 
 after(async () => {
