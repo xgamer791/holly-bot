@@ -2,7 +2,8 @@
 // first boots (convex/servers.ts sends it as the server's user_data). It sets
 // up Holly Computer, unattended:
 //   1. Caddy for HTTPS, Node.js 22 (nodejs.org, checked against its
-//      checksums), and Google Chrome for the bots' browser.
+//      checksums), a desktop (XFCE on a virtual display) that the app shows
+//      and the bots use, and Google Chrome for the bots' browser.
 //   2. When the server replaces a bigger one (a downgrade), the bots' files
 //      from the old server: its workspace, browser profile and plugins.
 //   3. Holly Computer as a service, which links itself to the subscriber's
@@ -103,6 +104,19 @@ curl -fsSL --retry 3 -o "/tmp/$NODE_TAR" "$NODE_URL/$NODE_TAR" || fail "Download
 tar -xJf "/tmp/$NODE_TAR" -C /usr/local --strip-components=1 || fail "Unpacking Node.js failed"
 rm -f "/tmp/$NODE_TAR"
 
+echo "== Desktop"
+# A screen for the bots, which the app shows: a virtual display (Xvfb) with
+# XFCE on it, which Holly Computer sees and controls (scrot, xdotool) and
+# Chrome opens on. Without it the bots still have the shell, files and a
+# browser, just no screen.
+DESKTOP=""
+if apt_try install --no-install-recommends xvfb xfce4 xfce4-terminal dbus-x11 adwaita-icon-theme fonts-dejavu-core xdotool scrot; then
+  DESKTOP=1
+  echo "Desktop installed"
+else
+  echo "The desktop couldn't be installed; the bots will have no screen"
+fi
+
 echo "== Chrome"
 # Chrome comes last because it adds Google's package source to apt, which
 # then can't get in the way of the installs above.
@@ -146,18 +160,68 @@ fi
 python3 -c 'import json, sys; json.dump({"name": sys.argv[1]}, open("/var/lib/holly/data/config.json", "w"))' "$NAME" || fail "Couldn't write Holly Computer's settings"
 printf '%s' "$LINK_CODE" > /var/lib/holly/data/link-code
 chmod 600 /var/lib/holly/data/config.json /var/lib/holly/data/link-code
+if [ -n "$DESKTOP" ]; then
+  # XFCE's own default panel, so its first start doesn't stop to ask which one.
+  mkdir -p /var/lib/holly/.config/xfce4/xfconf/xfce-perchannel-xml
+  [ -f /etc/xdg/xfce4/panel/default.xml ] && cp /etc/xdg/xfce4/panel/default.xml /var/lib/holly/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+fi
 chown -R holly:holly /var/lib/holly /opt/holly
 
-cat > /etc/systemd/system/holly.service <<EOF
+# The desktop: the display, and XFCE on it, both as the holly user. Holly
+# Computer starts after them, on that display.
+SCREEN_ENV=""
+SCREEN_UNIT=""
+if [ -n "$DESKTOP" ]; then
+  SCREEN_ENV="Environment=DISPLAY=:0"
+  SCREEN_UNIT="holly-desktop.service"
+  cat > /etc/systemd/system/holly-display.service <<EOF
 [Unit]
-Description=Holly Computer
-After=network-online.target
-Wants=network-online.target
+Description=Holly Computer's screen (a virtual display)
+
+[Service]
+User=holly
+Group=holly
+ExecStart=/usr/bin/Xvfb :0 -screen 0 1280x800x24 -nolisten tcp -s 0
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat > /etc/systemd/system/holly-desktop.service <<EOF
+[Unit]
+Description=Holly Computer's desktop (XFCE)
+Requires=holly-display.service
+After=holly-display.service
 
 [Service]
 User=holly
 Group=holly
 Environment=HOME=/var/lib/holly
+Environment=DISPLAY=:0
+WorkingDirectory=/var/lib/holly
+# Once the display is up.
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do [ -S /tmp/.X11-unix/X0 ] && exit 0; sleep 0.5; done; exit 1'
+ExecStart=/usr/bin/startxfce4
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+
+cat > /etc/systemd/system/holly.service <<EOF
+[Unit]
+Description=Holly Computer
+After=network-online.target $SCREEN_UNIT
+Wants=network-online.target $SCREEN_UNIT
+
+[Service]
+User=holly
+Group=holly
+Environment=HOME=/var/lib/holly
+$SCREEN_ENV
 WorkingDirectory=/var/lib/holly
 # Each start runs the current Holly Computer, like every open of the app.
 ExecStartPre=-/bin/sh -c 'curl -fsSL -o /opt/holly/holly-computer.mjs.new \${SITE}computer/holly-computer.mjs && mv /opt/holly/holly-computer.mjs.new /opt/holly/holly-computer.mjs'
@@ -191,6 +255,9 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
 fi
 
 systemctl daemon-reload
+if [ -n "$DESKTOP" ]; then
+  systemctl enable holly-display holly-desktop || echo "The desktop won't start with the server"
+fi
 systemctl enable --now holly || fail "Holly Computer didn't start"
 systemctl enable caddy && systemctl restart caddy || fail "Caddy didn't start"
 

@@ -14,7 +14,7 @@ Holly Bot is a subscription, and every plan comes with a dedicated server of you
 | Pro | $990 a year | $120 a month | 4 CPU, 8 GB RAM |
 | Ultra | $1,790 a year | $200 a month | 6 CPU, 16 GB RAM |
 
-- Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer (shell, files, a Chrome browser) that's always on. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
+- Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer that's always on: an XFCE desktop you can watch and use from the app (Screen), the shell, files and a Chrome browser that opens on that desktop. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
 - Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for; then the server and the files on it are deleted, and your bots, chats and memories stay in your account.
 - If a renewal doesn't go through, everything keeps working while Stripe tries your card again, and the app asks you to update it.
 - Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
