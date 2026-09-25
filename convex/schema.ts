@@ -82,7 +82,8 @@ export default defineSchema({
    * no address: 'off' (none wanted), 'starting' (opening its tunnel) or
    * 'blocked' (its network blocks the tunnel). `pairedAt`: when Holly Bot on a
    * phone first connected to it (Connect), after which the account's devices
-   * connect to it by themselves (devices:pair).
+   * connect to it by themselves (devices:pair). `platform`: its system
+   * ('win32', 'darwin' or 'linux'), so the bots can say "your Windows PC".
    */
   devices: defineTable({
     userId: v.id("users"),
@@ -95,6 +96,7 @@ export default defineSchema({
     stoppedAt: v.optional(v.number()),
     tunnel: v.optional(v.string()),
     pairedAt: v.optional(v.number()),
+    platform: v.optional(v.string()),
     /** A subscriber's server (convex/servers.ts): its session ends when the server is deleted. */
     serverKey: v.optional(v.string()),
   })

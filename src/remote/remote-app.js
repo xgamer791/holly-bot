@@ -3,6 +3,9 @@ import { ComputerClient } from '../core/computer.js';
 import { ProviderHub } from '../core/providers/index.js';
 import { DEFAULT_SETTINGS } from '../core/app.js';
 import { tr } from '../ui/i18n.js';
+import { computerState } from '../core/computers.js';
+
+export { computerState };
 
 // Remote control: the same interface as the local App, but every bot, chat,
 // memory and file lives on your Holly Computer. Live updates arrive by long
@@ -628,23 +631,6 @@ export function runsHere() {
 }
 
 // ----- computers linked to the account -------------------------------------------
-
-/** A linked computer says it's running every five minutes
- * (computer/src/home.mjs); one not heard from for longer than this is off. */
-const RUNNING_MS = 12 * 60_000;
-
-/**
- * What a computer linked to the account (convex/devices.ts `list`) is doing:
- * 'running' where this app can reach it; 'hidden', running with no address
- * the app can reach (no --tunnel or --public-url, or its tunnel closed);
- * 'off', stopped or not heard from lately; or 'old', never heard from (a
- * Holly Computer older than 1.8.0, which doesn't say).
- */
-export function computerState(device, now = Date.now()) {
-  if (!device?.seenAt) return 'old';
-  if (device.stoppedAt || now - device.seenAt > RUNNING_MS) return 'off';
-  return device.url && device.access ? 'running' : 'hidden';
-}
 
 /** How to reach a linked computer that's running where this app can reach it, or null. */
 export function computerConnection(device) {

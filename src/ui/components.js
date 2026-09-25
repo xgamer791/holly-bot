@@ -2,28 +2,90 @@ import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { Icon } from './icons.js';
 import { tr } from './i18n.js';
 
+const DRAWER_MS = 450;
+
 /**
- * For a sheet that plays its way out: `close` starts the exit (`closing` is
- * true while it plays) and calls onClose once `ms` have passed, or at once
- * with Reduce Motion on.
+ * A sheet as a drawer from the left (Settings; pass it to Sheet as `drawer`).
+ * It slides in pushing the app over to the right, and slides back out pulling
+ * the app back, 450 ms each; `close` plays that and then calls `remove` (at
+ * once with Reduce Motion on). The page's `drawer-open` class says where it
+ * is, so every move carries on from wherever it is (styles.css → .sheet.drawer).
+ * The handle in the strip to its right drags it closed: let go a third of the
+ * way over, or with a flick, and it closes, otherwise it springs back. A tap
+ * on the handle closes it.
  */
-export function useClosing(onClose, ms) {
-  const [closing, setClosing] = useState(false);
+export function useDrawer(remove) {
+  const ref = useRef(null);
   const timer = useRef(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const close = () => {
-    if (timer.current) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      onClose?.();
+  const drag = useRef(null);
+  const root = document.documentElement;
+  // How far a drag has brought it back (px, 0 or less), and how much of it still shows.
+  const setDrag = (dx, w) => {
+    if (dx == null) {
+      root.style.removeProperty('--drawer-drag');
+      root.style.removeProperty('--drawer-shown');
       return;
     }
-    setClosing(true);
-    timer.current = setTimeout(() => onClose?.(), ms);
+    root.style.setProperty('--drawer-drag', `${dx}px`);
+    root.style.setProperty('--drawer-shown', String(Math.max(0, 1 + dx / w)));
   };
-  return [closing, close];
+  useEffect(() => {
+    // It has been drawn closed once, so it has somewhere to slide in from.
+    ref.current?.getBoundingClientRect();
+    root.classList.add('drawer-open');
+    return () => {
+      clearTimeout(timer.current);
+      root.classList.remove('drawer-open', 'drawer-dragging', 'drawer-flung');
+      setDrag(null);
+    };
+  }, []);
+  const close = () => {
+    if (timer.current) return;
+    root.classList.remove('drawer-open', 'drawer-dragging');
+    setDrag(null);
+    timer.current = setTimeout(() => remove?.(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_MS);
+  };
+  const handle = {
+    onPointerDown(e) {
+      if (timer.current || !ref.current) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      drag.current = { x: e.clientX, y: e.clientY, w: ref.current.offsetWidth, dx: 0, v: 0, t: e.timeStamp, moved: false };
+      root.classList.add('drawer-dragging');
+    },
+    onPointerMove(e) {
+      const d = drag.current;
+      if (!d) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) d.moved = true;
+      const dx = Math.min(0, e.clientX - d.x);
+      d.v = (dx - d.dx) / Math.max(1, e.timeStamp - d.t);
+      d.dx = dx;
+      d.t = e.timeStamp;
+      setDrag(dx, d.w);
+    },
+    onPointerUp() {
+      const d = drag.current;
+      if (!d) return;
+      drag.current = null;
+      if (!d.moved) return close();
+      if (d.dx < -d.w / 3 || d.v < -0.5) {
+        // Already moving, so it carries on out without first slowing to a start.
+        root.classList.add('drawer-flung');
+        return close();
+      }
+      root.classList.remove('drawer-dragging');
+      setDrag(null);
+    },
+    onPointerCancel() {
+      if (!drag.current) return;
+      drag.current = null;
+      root.classList.remove('drawer-dragging');
+      setDrag(null);
+    },
+  };
+  return { ref, close, handle };
 }
 
-export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false, closing = false }) {
+export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false, drawer = null }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.();
@@ -32,8 +94,8 @@ export function Sheet({ title, onClose, children, footer, left, right, className
     return () => removeEventListener('keydown', onKey);
   }, [onClose]);
   return html`
-    <div class=${`sheet-scrim ${closing ? 'closing' : ''}`} onClick=${onClose}></div>
-    <section class=${`sheet ${className} ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
+    <div class=${`sheet-scrim ${drawer ? 'drawer-scrim' : ''}`} onClick=${onClose}></div>
+    <section ref=${drawer?.ref} class=${`sheet ${className} ${drawer ? 'drawer' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
       ${!headless && html`
         <header class="sheet-head">
           ${left || html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`}
@@ -42,6 +104,7 @@ export function Sheet({ title, onClose, children, footer, left, right, className
         </header>`}
       <div class="sheet-body">${children}</div>
       ${footer && html`<footer class="sheet-foot">${footer}</footer>`}
+      ${drawer && html`<div class="drawer-handle" aria-hidden="true" ...${drawer.handle}><span></span></div>`}
     </section>`;
 }
 

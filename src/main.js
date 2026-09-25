@@ -3,9 +3,9 @@ import { App } from './core/app.js';
 import { DB } from './core/db.js';
 import { Root } from './ui/app.js';
 import {
-  RemoteApp, addressOf, botComputer, chooseComputer, computerConnection, computerState, declineComputer, declined, deviceKind, holdConnection, isPaired,
-  lastComputer, markPaired, probeComputer, reachComputer, runsHere, sameComputer, savedConnection, saveConnection, takeConnectLink, takeHeldConnection,
-  useComputer, useConnectionsOf,
+  RemoteApp, addressOf, botComputer, chooseComputer, computerConnection, declineComputer, declined, deviceKind, holdConnection, isPaired, lastComputer,
+  markPaired, probeComputer, reachComputer, runsHere, sameComputer, savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useComputer,
+  useConnectionsOf,
 } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
 import {
@@ -18,6 +18,7 @@ import {
   account, friendlyError, signInWorksHere, SITE,
 } from './account/account.js';
 import { CloudDB, inactive } from './account/cloud-db.js';
+import { computerSummary } from './core/computers.js';
 import { makeLinkCode } from './account/device-link.js';
 import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/device-data.js';
 import { APP_VERSION } from './core/constants.js';
@@ -350,20 +351,19 @@ async function openComputer() {
 }
 
 /** What a computer linked to the account is doing, as far as this app can
- * tell: computerState, or 'unreachable' when it says it's running but didn't
- * answer here, and for one running without an address, why: 'starting'
- * (opening its tunnel) or 'blocked' (its network blocks the tunnel). */
+ * tell: computerSummary's state ('starting' or 'blocked' for one running
+ * whose tunnel isn't working), or 'unreachable' when it says it's running but
+ * didn't answer here. */
 function stateOf(device) {
-  const state = computerState(device);
-  if (state === 'running') return cantReach(device) ? 'unreachable' : state;
-  if (state === 'hidden' && ['starting', 'blocked'].includes(device.tunnel)) return device.tunnel;
-  return state;
+  const { state } = computerSummary(device);
+  return state === 'running' && cantReach(device) ? 'unreachable' : state;
 }
 
-/** What each computer linked to the account is doing (stateOf): for the
- * bots (src/core/prompts.js) and the note in the bot list. */
+/** The computers linked to the account, as the bots here hear of them
+ * (src/core/computers.js computerSummary, with stateOf): for their prompts
+ * (src/core/prompts.js Your computers) and the note in the bot list. */
 function statesOf(list) {
-  return preferred(list || []).map((device) => ({ id: device.id, name: device.name, state: stateOf(device) }));
+  return preferred(list || []).map((device) => ({ ...computerSummary(device), state: stateOf(device) }));
 }
 
 /** Whether `device` didn't answer at its address when this app last tried. */

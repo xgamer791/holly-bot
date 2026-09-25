@@ -134,6 +134,7 @@ export const list = query({
     seenAt: v.optional(v.number()),
     stoppedAt: v.optional(v.number()),
     tunnel: v.optional(v.string()),
+    platform: v.optional(v.string()),
     server: v.boolean(),
     paired: v.boolean(),
   })),
@@ -143,8 +144,8 @@ export const list = query({
     const linked = [];
     for (const device of devices) {
       if (!(await ctx.db.get(device.sessionId))) continue;
-      const { _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel } = device;
-      linked.push({ id: _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel, server: !!device.serverKey, paired: !!device.pairedAt });
+      const { _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel, platform } = device;
+      linked.push({ id: _id, name, linkedAt, url, access, seenAt, stoppedAt, tunnel, platform, server: !!device.serverKey, paired: !!device.pairedAt });
     }
     return linked;
   },
@@ -173,6 +174,8 @@ const ACCESS = /^[A-Za-z0-9_-]{32,128}$/;
 
 /** Why a running computer has no address (report). */
 const TUNNEL_STATES = ["off", "starting", "blocked"];
+/** The systems a computer can say it runs (Node's process.platform). */
+const PLATFORMS = ["win32", "darwin", "linux"];
 
 /**
  * A linked computer says where the account's devices can reach it
@@ -180,24 +183,32 @@ const TUNNEL_STATES = ["off", "starting", "blocked"];
  * has no address they can reach, and then why (`tunnel`: 'off', no tunnel
  * wanted; 'starting', opening one; 'blocked', its network blocks it). It says
  * so as it starts, whenever that changes, every few minutes while it runs,
- * and once more with `stopping` as it stops. Only a linked computer's own
- * session can, and only for itself; it needs no subscription, like the rest
- * of devices:*. The answer says whether it's the server that comes with the
- * plan, which stays linked to the account (unlink).
+ * and once more with `stopping` as it stops, with its system (`platform`).
+ * Only a linked computer's own session can, and only for itself; it needs no
+ * subscription, like the rest of devices:*. The answer says whether it's the
+ * server that comes with the plan, which stays linked to the account
+ * (unlink), and which of the account's computers it is (`id`), for its bots
+ * to tell it from the others (src/core/prompts.js Your computers).
  */
 export const report = mutation({
-  args: { url: v.string(), access: v.string(), stopping: v.optional(v.boolean()), tunnel: v.optional(v.string()) },
-  returns: v.object({ server: v.boolean() }),
-  handler: async (ctx, { url, access, stopping, tunnel }) => {
+  args: {
+    url: v.string(),
+    access: v.string(),
+    stopping: v.optional(v.boolean()),
+    tunnel: v.optional(v.string()),
+    platform: v.optional(v.string()),
+  },
+  returns: v.object({ server: v.boolean(), id: v.id("devices") }),
+  handler: async (ctx, { url, access, stopping, tunnel, platform }) => {
     const userId = await requireUserId(ctx);
     const sessionId = await getAuthSessionId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
     const device = devices.find((row) => row.sessionId === sessionId);
     if (!device) throw new ConvexError("Only a linked Holly Computer can say where it is");
-    const server = !!device.serverKey;
+    const answer = { server: !!device.serverKey, id: device._id };
     if (stopping) {
       await ctx.db.patch(device._id, { url: undefined, access: undefined, tunnel: undefined, stoppedAt: Date.now() });
-      return { server };
+      return answer;
     }
     if (url && (url.length > 300 || !ADDRESS.test(url))) throw new ConvexError("That address isn't a public https address");
     if (url && !ACCESS.test(access)) throw new ConvexError("Bad access key");
@@ -205,10 +216,11 @@ export const report = mutation({
       url: url || undefined,
       access: url ? access : undefined,
       tunnel: !url && tunnel && TUNNEL_STATES.includes(tunnel) ? tunnel : undefined,
+      ...(platform && PLATFORMS.includes(platform) ? { platform } : {}),
       seenAt: Date.now(),
       stoppedAt: undefined,
     });
-    return { server };
+    return answer;
   },
 });
 
