@@ -223,7 +223,7 @@ test('no backup AI: an outage shows on the reply, never goes to another AI, and 
   let outage = true;
   const { app, calls } = await makeApp(async (req, ctx) => {
     if (ctx.isMemoryJob) return { text: '{"operations":[]}' };
-    if (outage) throw new ProviderError('DeepSeek had a problem answering. Try again in a moment.', { status: 502, provider: "Holly Bot's AI" });
+    if (outage) throw new ProviderError("Holly Bot's AI had a problem answering. Try again in a moment.", { status: 502, provider: "Holly Bot's AI" });
     return { text: 'back again', model: req.cfg.model };
   });
   // A backup chosen before bots ran on Holly Bot's AI is left alone.
@@ -234,7 +234,7 @@ test('no backup AI: an outage shows on the reply, never goes to another AI, and 
   await app.runtime.send(threadId, { text: 'hello' });
   let reply = (await app.loadMessages(threadId)).at(-1);
   assert.equal(reply.status, 'error');
-  assert.match(reply.error, /DeepSeek had a problem/);
+  assert.match(reply.error, /had a problem answering/);
   assert.ok(calls.every((c) => c.req.cfg.provider.id === 'deepseek'), 'only Holly Bot\'s AI is asked');
 
   outage = false;

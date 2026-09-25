@@ -1,8 +1,9 @@
-// AI credits (convex/credits.ts, convex/ai.ts): what a request to DeepSeek
-// costs, and each account's month of credits. Amounts are millionths of a US
-// dollar at DeepSeek's list prices; plans give credits in cents
-// (convex/lib/plans.ts), and the app shows 1 credit per cent. No imports:
-// plain functions.
+// AI credits (convex/credits.ts, convex/ai.ts): what a request to Holly Bot's
+// AI costs, and each account's month of credits. Amounts are millionths of a
+// US dollar; plans give credits in cents (convex/lib/plans.ts), and the app
+// shows 1 credit per cent. The AI runs on OpenRouter, which says exactly what
+// each request cost, or on DeepSeek's own API, whose use is priced here (as
+// is a request cut off before OpenRouter said). No imports: plain functions.
 
 /** Millionths of a dollar in a cent. */
 export const MICROS_PER_CENT = 10_000;
@@ -19,8 +20,26 @@ export const PRICES: Record<string, { cached: number; input: number; output: num
   "deepseek-v4-pro": { cached: 0.044, input: 1.32, output: 3.96 },
 };
 
-/** The models Holly Bot's AI runs. */
+/** The models Holly Bot's AI runs, by the app's names for them. */
 export const MODELS = Object.keys(PRICES);
+
+/**
+ * The same models on OpenRouter: its names for the releases DeepSeek's own
+ * API serves, and the reasoning efforts it takes for them, lowest first.
+ */
+export const OPENROUTER: Record<string, { id: string; efforts: string[] }> = {
+  "deepseek-flash": { id: "deepseek/deepseek-v4.1-flash", efforts: ["low", "high", "max"] },
+  "deepseek-v4-pro": { id: "deepseek/deepseek-v4-pro-0813", efforts: ["low", "high", "max"] },
+};
+
+/** The reasoning effort OpenRouter takes for `model` nearest the app's (low, high or max). */
+export function effortFor(model: string, effort: string): string {
+  const efforts = OPENROUTER[model]?.efforts ?? ["high"];
+  if (efforts.includes(effort)) return effort;
+  if (effort === "max" || effort === "xhigh") return efforts[efforts.length - 1];
+  if (effort === "low" || effort === "minimal") return efforts[0];
+  return efforts.includes("high") ? "high" : efforts[efforts.length - 1];
+}
 
 /** DeepSeek's peak hours: 01:00–04:00 and 06:00–10:00 UTC, Monday to Friday. */
 export function deepseekPeak(at: number): boolean {
@@ -31,28 +50,38 @@ export function deepseekPeak(at: number): boolean {
   return (h >= 1 && h < 4) || (h >= 6 && h < 10);
 }
 
-/** Tokens a request used: input DeepSeek had cached, other input, and output. */
+/** Tokens a request used: input the model had cached, other input, and
+ * output; and `cost`, what it came to in millionths of a dollar, when the
+ * service said (OpenRouter does). */
 export interface Usage {
   cached: number;
   fresh: number;
   output: number;
+  cost?: number;
 }
 
-/** DeepSeek's `usage`, or null when it has none. */
+/** A response's `usage` (DeepSeek's or OpenRouter's), or null when it has none. */
 export function usageOf(u: any): Usage | null {
   if (!u || typeof u !== "object" || u.completion_tokens == null) return null;
   const prompt = Number(u.prompt_tokens) || 0;
   const cached = Number(u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens) || 0;
   const fresh = Number(u.prompt_cache_miss_tokens ?? Math.max(0, prompt - cached)) || 0;
-  return { cached, fresh, output: Number(u.completion_tokens) || 0 };
+  const dollars = u.cost == null || u.cost === "" ? NaN : Number(u.cost);
+  return { cached, fresh, output: Number(u.completion_tokens) || 0, ...(Number.isFinite(dollars) && dollars >= 0 ? { cost: Math.ceil(dollars * 1_000_000) } : {}) };
 }
 
-/** What `usage` of `model` costs at time `at`, in millionths of a dollar. An
- * unknown model is charged at the dearest one's prices. */
-export function costOf(model: string, usage: Usage, at: number): number {
+/** Where Holly Bot's AI runs: OpenRouter, or DeepSeek's own API. */
+export type Via = "openrouter" | "deepseek";
+
+/** What `usage` of `model` costs at time `at`, in millionths of a dollar:
+ * what the service said, or else DeepSeek's list prices, half price off-peak
+ * on DeepSeek's own API (OpenRouter's providers have no off-peak hours). An
+ * unknown model is charged at the dearest one's. */
+export function costOf(model: string, usage: Usage, at: number, via: Via = "deepseek"): number {
+  if (usage.cost != null) return usage.cost;
   const p = PRICES[model] ?? PRICES["deepseek-v4-pro"];
   const full = usage.cached * p.cached + usage.fresh * p.input + usage.output * p.output;
-  return Math.ceil(deepseekPeak(at) ? full : full / 2);
+  return Math.ceil(via === "deepseek" && !deepseekPeak(at) ? full / 2 : full);
 }
 
 /** A rough count of the tokens in a chat request's input: about 4 characters

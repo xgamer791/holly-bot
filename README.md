@@ -10,7 +10,7 @@ Holly Bot is a subscription, and every plan comes with a dedicated server of you
 
 | Plan | Paid yearly | Month to month | Your server | AI credits a month |
 |---|---|---|---|---|
-| Starter (best for 1 bot) | $490 a year | $60 a month | 2 CPU, 4 GB RAM | 1,000 ($10 of DeepSeek) |
+| Starter (best for 1 bot) | $490 a year | $60 a month | 2 CPU, 4 GB RAM | 1,000 ($10 of AI) |
 | Pro | $990 a year | $120 a month | 4 CPU, 8 GB RAM | 2,000 ($20) |
 | Ultra | $1,790 a year | $200 a month | 6 CPU, 16 GB RAM | 3,500 ($35) |
 
@@ -76,13 +76,13 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 ## Brains: Holly Bot's AI and AI credits
 
-- Bots think with **Holly Bot's AI**: DeepSeek, which Holly Bot's server calls with its own key (`convex/ai.ts`). Nobody brings a key. Each bot runs **DeepSeek V4.1 Flash** (`deepseek-flash`, the default: smart, fast, a 1M-token context, and it sees images) or **DeepSeek V4 Pro** (`deepseek-v4-pro`: deeper thinking, about 4× the credits), picked in the bot's profile. Note that DeepSeek's servers are in China.
-- **AI credits:** every plan gives credits each month: Starter 1,000, Pro 2,000, Ultra 3,500. A credit is a cent of DeepSeek use at DeepSeek's list prices, so the plans hold $10, $20 and $35 of it (`convex/lib/plans.ts`). Members never see money: Settings → Usage shows a bar of what's left this month, the credits left, and when they refill.
-- **Metered per request:** after each reply DeepSeek says exactly how many tokens it used (from its cache, new input, output), and the server prices them at DeepSeek's rates, half price off-peak (outside 01:00–04:00 and 06:00–10:00 UTC on weekdays), and takes that off the account's credits. So the bar moves exactly with what the requests cost. While a request runs, the most it could cost is held back, so requests at once can't spend more than is left (`convex/credits.ts`).
+- Bots think with **Holly Bot's AI**: DeepSeek's models, which Holly Bot's server runs through OpenRouter with its own key (`convex/ai.ts`). Nobody brings a key. Each bot runs **DeepSeek V4.1 Flash** (`deepseek-flash`, the default: smart, fast, a 1M-token context, and it sees images) or **DeepSeek V4 Pro** (`deepseek-v4-pro`: deeper thinking, about 4× the credits), picked in the bot's profile. OpenRouter only hands requests to providers that don't keep or train on them, so DeepSeek's own servers (in China) aren't used.
+- **AI credits:** every plan gives credits each month: Starter 1,000, Pro 2,000, Ultra 3,500. A credit is a cent of what the AI costs Holly Bot, so the plans hold $10, $20 and $35 of it (`convex/lib/plans.ts`). Members never see money: Settings → Usage shows a bar of what's left this month, the credits left, and when they refill.
+- **Metered per request:** after each reply OpenRouter says exactly what it cost, and the server takes that off the account's credits. So the bar moves exactly with what the requests cost. While a request runs, the most it could cost is held back, so requests at once can't spend more than is left (`convex/credits.ts`).
 - **Refills:** monthly, on the day the plan renews (monthly on yearly plans too). Unused credits don't carry over. Upgrading adds the difference for the rest of the month; downgrading keeps at most the new plan's amount.
 - **At zero,** bots pause until the refill: they say the credits are used up and when they refill, with a See credits button.
 - **Credits only:** there are no API keys for AI any more, no other providers, and no backup provider. Image generation and embedding-based memory search need providers Holly Bot doesn't use, so they're off (memory search uses keywords, recency and importance). Web search keys (Tavily, Exa, Jina, Brave) are still in Settings → Plugins.
-- Holly Bot's server keeps no content of requests: only each account's credits and this month's token counts. Setting it up (`DEEPSEEK_API_KEY`) is in [CONVEX.md](CONVEX.md#holly-bots-ai-and-ai-credits).
+- Holly Bot's server keeps no content of requests: only each account's credits and this month's token counts. Setting it up (`OPENROUTER_API_KEY`) is in [CONVEX.md](CONVEX.md#holly-bots-ai-and-ai-credits).
 
 ## What bots can do
 

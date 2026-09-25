@@ -109,19 +109,23 @@ jobs:
             fi
           done
 
-      # Holly Bot's AI: the DeepSeek key its server calls DeepSeek with for
-      # everyone's bots, paid for with their monthly credits (convex/ai.ts).
-      # It can also be set in the Convex dashboard; a secret that isn't set
-      # here leaves the deployment's own value alone.
-      - name: Copy the AI key to the deployment
+      # Holly Bot's AI: the keys its server runs everyone's bots on, paid for
+      # with their monthly credits (convex/ai.ts). OpenRouter's is used when
+      # it's set, DeepSeek's own otherwise. They can also be set in the Convex
+      # dashboard; a secret that isn't set here leaves the deployment's own
+      # value alone.
+      - name: Copy the AI keys to the deployment
         env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          if [ -n "$DEEPSEEK_API_KEY" ]; then
-            printf '%s' "$DEEPSEEK_API_KEY" | npx convex env set DEEPSEEK_API_KEY
-          else
-            echo "DEEPSEEK_API_KEY is not a repository secret; keeping the deployment's value."
-          fi
+          for name in OPENROUTER_API_KEY DEEPSEEK_API_KEY; do
+            if [ -n "${!name}" ]; then
+              printf '%s' "${!name}" | npx convex env set "$name"
+            else
+              echo "$name is not a repository secret; keeping the deployment's value."
+            fi
+          done
 
       # Optional: Stripe and Vultr, for subscriptions and each subscriber's
       # server (CONVEX.md). They can also be set in the Convex dashboard; a
