@@ -29,7 +29,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Open on two devices at once? Each notices the other's changes and offers to refresh, which it does by itself after two untouched minutes, never as you come back to the app. A routine runs once, on whichever device gets to it first.
 - Holly Computer keeps its bots in your account too, once it's linked. Signing in on the page it opens on the computer links it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, whether each is running, and Connect and Unlink.
 - A linked Holly Computer tells your account where your devices can reach it: its tunnel (or `--public-url`) address and an access key of its own, again every five minutes while it runs, and that it stopped when it stops. So there's no link to open or QR code to scan. Holly Bot on every device signed in to your account connects to it as the app opens, and if the app is already open when the computer comes on (you start it, or sign in on it for the first time), a popup asks to connect. Not now leaves a Connect note at the top of the bot list. The app follows the computer to its new address when it restarts. When it isn't running, the app runs your bots itself and they know why they can't use the computer. The access key stops working when you unlink the computer, and `--new-token` changes it.
-- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Computer updates itself each time it starts (`--no-update` to skip that).
+- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Computer updates itself each time it starts (`--no-update` to skip that); on a Holly Bot server it also restarts itself for a newer version once no bot is working.
+- Right after you subscribe, the app opens: it doesn't wait for your server. With no bots yet, you make your Chief Coordinator first, then you're in. Your bots run in the app while the server is set up (a few minutes), with the computer button at the top right pulsing blue, and the app moves onto the server by itself once it's ready and nothing's going on.
 - Holly Computer's own page on the computer asks you to sign in. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
 - [Privacy Policy](https://xgamer791.github.io/holly-bot/privacy.html) and [Terms of Service](https://xgamer791.github.io/holly-bot/terms.html) (`privacy.html`, `terms.html`), linked from the sign-in screens and Settings.
 - Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md).
@@ -93,6 +94,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - Periodic reflection, and a team memory that all bots share.
   - Long chats are kept verbatim up to about 400k tokens.
 - **Teamwork:**
+  - **Chief Coordinator:** every account's first bot, and the one you talk to. Like Grok Bot's chief of staff, it runs the rest: it hands each job to the bot whose role covers it (and only does it itself when none fits), suggests specialist bots for your work and creates them when you say yes, keeps the team in step through team memory, and comes back to you for decisions. It's pinned at the top of the bot list, and it can't lose its bot tools. A new account makes it first (the name starts as "Chief Coordinator"); an account that has bots already is offered one once.
   - Bots message each other in private channels (`message_agent`).
   - They can hand off background tasks (`delegate_task`).
   - Group chats come in three modes: Smart routing, Everyone, or only the bots you @mention.
@@ -130,7 +132,7 @@ npm run check            # syntax check everything and confirm the bundle is cur
 
 Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
-- `src/ui`: the interface (`subscribe.js` is the subscription page, `setup.js` the computer being set up).
+- `src/ui`: the interface (`subscribe.js` is the subscription page, `chief.js` the Chief Coordinator's page, a new account's first bot).
 - `src/remote`: the phone-side remote-control client.
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
 - `convex`: that backend (accounts and everything in them, subscriptions through Stripe in `billing.ts`, and each subscriber's Vultr server in `servers.ts`). `.github/workflows/convex.yml` deploys it.

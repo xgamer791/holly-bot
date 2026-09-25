@@ -51,7 +51,9 @@ export function BotProfileSheet({ agentId, onClose }) {
         <${Row} title="Learn automatically" sub="Save important facts from every conversation" toggle=${agent.memoryAuto !== false} onToggle=${(v) => save({ memoryAuto: v })} />
       <//>
       <${Group} label="Tools">
-        ${Object.entries(TOOL_GROUPS).map(([k, g]) => html`<${Row} key=${k} title=${g.label} sub=${toolSub(app, k, g)} toggle=${agent.tools?.[k] !== false} onToggle=${(v) => save({ tools: { ...(agent.tools || {}), [k]: v } })} />`)}
+        ${Object.entries(TOOL_GROUPS).map(([k, g]) => (k === 'agents' && agent.role === 'chief'
+          ? html`<${Row} key=${k} title=${g.label} sub="Always on: the Chief Coordinator runs your other bots" value="On" />`
+          : html`<${Row} key=${k} title=${g.label} sub=${toolSub(app, k, g)} toggle=${agent.tools?.[k] !== false} onToggle=${(v) => save({ tools: { ...(agent.tools || {}), [k]: v } })} />`))}
       <//>
       ${app.plugins.list().some((p) => p.status === 'ok') && html`<${Group} label="Plugins">
         ${app.plugins.list().filter((p) => p.status === 'ok').map((p) => html`<${Row} key=${p.key} title=${p.name} sub=${`${p.tools.length} tools${p.via === 'computer' ? ' · via Bot Computer' : ''}`}

@@ -4,6 +4,8 @@ import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
 import { initials, formatShort } from '../core/util.js';
+import { chiefOf } from '../core/chief.js';
+import { ComputerButton } from './computer-button.js';
 
 export function HomeScreen({ activeThreadId }) {
   const app = useApp();
@@ -16,12 +18,15 @@ export function HomeScreen({ activeThreadId }) {
   const plusRef = useRef(null);
 
   const q = query.trim().toLowerCase();
+  const chief = chiefOf(app);
+  const chiefChat = (t) => Number(!!chief && t.kind === 'dm' && t.agentIds[0] === chief.id);
+  // The Chief Coordinator's chat stays at the top.
   const threads = app.listThreads().filter((t) => {
     if (t.kind === 'dm' && !app.getAgent(t.agentIds[0])) return false;
     if (!q) return true;
     const title = threadTitle(app, t).toLowerCase();
     return title.includes(q) || (t.preview?.text || '').toLowerCase().includes(q);
-  });
+  }).sort((a, b) => chiefChat(b) - chiefChat(a));
   const profileName = app.settings.profile?.name || '';
 
   return html`
@@ -29,6 +34,7 @@ export function HomeScreen({ activeThreadId }) {
       <header class="topbar">
         <button class="initials" aria-label="Settings" onClick=${() => ui.openSheet('settings')}>${profileName ? initials(profileName) : html`<${Icon.gear} size="20" />`}</button>
         <div class="spacer"></div>
+        <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
         <button class="circle-btn" aria-label="Search" onClick=${() => {
           setSearching(!searching);
           setQuery('');
@@ -113,6 +119,7 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
   const previewClass = kind === 'waiting' ? 'waiting' : kind === 'error' ? 'error' : '';
   const agents = thread.agentIds.map((id) => app.getAgent(id)).filter(Boolean);
   const agent = agents[0];
+  const isChief = thread.kind === 'dm' && agent?.role === 'chief';
   const title = threadTitle(app, thread);
   const at = thread.preview?.at || thread.updatedAt;
   let preview = thread.preview?.text || '';
@@ -181,8 +188,9 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
           ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" activityOf=${(a) => botActivity(app, a, thread.id)} />`
           : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" activity=${botActivity(app, agent, thread.id) || (busy ? 'thinking' : null)} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
         <div class="meta">
-          <div class="line1">
+          <div class=${`line1 ${isChief ? 'tagged' : ''}`}>
             <span class="title">${title}</span>
+            ${isChief && html`<span class="chief-tag">Chief</span>`}
             ${!(thread.unread && !active) && html`<span class="time">${at ? formatShort(at) : ''}</span>`}
           </div>
           <div class="line2">

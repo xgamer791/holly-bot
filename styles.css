@@ -218,6 +218,10 @@ svg { display: block; }
 .row-bot .line1 { display: flex; align-items: baseline; gap: 10px; }
 .row-bot .title { flex: 1; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-bot .time { color: var(--muted); font-size: 15px; flex: none; }
+/* The Chief Coordinator's chat, pinned at the top of the list. */
+.row-bot .line1.tagged .title { flex: 0 1 auto; }
+.row-bot .line1.tagged .time { margin-left: auto; }
+.row-bot .chief-tag { flex: none; align-self: center; padding: 2px 7px; border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: 12px; line-height: 15px; font-weight: 600; }
 .row-bot .line2 { display: flex; align-items: center; gap: 10px; margin-top: 3px; }
 .row-bot .preview { flex: 1; color: var(--muted); font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-bot .preview.waiting { color: var(--orange); }
@@ -757,20 +761,14 @@ html.signed-out #boot { background: #fff !important; }
 .sub-fine { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
 @keyframes sub-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-/* Setting up the subscriber's computer (src/ui/setup.js): a checklist that
-   fills in as the server is made, started and set up. */
-.setup-steps { width: 100%; max-width: 320px; margin: 8px 0 0; padding: 18px 20px; list-style: none; display: flex; flex-direction: column; gap: 14px;
+/* The Chief Coordinator's page (src/ui/chief.js): what it does, its name and look. */
+.chief-points { max-width: 400px; margin: 2px 0 6px; padding: 16px 18px; list-style: none; display: flex; flex-direction: column; gap: 12px;
   border-radius: 18px; background: var(--surface-2); text-align: left; }
-.setup-steps li { display: flex; align-items: center; gap: 12px; color: var(--dim); font-size: 15px; line-height: 20px; font-weight: 600; transition: color .3s; }
-.setup-steps li.done { color: var(--text-2); }
-.setup-steps li.now { color: var(--text); }
-.setup-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff;
-  box-shadow: inset 0 0 0 2px var(--border-strong); transition: background .3s, box-shadow .3s; }
-.setup-steps li.done .setup-dot { background: var(--text); box-shadow: none; animation: sub-pop .35s cubic-bezier(.3, 1.6, .5, 1); }
-.setup-steps li.now .setup-dot { box-shadow: none; }
-.setup-dot .spinner { width: 20px; height: 20px; }
-.setup-time { margin: 0; color: var(--muted); font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
-@keyframes sub-pop { from { transform: scale(.5); } to { transform: none; } }
+.chief-points li { display: flex; align-items: flex-start; gap: 10px; color: var(--text-2); font-size: 15px; line-height: 21px; }
+.chief-points svg { flex: none; margin-top: 2px; color: var(--text); }
+.chief-page .name-input { max-width: 400px; height: 56px; background: var(--surface-2); color: var(--text); font-size: 22px; }
+.chief-page .name-input::placeholder { color: var(--dim); }
+.chief-page .picker { margin-top: 10px; }
 @media (min-width: 700px) {
   .sub-head { padding-top: 56px; }
   .sub-title { font-size: 34px; line-height: 40px; }

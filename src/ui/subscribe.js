@@ -9,7 +9,7 @@ import { Icon } from './icons.js';
 // subscription isn't active. Plans are the server's (convex/lib/plans.ts),
 // paid month to month or, for less, yearly, through Stripe Checkout
 // (convex/billing.ts). Back from paying, it waits for Stripe's word, then
-// hands over to setting up the subscriber's computer (src/ui/setup.js). A
+// opens the app, while the subscriber's computer is set up (src/main.js). A
 // payment that didn't go through leads to Stripe's billing portal instead.
 
 const EVERY = { month: 'Monthly', year: 'Yearly' };

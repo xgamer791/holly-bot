@@ -58,9 +58,15 @@ export const agentTools = [
     parameters: { type: 'object', properties: {} },
     async run(_args, ctx) {
       const others = ctx.app.listAgents().filter((a) => a.id !== ctx.agent.id);
-      if (!others.length) return { content: 'You are the only bot right now. The user can create more with the + button.' };
+      if (!others.length) {
+        return {
+          content: ctx.agent.role === 'chief'
+            ? 'You are the only bot right now. Suggest specialists for the user\'s work, and create them with create_agent once they agree.'
+            : 'You are the only bot right now. The user can create more with the + button.',
+        };
+      }
       return {
-        content: others.map((a) => `- ${a.name}${a.description ? ` — ${a.description}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
+        content: others.map((a) => `- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${a.description}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
       };
     },
   },
@@ -124,7 +130,7 @@ export const agentTools = [
     group: 'agents',
     risk: 'high',
     label: (a) => `Create bot “${a.name}”`,
-    description: 'Create a new bot (a teammate with its own name, look, personality and memory). Only do this when the user asks for a new bot.',
+    description: 'Create a new bot (a teammate with its own name, look, personality and memory). Only do this when the user asks for a new bot, or agrees to one you suggested.',
     parameters: {
       type: 'object',
       properties: {

@@ -1,5 +1,6 @@
 import { isoDate, localTimeContext, truncate } from './util.js';
 import { formatMemories } from './memory/store.js';
+import { chiefInstructions } from './chief.js';
 
 // System prompt and per-message context for a bot. The system prompt is built
 // once per turn and kept stable (it only changes when the bot's settings, core
@@ -26,6 +27,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
 
   lines.push(`You are ${agent.name}, one of the user's personal AI bots in Holly Bot. Each bot has its own name, personality, long-term memory, files and tools, and bots can talk to each other.`);
   if (agent.description) lines.push(`Your role: ${agent.description}.`);
+  if (agent.role === 'chief') lines.push('', '## You run the team', chiefInstructions({ alone: !others.length }));
   if (agent.persona?.trim()) lines.push('', '## Personality and instructions from the user', agent.persona.trim());
 
   lines.push('', '## Your memory',
@@ -48,7 +50,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
 
   if (others.length && toolNames.has('message_agent')) {
     lines.push('', '## Your team (other bots)');
-    for (const a of others.slice(0, 30)) lines.push(`- ${a.name}${a.description ? ` — ${a.description}` : ''}`);
+    for (const a of others.slice(0, 30)) lines.push(`- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${a.description}` : ''}`);
     lines.push('Use message_agent for quick questions, opinions or reviews (they reply right away) and delegate_task for longer work that should run in the background. Other bots only see what you send them.');
   }
 
