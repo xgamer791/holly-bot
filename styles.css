@@ -476,11 +476,11 @@ button.row:active { background: var(--surface-2); }
 .pbar-seg { display: inline-flex; align-items: center; height: 36px; border-radius: 18px; background: var(--pb-btn); flex: none; }
 .pbar-seg-btn { width: 44px; height: 36px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--pb-icon); transition: background .15s, color .15s; }
 .pbar-seg-btn svg { width: 21px; height: 21px; }
-/* Web search on: its half of the pill lights up. */
-.pbar-seg-btn.on { background: var(--pb-on); color: var(--text); }
-:root[data-theme="light"] .pbar-seg-btn.on { box-shadow: 0 0 0 1px #e3e3df, 0 1px 2px rgba(0, 0, 0, .06); }
-/* The computer: white (dark in light mode) while connected, gray when not. */
-.pbar-seg-btn.live { color: var(--text); }
+/* Web search on, and the computer while this app is connected to one: its
+   half of the pill lights up. Gray when not. */
+.pbar-seg-btn.on, .pbar-seg-btn.live { background: var(--pb-on); color: var(--text); }
+:root[data-theme="light"] .pbar-seg-btn.on,
+:root[data-theme="light"] .pbar-seg-btn.live { box-shadow: 0 0 0 1px #e3e3df, 0 1px 2px rgba(0, 0, 0, .06); }
 .pbar-pill { height: 36px; min-width: 0; max-width: 150px; padding: 0 13px; border-radius: 18px; background: var(--pb-btn); color: var(--text-2); font-size: 15px; display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; }
 .pbar-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pbar-pill svg { flex: none; }

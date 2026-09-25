@@ -159,7 +159,7 @@ export function Composer({ thread, agents, onVoice }) {
       ui.toast(err.message, { error: true });
     }
   };
-  // The computer button is white while a Holly Computer is connected, gray when not.
+  // The computer button lights up like web search while a Holly Computer is connected, gray when not.
   const computerOn = !!app.computer?.connected && app.reachable !== false;
   const ws = (app.getThread(thread.id) || thread).workspace || null;
 
