@@ -124,12 +124,12 @@ test('the bot uses the computer; the phone sees it live', async () => {
   await shot('chat');
 });
 
-test('the phone shows when the computer is unreachable and recovers after it restarts', async () => {
+test('the phone notices when the computer is unreachable and recovers after it restarts', async () => {
   await stopHolly();
-  await page.locator('.conn-banner').waitFor({ timeout: 20000 });
+  await page.waitForFunction(() => window.holly?.reachable === false, null, { timeout: 20000 });
   await shot('offline');
   await startHolly();
-  await page.locator('.conn-banner').waitFor({ state: 'detached', timeout: 30000 });
+  await page.waitForFunction(() => window.holly?.reachable === true, null, { timeout: 30000 });
   // Still in sync after the restart: a new message arrives live.
   await page.getByLabel('Ask Holly').fill('Hello again');
   await page.getByRole('button', { name: 'Send' }).click();

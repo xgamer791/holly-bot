@@ -579,9 +579,6 @@ button.row:active { background: var(--surface-2); }
 }
 
 /* ---------- remote mode ---------- */
-.conn-banner { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 74px); left: 50%; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border-radius: 999px; background: var(--surface-3); color: var(--text); font-size: 13.5px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); max-width: calc(100vw - 32px); }
-.conn-banner .spinner { width: 14px; height: 14px; }
 .computer-cta { display: flex; align-items: center; gap: 12px; margin: 26px auto 0; max-width: 420px; width: 100%; padding: 14px 16px; border: 0; border-radius: 18px;
   background: var(--surface-2); color: var(--muted); text-align: left; font: inherit; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
 .computer-cta b { color: var(--text); font-size: 15px; }

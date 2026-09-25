@@ -665,6 +665,7 @@ function LinkedComputers() {
 function ComputerPage() {
   const app = useApp();
   const ui = useUi();
+  useTopics(['reachable']);
   const [url, setUrl] = useState('http://localhost:8787');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
@@ -678,7 +679,7 @@ function ComputerPage() {
       <div class="welcome" style="padding-bottom:6px">
         <p><b>Your bots live on ${info.hostname || app.server?.name || 'your computer'}</b> and keep working when your phone is locked. This app is the remote control.</p>
       </div>
-      <div style="margin:0 0 12px"><span class=${`status-pill ${app.connection === 'online' ? 'ok' : 'bad'}`}><span class="d"></span>${app.connection === 'online' ? 'Connected' : 'Reconnecting…'}</span></div>
+      <div style="margin:0 0 12px"><span class=${`status-pill ${app.reachable ? 'ok' : 'bad'}`}><span class="d"></span>${app.reachable ? 'Connected' : 'Reconnecting…'}</span></div>
       <${Group}>
         <${Row} title="Computer" value=${info.hostname || '—'} />
         <${Row} title="System" value=${info.os || info.platform || '—'} />

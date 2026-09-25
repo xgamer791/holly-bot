@@ -33,7 +33,8 @@ export class RemoteApp {
     this.activity = [];
     this.pluginList = [];
     this.viewingThreadId = null;
-    this.connection = 'connecting';
+    /** Whether live updates are coming through (Settings → Bot Computer). */
+    this.reachable = false;
     this.server = null;
 
     this.computer = new ComputerClient({ url: this.base || location.origin, token });
@@ -141,7 +142,7 @@ export class RemoteApp {
     if (res.status === 401) throw new Error('This pairing link is no longer valid. Open the latest link printed by Holly Computer.');
     if (!res.ok) throw new Error(`Holly Computer error ${res.status}`);
     this.applyState(await res.json());
-    this.connection = 'online';
+    this.reachable = true;
     this.startEvents();
     return this;
   }
@@ -168,10 +169,12 @@ export class RemoteApp {
   async startEvents() {
     if (this.eventsRunning) return;
     this.eventsRunning = true;
+    this.watchForeground();
     let backoff = 1000;
     while (!this.closed) {
+      const ctrl = new AbortController();
+      this.polling = ctrl;
       try {
-        const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 45000);
         let res;
         try {
@@ -182,10 +185,8 @@ export class RemoteApp {
         }
         if (!res.ok) throw new Error(`poll ${res.status}`);
         const data = await res.json();
-        if (this.connection !== 'online') {
-          this.connection = 'online';
-          this.emit('connection');
-        }
+        this.setReachable(true);
+        this.hurry = false;
         backoff = 1000;
         if (data.reset) {
           await this.resync();
@@ -195,11 +196,14 @@ export class RemoteApp {
         this.seq = data.seq;
       } catch (err) {
         if (this.closed) break;
-        console.warn('live updates', err.message);
-        if (this.connection !== 'offline') {
-          this.connection = 'offline';
-          this.emit('connection');
+        // Started over because the app came back to the front: straight on.
+        if (this.restarted === ctrl) {
+          this.restarted = null;
+          backoff = 1000;
+          continue;
         }
+        console.warn('live updates', err.message);
+        this.setReachable(false);
         // Holly Computer restarted, so it's at a new address (a quick
         // tunnel's changes each time), or has a new key: the account knows.
         if (this.relocate && Date.now() - this.relocatedAt > 20_000) {
@@ -211,11 +215,69 @@ export class RemoteApp {
             continue;
           }
         }
-        await new Promise((r) => setTimeout(r, backoff));
-        backoff = Math.min(backoff * 2, 15000);
+        const cutShort = await this.pause(backoff);
+        backoff = cutShort ? 1000 : Math.min(backoff * 2, 15000);
       }
     }
+    this.polling = null;
     this.eventsRunning = false;
+  }
+
+  setReachable(reachable) {
+    if (this.reachable === reachable) return;
+    this.reachable = reachable;
+    this.emit('reachable');
+  }
+
+  /** Waits `ms` before trying again. True when that was cut short because
+   * the app came back to the front (watchForeground). */
+  pause(ms) {
+    if (this.hurry) {
+      this.hurry = false;
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), ms);
+      this.wake = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+    }).finally(() => {
+      this.wake = null;
+    });
+  }
+
+  /**
+   * A phone stops the app while it's in the background, and with it the
+   * connection live updates come through. Back in front (or back online),
+   * the app catches up with the computer at once: a poll from before it went
+   * away, which may never answer, is dropped for a new one, and a wait to try
+   * again is cut short.
+   */
+  watchForeground() {
+    if (typeof document === 'undefined') return;
+    let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : 0;
+    const back = (fresh) => {
+      if (this.closed) return;
+      // Waiting to try again: now. Still finding out a poll failed: no wait
+      // when it gets there.
+      if (this.wake) this.wake();
+      else this.hurry = true;
+      if (fresh && this.polling) {
+        this.restarted = this.polling;
+        this.polling.abort();
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      back(!!hiddenAt && Date.now() - hiddenAt > 3000);
+      hiddenAt = 0;
+    });
+    addEventListener('pageshow', (e) => e.persisted && back(true));
+    addEventListener('online', () => back(true));
   }
 
   /** Talks to Holly Computer at its new address from now on. The next poll
