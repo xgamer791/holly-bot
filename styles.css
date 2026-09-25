@@ -367,10 +367,10 @@ button.row:active { background: var(--surface-2); }
 
 /* ---------- inside the Settings drawer (src/ui/settings.js) ----------
    A flat menu on the app's own background, in sections: a heading in small
-   capitals over rows of an icon, a title (with a line under it when there's
-   more to say), and a value, switch or chevron. No cards and no lines between
-   rows; a row lights up, rounded, while it's pressed. Every page inside the
-   drawer is made of the same rows, headings and notes. */
+   capitals over rows of a title (with a line under it when there's more to
+   say) and a value, switch or chevron. No cards, no icons and no lines
+   between rows; a row lights up, rounded, while it's pressed. Every page
+   inside the drawer is made of the same rows, headings and notes. */
 .drawer .sheet-head { padding: 16px 20px 4px; min-height: 68px; gap: 14px; }
 .drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); }
 .drawer .group { background: none; border-radius: 0; margin: 0; overflow: visible; }
@@ -386,11 +386,7 @@ button.row:active { background: var(--surface-2); }
 .drawer .row .value { font-size: 15.5px; }
 .drawer .row .chev { width: 16px; height: 16px; }
 .drawer .row > svg:first-child { flex: none; color: var(--text-2); }
-.row-icon { width: 22px; height: 22px; stroke-width: 1.8; }
-/* Beside a title with a line under it, the icon sits level with the title. */
-.drawer .row:has(.label .s) > .row-icon { align-self: flex-start; }
-.drawer .row.danger .row-icon { color: var(--red); }
-:root[data-theme="light"] .drawer .row.danger .t, :root[data-theme="light"] .drawer .row.danger .row-icon { color: var(--red-strong); }
+:root[data-theme="light"] .drawer .row.danger .t { color: var(--red-strong); }
 .drawer .credits-card { margin: 4px 0 12px; padding: 0; border-radius: 0; background: none; }
 .drawer .bubble.plain-bot, :root[data-theme="light"] .drawer .bubble.plain-bot { padding: 0; border-radius: 0; background: none; }
 .drawer .mem { margin: 8px 0; padding: 0; border-radius: 0; background: none; }

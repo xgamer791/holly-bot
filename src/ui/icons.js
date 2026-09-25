@@ -69,11 +69,6 @@ export const Icon = {
   mail: I(html`<rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M4 7.5l8 6 8-6" />`),
   cpu: I(html`<rect x="6" y="6" width="12" height="12" rx="2.5" /><rect x="9.5" y="9.5" width="5" height="5" rx="1" /><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3" />`),
   memory: I(html`<rect x="3" y="6" width="18" height="10" rx="2" /><path d="M7.5 9.5v3M12 9.5v3M16.5 9.5v3M6 16v3M10 16v3M14 16v3M18 16v3" />`),
-  // A phone buzzing: haptics.
-  haptics: I(html`<rect x="8" y="3.5" width="8" height="17" rx="2.2" /><path d="M4.5 9v6M19.5 9v6" />`),
-  help: I(html`<circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 014.9.7c0 1.7-2.5 2.1-2.5 3.8M12 17h.01" />`),
-  archive: I(html`<rect x="3" y="4" width="18" height="5" rx="1.5" /><path d="M5 9v9a2 2 0 002 2h10a2 2 0 002-2V9M10 13h4" />`),
-  logout: I(html`<path d="M10 4H6.5A2.5 2.5 0 004 6.5v11A2.5 2.5 0 006.5 20H10M15 16l4-4-4-4M19 12H9" />`),
   // Opens somewhere else (a new tab).
   external: I(html`<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h4" />`),
 };

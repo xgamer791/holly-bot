@@ -115,21 +115,20 @@ function MainPage({ go, onClose }) {
   const s = app.settings;
   const set = (patch) => app.saveSettings(patch);
   const lang = s.language || 'system';
-  const icon = (Glyph) => html`<${Glyph} class="row-icon" />`;
   return html`
     <${AccountHeader} acct=${acct} go=${go} />
     <${Group} label=${tr('Bots')}>
-      <${Row} icon=${icon(Icon.plug)} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
-      <${Row} icon=${icon(Icon.botScreen)} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
-      <${Row} icon=${icon(Icon.brain)} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
-      <${Row} icon=${icon(Icon.clock)} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
+      <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
+      <${Row} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
+      <${Row} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
+      <${Row} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
     <//>
     <${Group} label=${tr('Safety & data')}>
-      <${Row} icon=${icon(Icon.shield)} title=${tr('Auto-review')} sub=${tr('Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories.')} toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
-      <${Row} icon=${icon(Icon.archive)} title=${tr('Data & Backup')} onClick=${() => go('data')} />
+      <${Row} title=${tr('Auto-review')} sub=${tr('Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories.')} toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
+      <${Row} title=${tr('Data & Backup')} onClick=${() => go('data')} />
     <//>
     <${Group} label=${tr('Preferences')}>
-      <${Row} icon=${icon(Icon.bell)} title=${tr('Notifications')} toggle=${!!s.notifications} onToggle=${async (v) => {
+      <${Row} title=${tr('Notifications')} toggle=${!!s.notifications} onToggle=${async (v) => {
         if (v && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
           const p = await Notification.requestPermission().catch(() => 'denied');
           if (p !== 'granted') {
@@ -139,23 +138,23 @@ function MainPage({ go, onClose }) {
         }
         set({ notifications: v });
       }} />
-      <${Row} icon=${icon(Icon.palette)} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
-      <${Row} icon=${icon(Icon.globe)} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
-      <${Row} icon=${icon(Icon.wave)} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
-      <${Row} icon=${icon(Icon.haptics)} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
+      <${Row} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
+      <${Row} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
+      <${Row} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
+      <${Row} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
     <//>
     <${Group} label=${tr('Support')}>
-      <${Row} icon=${icon(Icon.help)} title=${tr('Help Center')} onClick=${() => go('help')} />
-      <${Row} icon=${icon(Icon.chat)} title=${tr('Send Feedback')} chevron=${false} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')}>
+      <${Row} title=${tr('Help Center')} onClick=${() => go('help')} />
+      <${Row} title=${tr('Send Feedback')} chevron=${false} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')}>
         <${Icon.external} class="chev" />
       <//>
-      <${Row} icon=${icon(Icon.lock)} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
-      <${Row} icon=${icon(Icon.file)} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
+      <${Row} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
+      <${Row} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
     <//>
     <div class="drawer-signout">
       ${acct.signedIn ? html`
-        <${Row} icon=${icon(Icon.logout)} title=${tr('Sign Out')} sub=${app.remote ? tr('Your bots stay on your computer.') : tr('Your bots, chats, memories and keys stay in your account.')} chevron=${false} danger onClick=${() => signOut(app, ui)} />`
-      : html`<${Row} icon=${icon(Icon.logout)} title=${tr('Sign Out')} sub=${tr('Removes your API keys from this device. Bots and memories stay.')} chevron=${false} danger onClick=${async () => {
+        <${Row} title=${tr('Sign Out')} sub=${app.remote ? tr('Your bots stay on your computer.') : tr('Your bots, chats, memories and keys stay in your account.')} chevron=${false} danger onClick=${() => signOut(app, ui)} />`
+      : html`<${Row} title=${tr('Sign Out')} sub=${tr('Removes your API keys from this device. Bots and memories stay.')} chevron=${false} danger onClick=${async () => {
         if (!(await ui.confirm({ title: tr('Sign out?'), message: tr('Your API keys will be removed. Your bots, chats and memories are kept.'), confirmText: tr('Sign Out'), danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
