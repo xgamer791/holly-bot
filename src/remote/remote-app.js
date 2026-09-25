@@ -57,8 +57,8 @@ export class RemoteApp {
       approve: (m, c, d) => self.rpc('runtime.approve', m, c, d),
       retry: (m) => self.rpc('runtime.retry', m),
       regenerate: (m) => self.rpc('runtime.regenerate', m),
-      stop: (threadId) => self.rpc('runtime.stop', threadId),
-      stopAll: () => self.rpc('runtime.stopAll'),
+      stop: (threadId) => self.stopRuns([threadId], () => self.rpc('runtime.stop', threadId)),
+      stopAll: () => self.stopRuns([...self.runtime.runs.keys()], () => self.rpc('runtime.stopAll')),
       runRoutine: (r) => self.rpc('runtime.runRoutine', r.id),
     };
     this.memory = {
@@ -126,6 +126,30 @@ export class RemoteApp {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Holly Computer error ${res.status}`);
     return data.result;
+  }
+
+  /**
+   * Stop (`call`, for the chats `threadIds`): the chats are free here at
+   * once, without waiting for the computer's word, which could be slow or, if
+   * this app missed that a turn ended, never come. When the computer can't be
+   * reached, they're busy again, as far as anyone can tell, and the error says so.
+   */
+  async stopRuns(threadIds, call) {
+    const before = this.runtime.runs;
+    const after = new Map([...before].filter(([id]) => !threadIds.includes(id)));
+    if (after.size !== before.size) {
+      this.runtime.runs = after;
+      this.emit('runs');
+    }
+    try {
+      await call();
+    } catch (err) {
+      if (this.runtime.runs === after) {
+        this.runtime.runs = before;
+        this.emit('runs');
+      }
+      throw new Error(`Couldn't stop: ${err.message}`);
+    }
   }
 
   async connect({ timeoutMs = 12000 } = {}) {

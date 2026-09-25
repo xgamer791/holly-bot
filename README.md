@@ -29,7 +29,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - Open on two devices at once? Each notices the other's changes and offers to refresh, which it does by itself after two untouched minutes, never as you come back to the app. A routine runs once, on whichever device gets to it first.
 - Holly Computer keeps its bots in your account too, once it's linked. Signing in on the page it opens on the computer links it: its bots move into your account, and it keeps running them around the clock with a session of its own. Settings → Bot Computer shows the computers linked to your account, whether each is running, and Connect and Unlink.
 - A linked Holly Computer tells your account where your devices can reach it: its tunnel (or `--public-url`) address and an access key of its own, again every five minutes while it runs, and that it stopped when it stops. So there's no link to open or QR code to scan. Holly Bot on every device signed in to your account connects to it as the app opens, and if the app is already open when the computer comes on (you start it, or sign in on it for the first time), a popup asks to connect. Not now leaves a Connect note at the top of the bot list. The app follows the computer to its new address when it restarts. When it isn't running, the app runs your bots itself and they know why they can't use the computer. The access key stops working when you unlink the computer, and `--new-token` changes it.
-- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Computer updates itself each time it starts (`--no-update` to skip that).
+- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Computer updates itself each time it starts (`--no-update` to skip that); on a Holly Bot server it also restarts itself for a newer version once no bot is working.
+- Right after you subscribe, the app opens: it doesn't wait for your server. With no bots yet, you make your Chief Coordinator first, then you're in. Your bots run in the app while the server is set up (a few minutes), with the computer button at the top right pulsing blue, and the app moves onto the server by itself once it's ready and nothing's going on.
 - Holly Computer's own page on the computer asks you to sign in. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
 - [Privacy Policy](https://xgamer791.github.io/holly-bot/privacy.html) and [Terms of Service](https://xgamer791.github.io/holly-bot/terms.html) (`privacy.html`, `terms.html`), linked from the sign-in screens and Settings.
 - Setup for the backend (deploy key, Google and Apple credentials) is in [CONVEX.md](CONVEX.md).
@@ -86,7 +87,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 ## What bots can do
 
 - **Personality and look:** name, shape, color, instructions. Each bot also has its own thinking animation (Ponder, Hop, Jelly, Orbit, Scan, Sparkle, Float, Nod or Twirl) that plays while it works.
-- **First hello:** a new bot reads its own name and asks what to focus on first, with choices that fit it (a bot called Holly Bot Debug offers to hunt bugs, not to go shopping). Without an API key yet, it offers the usual everyday ones.
+- **First hello:** a new bot reads its own name and asks what to focus on first, with choices that fit it (a bot called Holly Bot Debug offers to hunt bugs, not to go shopping). Without an API key yet, it offers the usual everyday ones. The Chief Coordinator asks what your team should take on first instead.
 - **Deep memory:**
   - Core memory blocks about itself and about you.
   - Long-term memories with hybrid search (keywords, embeddings, recency, importance).
@@ -94,6 +95,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - Periodic reflection, and a team memory that all bots share.
   - Long chats are kept verbatim up to about 400k tokens.
 - **Teamwork:**
+  - **Chief Coordinator:** every account's first bot, and the one you talk to. Like Grok Bot's chief of staff, it runs the rest: it hands each job to the bot whose role covers it (and only does it itself when none fits), suggests specialist bots for your work and creates them when you say yes, keeps the team in step through team memory, and comes back to you for decisions. It's pinned at the top of the bot list, and it can't lose its bot tools. A new account makes it first (the name starts as "Chief Coordinator"); an account that has bots already is offered one once.
   - Bots message each other in private channels (`message_agent`).
   - They can hand off background tasks (`delegate_task`).
   - Group chats come in three modes: Smart routing, Everyone, or only the bots you @mention.
@@ -111,6 +113,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
   - The screen, mouse and keyboard.
 - **Workspace:** the button in the prompt bar sets what a chat's bot works on: one or more GitHub repositories, or one of your servers (a computer linked to your account, running Holly Computer) and, if you like, some of its apps, which Holly Computer finds among its project folders and running Docker containers. Never both. In that chat the bot gets GitHub's tools or the server's, and GitHub's tools stay inside the chosen repositories. Picking a server this app isn't connected to connects to it.
 - **Prompt bar**, after Perplexity's: attach, web search on or off for the chat's bots, the bot's computer (grayed out: the computer button at the top right of the chat shows the connection, grayed out with none, the computer pulsing blue while connecting and solid green while connected, and opens the computer), Workspace, dictation, and the round button for voice, send or stop.
+- **Stop** ends whatever the bot is doing in the chat, at once: the reply it's writing, a running tool (a shell command is killed), turns waiting behind it, and tasks it handed to other bots. What it wrote stays. Tap Continue under the stopped reply (or tell it to carry on) and it picks up where it left off: it knows it was stopped and checks what got done first.
 - **Safety:** with Auto-review on, risky actions wait for your approval on the phone. That covers shell commands that change things, taking over the mouse and keyboard or the browser (once per task), MCP calls, sending email (you see exactly what goes out), deleting email (you see exactly which emails, looked up in the mailbox itself), and making a repository public. Deleting email for good, and deleting a repository, always asks.
 - **Voice mode, question cards and an activity drawer**, in a design that follows Grok Bot.
 
@@ -131,7 +134,7 @@ npm run check            # syntax check everything and confirm the bundle is cur
 
 Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
-- `src/ui`: the interface (`subscribe.js` is the subscription page, `setup.js` the computer being set up).
+- `src/ui`: the interface (`subscribe.js` is the subscription page, `chief.js` the Chief Coordinator's page, a new account's first bot).
 - `src/remote`: the phone-side remote-control client.
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
 - `convex`: that backend (accounts and everything in them, subscriptions through Stripe in `billing.ts`, and each subscriber's Vultr server in `servers.ts`). `.github/workflows/convex.yml` deploys it.

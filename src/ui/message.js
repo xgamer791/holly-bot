@@ -89,7 +89,7 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
         ${msg.steps.map((step, i) => html`<${StepView} key=${step.id || i} step=${step} msg=${msg} streaming=${streaming && step === lastStep} />`)}
         ${citations.length > 0 && html`<${Sources} items=${citations} />`}
         ${msg.status === 'error' && html`<${ErrorCard} msg=${msg} />`}
-        ${msg.status === 'stopped' && !text && html`<div class="notice" style="align-self:flex-start">Stopped.</div>`}
+        ${msg.status === 'stopped' && html`<${Stopped} thread=${thread} agent=${agent} text=${text} isLast=${isLast} />`}
         ${msg.memoryOps?.length > 0 && html`<button class="memory-note" onClick=${() => ui.openSheet('memory', { agentId: msg.authorId })}>
           <${Icon.brain} /> ${memorySummary(msg.memoryOps)}</button>`}
       </div>
@@ -99,6 +99,30 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
         ${isLast && thread?.kind !== 'agents' && html`<button aria-label="Regenerate" onClick=${() => ui.regenerate(msg)}><${Icon.retry} /></button>`}
       </div>`}
     </div>`;
+}
+
+/** A reply that was stopped (Stop, or the app closing): says so when it had
+ * written nothing, and, as the chat's last message, offers to carry on. The
+ * bot hears it was stopped and picks the task back up (src/core/runtime.js
+ * STOPPED_NOTE); in a group, the stopped bot is the one asked. */
+function Stopped({ thread, agent, text, isLast }) {
+  const app = useApp();
+  const ui = useUi();
+  const canContinue = isLast && agent && thread?.kind !== 'agents' && !app.runtime.isThreadBusy(thread.id);
+  if (!canContinue) return text ? null : html`<div class="notice" style="align-self:flex-start">Stopped.</div>`;
+  const carryOn = async () => {
+    haptic(app);
+    const words = thread.kind === 'group' ? `@${agent.name.replace(/\s+/g, '')} Continue` : 'Continue';
+    try {
+      await app.runtime.send(thread.id, { text: words });
+    } catch (err) {
+      ui.toast(err.message, { error: true });
+    }
+  };
+  return html`<div class="stopped-row">
+    ${!text && html`<span>Stopped.</span>`}
+    <button class="continue-btn" onClick=${carryOn}><${Icon.play} size="14" /> Continue</button>
+  </div>`;
 }
 
 function memorySummary(ops) {

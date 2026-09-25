@@ -25,9 +25,10 @@ export const BUILTIN_TOOLS = [
   ...skillTools,
 ];
 
-/** Tool groups enabled for a bot (bot overrides fall back to defaults). */
+/** Tool groups enabled for a bot (bot overrides fall back to defaults). The
+ * Chief Coordinator always talks to other bots: that's its job. */
 export function enabledGroups(agent) {
-  return { core: true, ...(agent.tools || {}) };
+  return { core: true, ...(agent.tools || {}), ...(agent.role === 'chief' ? { agents: true } : {}) };
 }
 
 /** A chat's workspace (thread.workspace, src/ui/workspace.js) puts its bot on

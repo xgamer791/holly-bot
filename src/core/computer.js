@@ -82,15 +82,19 @@ export class ComputerClient {
         onData?.(c.stream, c.data);
       }
     };
-    let r = await this.request('/v1/exec', { command, cwd, timeoutMs, background }, { signal });
-    take(r.chunks);
+    // The job's id is picked here, so a stop can kill it even before the
+    // computer has answered the request that starts it.
+    const id = `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    let r = null;
     try {
+      r = await this.request('/v1/exec', { command, cwd, timeoutMs, background, id }, { signal });
+      take(r.chunks);
       while (!r.done) {
         r = await this.request(`/v1/jobs/${r.job}?since=${r.next}`, undefined, { signal });
         take(r.chunks);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') this.request(`/v1/jobs/${r.job}/kill`, {}).catch(() => {});
+      if (err?.name === 'AbortError') this.request(`/v1/jobs/${r?.job || id}/kill`, {}).catch(() => {});
       throw err;
     }
     return { stdout, stderr, code: r.done.code, signal: r.done.signal, durationMs: r.done.durationMs, cwd: r.done.cwd };

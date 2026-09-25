@@ -32,7 +32,7 @@ export function ActivityDrawer({ onClose }) {
             return html`<div class="row" key=${r.threadId}>
               <${Avatar} shape=${a?.shape} color=${a?.color} size=${32} activity=${r.phase === 'working' ? 'working' : 'thinking'} anim=${thinkingOf(a)} />
               <button class="label" style="text-align:left" onClick=${() => go(`#/chat/${r.threadId}`)}><div class="t">${a?.name}</div><div class="s">${t?.kind === 'agents' ? 'Talking with another bot' : t?.kind === 'group' ? `In ${t.title}` : 'Working on your request'}</div></button>
-              <button class="stop-btn" aria-label="Stop" onClick=${() => app.runtime.stop(r.threadId)}><span></span></button>
+              <button class="stop-btn" aria-label="Stop" onClick=${() => Promise.resolve(app.runtime.stop(r.threadId)).catch((err) => ui.toast(err.message, { error: true }))}><span></span></button>
             </div>`;
           })}
         </div>
@@ -45,7 +45,7 @@ export function ActivityDrawer({ onClose }) {
           ${tasks.map((k) => {
             const from = app.getAgent(k.fromAgentId);
             const to = app.getAgent(k.toAgentId);
-            return html`<${Row} key=${k.id} title=${`${from?.name || '?'} → ${to?.name || '?'}`} sub=${truncate(k.task, 90)} value=${k.status === 'running' ? 'Working' : k.status === 'done' ? 'Done' : 'Failed'}
+            return html`<${Row} key=${k.id} title=${`${from?.name || '?'} → ${to?.name || '?'}`} sub=${truncate(k.task, 90)} value=${{ running: 'Working', done: 'Done', stopped: 'Stopped' }[k.status] || 'Failed'}
               onClick=${() => go(`#/chat/${k.replyThreadId}`)} />`;
           })}</div>`}
         <div class="group-label">Bot-to-bot conversations</div>

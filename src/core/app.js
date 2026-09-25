@@ -9,6 +9,7 @@ import { PluginManager } from './plugins.js';
 import { Runtime, finalText, messageText } from './runtime.js';
 import { BM25 } from './memory/text.js';
 import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE, THINKING_KEYS, TOOL_GROUPS, FOCUS_OPTIONS } from './constants.js';
+import { CHIEF, chiefGreeting, chiefOf } from './chief.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 
@@ -352,6 +353,8 @@ export class App {
       updatedAt: t,
       createdBy: data.createdBy || 'user',
       memSinceReflection: 0,
+      // The Chief Coordinator (src/core/chief.js): one per account.
+      ...(data.role === 'chief' && !chiefOf(this) ? { role: 'chief' } : {}),
     };
     this.agents.set(agent.id, agent);
     await this.db.put('agents', agent);
@@ -362,10 +365,15 @@ export class App {
   }
 
   /** The bot's first message: a hello plus the "what should I focus on" card,
-   * with options that fit its name (focusOptions). */
+   * with options that fit its name (focusOptions). The Chief Coordinator's
+   * asks what the team should take on first. */
   async greet(agent, thread) {
     const callId = `onboard_${agent.id}`;
-    const options = await this.focusOptions(agent);
+    const chief = agent.role === 'chief';
+    const text = chief ? chiefGreeting(agent.name) : `Hey — I'm ${agent.name}. Ready whenever you are.\n\nWhat do you want me helping with most?`;
+    const question = chief ? CHIEF.question : 'What should I focus on first?';
+    const subtitle = chief ? CHIEF.subtitle : "Pick whatever's most useful — we can expand from there.";
+    const options = chief ? CHIEF.focus : await this.focusOptions(agent);
     await this.addMessage({
       threadId: thread.id,
       authorType: 'agent',
@@ -375,19 +383,19 @@ export class App {
       turnId: `greet_${agent.id}`,
       steps: [{
         id: uid('stp'),
-        text: `Hey — I'm ${agent.name}. Ready whenever you are.\n\nWhat do you want me helping with most?`,
+        text,
         toolCalls: [{
           id: callId,
           name: 'ask_user',
           local: true,
-          args: { question: 'What should I focus on first?', subtitle: "Pick whatever's most useful — we can expand from there.", options },
+          args: { question, subtitle, options },
           status: 'waiting',
-          pending: { kind: 'question', question: 'What should I focus on first?', subtitle: "Pick whatever's most useful — we can expand from there.", options, local: true },
+          pending: { kind: 'question', question, subtitle, options, local: true },
         }],
         endedAt: now(),
       }],
     });
-    await this.updateThread(thread.id, { preview: { kind: 'normal', text: `Hey — I'm ${agent.name}. Ready whenever you are.`, authorId: agent.id, at: now() }, unread: false });
+    await this.updateThread(thread.id, { preview: { kind: 'normal', text: text.split('\n')[0], authorId: agent.id, at: now() }, unread: false });
   }
 
   /**
