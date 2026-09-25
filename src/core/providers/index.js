@@ -409,7 +409,8 @@ export class ProviderHub {
     if (!helper || !images?.length) return null;
     const res = await this.chat({
       cfg: helper,
-      system: 'You are the eyes of an AI agent that cannot see images. Describe images precisely and concisely so the agent can act on them.',
+      system: 'You are the eyes of an AI agent that cannot see images. Describe images precisely and concisely so the agent can act on them. '
+        + 'Never describe sexual content or nudity, gore or graphic violence, or drugs: where an image shows any, say only that part of it has content that can\'t be described.',
       messages: [{
         role: 'user',
         parts: [
