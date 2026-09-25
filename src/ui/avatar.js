@@ -2,7 +2,8 @@ import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { THINKING_KEYS } from '../core/constants.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
-// expressions. All geometry lives in a 100×100 viewBox. While a bot's AI is
+// expressions. The eyes are white (dark on a white bot, where white wouldn't
+// show). All geometry lives in a 100×100 viewBox. While a bot's AI is
 // thinking or writing it plays its own thinking animation (body motion + eyes
 // + little extras); while it's doing a task (tools: searching, code, the
 // computer, other bots) it plays the working animation, the same for every
@@ -69,6 +70,11 @@ export const COLORS = {
 };
 
 export const COLOR_KEYS = Object.keys(COLORS);
+
+/** White eyes, or dark ones on a white body, where white wouldn't show. */
+function eyeColorOf(color) {
+  return colorHex(color) === COLORS.white ? '#121212' : '#ffffff';
+}
 
 export function colorHex(key) {
   return COLORS[key] || (typeof key === 'string' && key.startsWith('#') ? key : COLORS.green);
@@ -202,11 +208,10 @@ function Extras({ anim, def, clipId }) {
  *   THINKING); 'working' plays the working animation (see botActivity)
  * - working: the same as activity="thinking" (for previews of a style)
  * - status: 'online' | 'working' | 'error' | undefined — draws the status dot
- * - eyeColor: for the Holly cloud's white eyes
  */
 export function Avatar({
   shape = 'squircle', color = 'green', size = 40, expression, rest = 'downLeft', live = false, working = false,
-  activity = null, anim = 'hop', status, className = '', title, onClick, eyeColor = '#121212',
+  activity = null, anim = 'hop', status, className = '', title, onClick,
 }) {
   const mode = activity === 'working' || activity === 'thinking' ? activity : working ? 'thinking' : null;
   const [expr, setExpr] = useState(expression || rest);
@@ -303,7 +308,7 @@ export function Avatar({
           ${mode === 'thinking' && style === 'scan' && html`<g clip-path=${`url(#${clipId.current})`}><rect class="av-shine" x="0" y="-20" width="26" height="140" fill="#fff" opacity=".38" /></g>`}
           ${eyes.map((eye, i) => html`
             <g key=${i} class="avatar-eye" style=${`transform:${eyeTransform(def, eye, shut)}`}>
-              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColor} stroke-width="7.2" stroke-linecap="round" />
+              <line x1="0" y1=${-EYE_HALF} x2="0" y2=${EYE_HALF} stroke=${eyeColorOf(color)} stroke-width="7.2" stroke-linecap="round" />
             </g>`)}
         </g>
         ${mode && html`<${Extras} anim=${mode === 'working' ? 'working' : style} def=${def} clipId=${clipId.current} />`}
@@ -342,7 +347,7 @@ export function avatarSvgString({ shape = 'squircle', color = 'green', expressio
     const hx = Math.sin(rad) * EYE_HALF * e.s;
     const hy = Math.cos(rad) * EYE_HALF * e.s;
     const { x, y } = e;
-    return `<line x1="${(x - hx).toFixed(2)}" y1="${(y + hy).toFixed(2)}" x2="${(x + hx).toFixed(2)}" y2="${(y - hy).toFixed(2)}" stroke="#121212" stroke-width="7.2" stroke-linecap="round"/>`;
+    return `<line x1="${(x - hx).toFixed(2)}" y1="${(y + hy).toFixed(2)}" x2="${(x + hx).toFixed(2)}" y2="${(y - hy).toFixed(2)}" stroke="${eyeColorOf(color)}" stroke-width="7.2" stroke-linecap="round"/>`;
   }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="${def.d}" fill="${colorHex(color)}"/>${eyes}</svg>`;
 }

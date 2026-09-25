@@ -17,7 +17,7 @@ export function ConnectProblem({ conn, error, onRetry }) {
   return html`
     <div class="app mobile"><div class="pane-list"><div class="home-scroll">
       <div class="empty-home" style="padding-top:80px">
-        <${Avatar} shape="cloud" color="blue" eyeColor="#ffffff" size=${96} expression="sleepy" />
+        <${Avatar} shape="cloud" color="blue" size=${96} expression="sleepy" />
         <h2>Can't reach your computer</h2>
         <p>Your bots live on ${conn?.name ? `“${conn.name}”` : 'your Holly Computer'}. Make sure it's on and Holly Computer is running${/trycloudflare/.test(conn?.url || '') ? ". Its address changes each time it restarts: sign in on the page it opens on the computer, and this app finds it wherever it is" : ''}.</p>
         <p style="color:var(--red);font-size:14px">${error}</p>
