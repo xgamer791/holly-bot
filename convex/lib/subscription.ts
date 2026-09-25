@@ -34,8 +34,8 @@ const LATE_MS = 3 * 24 * 60 * 60 * 1000;
  * `printf %s you@example.com | sha256sum`. These accounts skip the
  * subscription page and keep their data like a subscriber, but get no server.
  */
-const EXEMPT = new Set([
-  "434633ce2df27abbb930fa08014a267046ef87c349456af49eefacaa07b51600", // the owner, while testing
+const EXEMPT = new Set<string>([
+  // "434633ce2df27abbb930fa08014a267046ef87c349456af49eefacaa07b51600", // the owner: off while they test subscribing
 ]);
 
 type State = Pick<Doc<"subscribers">, "livemode" | "subscriptionStatus" | "currentPeriodEnd" | "cancelAt">;

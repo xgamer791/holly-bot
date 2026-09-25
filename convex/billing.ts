@@ -410,6 +410,8 @@ export const checkout = action({
         customer,
         client_reference_id: me.userId,
         line_items: [{ price, quantity: 1 }],
+        // Promotion codes made in Stripe's dashboard (Product catalog → Coupons).
+        allow_promotion_codes: true,
         success_url: backTo(returnTo, { checkout: "done" }),
         cancel_url: backTo(returnTo, { checkout: "cancelled" }),
         metadata: { userId: me.userId, plan: plan.id },
