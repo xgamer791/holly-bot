@@ -296,17 +296,34 @@ svg { display: block; }
   .sheet { top: 5vh; bottom: 5vh; left: 50%; right: auto; width: 560px; transform: translateX(-50%); border-radius: 30px; animation: popc .22s ease-out; }
   @keyframes popc { from { opacity: 0; transform: translateX(-50%) scale(.96); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
 }
-/* Settings (src/ui/settings.js): a drawer that slides in from the left, full
-   height and 25px short of the right edge, and slides back out the same way,
-   450ms each. The way out is the way in played backwards (the easing mirrored). */
-.sheet.drawer { top: 0; bottom: 0; left: 0; right: auto; width: min(calc(100% - 25px), 560px); max-width: none; margin: 0; transform: none;
-  padding: var(--safe-top) 0 0 var(--safe-left); border-radius: 0 var(--radius-sheet) var(--radius-sheet) 0; animation: drawer-in .45s cubic-bezier(.2, .8, .2, 1); }
-.sheet.drawer.closing { animation: drawer-out .45s cubic-bezier(.8, 0, .8, .2) forwards; }
-.sheet-scrim:has(+ .sheet.drawer) { animation-duration: .45s; }
-.sheet-scrim.closing { animation: scrim-out .45s ease forwards; }
-@keyframes drawer-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
-@keyframes drawer-out { from { transform: translateX(0); } to { transform: translateX(-100%); } }
-@keyframes scrim-out { from { opacity: 1; } to { opacity: 0; } }
+/* Settings (src/ui/settings.js, useDrawer in src/ui/components.js): a drawer
+   from the left, full height, square-cornered and 50px short of the right
+   edge. It slides in over 450ms and pushes the app over to the right by its
+   own width, and slides back out the same way pulling the app back, the way
+   out being the way in played backwards (the easing mirrored). The page's
+   .drawer-open class says where it is, so a move always carries on from
+   wherever it is. While its handle is dragged, --drawer-drag is how far it
+   has come back (px, 0 or less) and --drawer-shown how much of it still shows. */
+:root {
+  --drawer-w: min(calc(100vw - 50px), 560px);
+  --drawer-in: cubic-bezier(.2, .8, .2, 1);
+  --drawer-out: cubic-bezier(.8, 0, .8, .2);
+}
+.sheet.drawer { top: 0; bottom: 0; left: 0; right: auto; width: var(--drawer-w); max-width: none; margin: 0; border-radius: 0; overflow: visible;
+  padding: var(--safe-top) 0 0 var(--safe-left); animation: none; transform: translateX(-100%); transition: transform .45s var(--drawer-out); }
+.drawer-open .sheet.drawer { transform: translateX(var(--drawer-drag, 0px)); transition-timing-function: var(--drawer-in); }
+.app { transition: transform .45s var(--drawer-out); }
+.drawer-open .app { transform: translateX(calc(var(--drawer-w) + var(--drawer-drag, 0px))); transition-timing-function: var(--drawer-in); }
+.sheet-scrim.drawer-scrim { animation: none; opacity: 0; transition: opacity .45s var(--drawer-out); }
+.drawer-open .sheet-scrim.drawer-scrim { opacity: var(--drawer-shown, 1); transition-timing-function: var(--drawer-in); }
+.drawer-dragging .sheet.drawer, .drawer-dragging .app, .drawer-dragging .drawer-scrim { transition: none; }
+/* Let go of mid-drag to close: it's already moving, so it carries on out easing off. */
+.drawer-flung .sheet.drawer, .drawer-flung .app, .drawer-flung .drawer-scrim { transition-timing-function: var(--drawer-in); }
+/* The handle: the whole strip to the drawer's right, with a grabber halfway down. */
+.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 50px; display: flex; align-items: center; justify-content: center;
+  touch-action: none; cursor: grab; }
+.drawer-dragging .drawer-handle { cursor: grabbing; }
+.drawer-handle span { width: 5px; height: 48px; border-radius: 3px; background: rgba(255, 255, 255, .9); box-shadow: 0 1px 6px rgba(0, 0, 0, .25); }
 
 /* ---------- grouped settings rows (iOS style) ---------- */
 .group { background: var(--elevated); border-radius: var(--radius-card); margin: 14px 0; overflow: hidden; }
