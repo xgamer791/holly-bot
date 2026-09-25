@@ -19,7 +19,7 @@ import { BotHome } from './home.mjs';
 import { latestVersion, newerVersion, runLatest } from './update.mjs';
 
 /** How often a Holly Bot server looks for a newer Holly Computer. */
-const UPDATE_EVERY = 30 * 60_000;
+const UPDATE_EVERY = 5 * 60_000;
 
 const USAGE = `Holly Computer — your Holly bots live on this computer; control them from your phone.
 
