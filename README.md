@@ -87,6 +87,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 ## What bots can do
 
 - **Personality and look:** name, shape, color, instructions. Each bot also has its own thinking animation (Ponder, Hop, Jelly, Orbit, Scan, Sparkle, Float, Nod or Twirl) that plays while it works.
+- **First hello:** a new bot reads its own name and asks what to focus on first, with choices that fit it (a bot called Holly Bot Debug offers to hunt bugs, not to go shopping). Without an API key yet, it offers the usual everyday ones. The Chief Coordinator asks what your team should take on first instead.
 - **Deep memory:**
   - Core memory blocks about itself and about you.
   - Long-term memories with hybrid search (keywords, embeddings, recency, importance).
