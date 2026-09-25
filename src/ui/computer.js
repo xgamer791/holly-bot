@@ -25,7 +25,7 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
   ];
   return html`
     <${Sheet} title=${agent ? `${agent.name}'s computer` : 'Computer'} onClose=${onClose}
-      right=${busy ? html`<button class="btn small danger" onClick=${() => { app.runtime.stopAll(); ui.toast('Stopped all bots'); }}>Stop all</button>`
+      right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast('Stopped all bots'), (err) => ui.toast(err.message, { error: true }))}>Stop all</button>`
         : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? 'Online' : 'Browser only'}</span>`}>
       <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
       ${tab === 'screen' && html`<${Screen} />`}

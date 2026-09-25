@@ -58,6 +58,11 @@ export function VoiceMode({ thread, agent, onClose }) {
       const answer = last ? finalText(last) : '';
       if (!open.current) return;
       setReply(answer);
+      // Stopped: nothing read aloud, and no listening until tapped.
+      if (last?.status === 'stopped') {
+        setPhase('idle');
+        return;
+      }
       if (last?.status === 'waiting') {
         setPhase('idle');
         await speak('I need your input on screen.', app);
@@ -94,7 +99,7 @@ export function VoiceMode({ thread, agent, onClose }) {
       stopSpeaking();
       startListening();
     } else if (phase === 'idle') startListening();
-    else if (phase === 'thinking') app.runtime.stop(thread.id);
+    else if (phase === 'thinking') Promise.resolve(app.runtime.stop(thread.id)).catch((err) => ui.toast(err.message, { error: true }));
   };
 
   const status = { idle: 'Tap to talk', listening: 'Listening…', thinking: `${agent?.name || 'Bot'} is thinking…`, speaking: 'Speaking — tap to interrupt' }[phase];

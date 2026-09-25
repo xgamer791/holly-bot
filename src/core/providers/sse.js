@@ -14,6 +14,8 @@ export async function* readSSE(body, signal) {
   try {
     while (true) {
       const { value, done } = await reader.read();
+      // Cancelled by the abort (onAbort): stopped, not finished.
+      if (done && signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
       if (done) break;
       buf += decoder.decode(value, { stream: true });
       let m;

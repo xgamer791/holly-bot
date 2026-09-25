@@ -81,6 +81,17 @@ export function Composer({ thread, agents, onVoice }) {
     }
   };
 
+  // The chat is free at once (Runtime.stop); only a computer that can't be
+  // reached keeps it busy, and says so.
+  const stop = async () => {
+    haptic(app);
+    try {
+      await app.runtime.stop(thread.id);
+    } catch (err) {
+      ui.toast(err.message, { error: true });
+    }
+  };
+
   const onFiles = async (files, kind) => {
     for (const file of files) {
       try {
@@ -205,7 +216,7 @@ export function Composer({ thread, agents, onVoice }) {
           ${hasContent
             ? html`<button class="pbar-go" aria-label="Send" onClick=${send}><${Icon.up} /></button>`
             : busy
-              ? html`<button class="pbar-go stop" aria-label="Stop" onClick=${() => app.runtime.stop(thread.id)}><span></span></button>`
+              ? html`<button class="pbar-go stop" aria-label="Stop" onClick=${stop}><span></span></button>`
               : html`<button class="pbar-go" aria-label="Voice mode" onClick=${onVoice}><${Icon.wave} /></button>`}
         </div>
       </div>
