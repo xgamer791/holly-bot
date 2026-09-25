@@ -12,7 +12,6 @@ import {
   RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
 import { account, signInWorksHere, SITE } from '../account/account.js';
-import { longDate } from './subscribe.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
@@ -37,10 +36,13 @@ function home(app) {
   return { in: 'in this browser', from: 'from this browser' };
 }
 
-/** Who is signed in. Where there are no accounts (Holly Computer's Wi-Fi
- * links, browser automation) it doesn't show. */
-function AccountGroup({ acct }) {
-  if (!acct.signedIn) return null;
+/** Who is signed in, and under it how much of the month's AI credits is left
+ * (Usage). Where there are no accounts (Holly Computer's Wi-Fi links, browser
+ * automation) only Usage shows. */
+function AccountGroup({ acct, go }) {
+  const { credits } = useCredits();
+  const usage = html`<${Row} title="Usage" value=${credits ? `${creditsShare(credits)}% left` : '—'} onClick=${() => go('usage')} />`;
+  if (!acct.signedIn) return html`<${Group}>${usage}<//>`;
   const user = acct.user || {};
   const via = (user.providers || []).map((p) => SIGN_IN_WITH[p] || p).join(' and ');
   const detail = [user.name && user.email, via && `Signed in with ${via}`].filter(Boolean).join(' · ');
@@ -49,61 +51,9 @@ function AccountGroup({ acct }) {
       <span class="initials">${initials(user.name || user.email)}</span>
       <div class="label"><div class="t">${user.name || user.email || 'Holly Bot account'}</div><div class="s">${detail || 'Signed in'}</div></div>
     </div>
+    ${usage}
   <//>`;
 }
-
-const SERVER_STATUS = { none: 'Not set up', provisioning: 'Setting up', ready: 'Ready', resizing: 'Changing size', deleting: 'Deleting', error: "Couldn't set up" };
-
-/** The account's plan, and its own computer (convex/servers.ts). Tapping the
- * plan opens Stripe's billing portal to change it, update the card, see
- * invoices or cancel (convex/billing.ts); coming back, the app checks the
- * subscription again (src/main.js). A computer that couldn't be set up can be
- * tried again. */
-function SubscriptionGroup({ acct }) {
-  const ui = useUi();
-  const [busy, setBusy] = useState(false);
-  const { data: status, reload } = useAsync(() => (acct.signedIn ? account.authed('query', 'billing:status') : Promise.resolve(null)), [acct.signedIn]);
-  if (!acct.signedIn) return null;
-  const server = status?.server;
-  const size = status?.plans?.find((p) => p.id === server?.plan);
-  const retry = async () => {
-    try {
-      await account.authed('mutation', 'servers:retry');
-      ui.toast('Setting up your computer again. It takes a few minutes.');
-      reload();
-    } catch (err) {
-      ui.toast(serverSays(err, "Couldn't start again. Check your connection and try again."), { error: true });
-    }
-  };
-  const computer = server && server.status !== 'none' && html`<${Row} title="Your computer" value=${SERVER_STATUS[server.status] || server.status}
-    sub=${server.error || [size && `${size.cpu} CPU, ${size.memoryGb} GB RAM`, server.ip].filter(Boolean).join(' · ') || null}
-    onClick=${server.status === 'error' ? retry : null} />`;
-  const sub = status?.subscription;
-  // An account that needs no subscription (the owner's, while testing).
-  if (status?.exempt && !sub) {
-    return html`<${Group}>
-      <${Row} title="Subscription" value="Not needed" sub="This account uses Holly Bot without a plan while it's being tested." />
-    <//>`;
-  }
-  const plan = status?.plans?.find((p) => p.id === sub?.plan);
-  const when = sub?.endsAt ? `Ends ${longDate(sub.endsAt)}` : sub?.periodEnd ? `Renews ${longDate(sub.periodEnd)}` : '';
-  const detail = [{ month: 'Monthly', year: 'Yearly' }[sub?.interval], when].filter(Boolean).join(' · ');
-  const manage = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      location.assign(await account.authed('action', 'billing:portal', { returnTo: `${location.origin}${location.pathname}` }));
-    } catch (err) {
-      setBusy(false);
-      ui.toast(serverSays(err, "Couldn't open billing. Check your connection and try again."), { error: true });
-    }
-  };
-  return html`<${Group} note="Change your plan, update your card, see invoices or cancel, on Stripe.">
-    <${Row} title="Subscription" sub=${status?.pastDue ? "Your last payment didn't go through. Tap to update your card." : detail} value=${busy ? html`<span class="spinner"></span>` : plan ? `Holly Bot ${plan.name}` : ''} danger=${!!status?.pastDue} onClick=${manage} />
-    ${computer}
-  <//>`;
-}
-
 
 export function SettingsSheet({ onClose, page: initialPage, provider: initialProvider }) {
   const app = useApp();
@@ -113,16 +63,16 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
   const go = (page, extra = {}) => setStack([...stack, { page, ...extra }]);
   const back = () => setStack(stack.slice(0, -1));
   const titles = {
-    profile: 'Profile', usage: 'Usage', keys: 'Usage', plugins: 'Plugins',
-    computer: 'Bot Computer', appearance: 'Appearance', language: 'Language', haptics: 'Haptics', timezone: 'Time Zone', data: 'Data & Backup',
+    usage: 'Usage', keys: 'Usage', plugins: 'Plugins',
+    computer: 'Bot Computer', appearance: 'Appearance', language: 'Language', haptics: 'Haptics', data: 'Data & Backup',
     memory: 'Memory & Context', help: 'Help Center', privacy: 'Privacy Policy', terms: 'Terms of Service', voice: 'Voice',
   };
   const left = top
     ? html`<button class="circle-btn" aria-label="Back" onClick=${back}><${Icon.back} /></button>`
     : html`<button class="circle-btn" aria-label="Close" onClick=${onClose}><${Icon.x} /></button>`;
   const pages = {
-    profile: ProfilePage, usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
-    appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, timezone: TimeZonePage, data: DataPage, memory: MemorySettingsPage,
+    usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
+    appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, data: DataPage, memory: MemorySettingsPage,
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
   const Page = (top && pages[top.page]) || MainPage;
@@ -136,29 +86,15 @@ function MainPage({ go, onClose }) {
   const ui = useUi();
   const acct = useAccount();
   const s = app.settings;
-  const { credits } = useCredits();
-  const tz = app.timeZone();
   const set = (patch) => app.saveSettings(patch);
   return html`
-    <${AccountGroup} acct=${acct} />
-    <${SubscriptionGroup} acct=${acct} />
-    <${Group}>
-      <button class="row" onClick=${() => go('profile')}>
-        <span class="initials">${s.profile?.name ? initials(s.profile.name) : '?'}</span>
-        <div class="label"><div class="t">${s.profile?.name || 'Your profile'}</div><div class="s">${s.profile?.email || 'Add your name so bots know you'}</div></div>
-        <${Icon.chevron} class="chev" />
-      </button>
-      <${Row} title="Usage" value=${credits ? `${creditsShare(credits)}% left` : '—'} onClick=${() => go('usage')} />
-    <//>
+    <${AccountGroup} acct=${acct} go=${go} />
     <${Group}>
       <${Row} title="Plugins" sub="Gmail, Outlook, GitHub, tools and skills" onClick=${() => go('plugins')} />
     <//>
     <div class="group-label">Bot</div>
     <${Group}>
       <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories." toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
-      <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
-        onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
-      <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />
       <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : app.awaitingServer ? 'Setting up…' : app.linkedComputers?.length ? 'Not connected' : 'Set up'} onClick=${() => go('computer')} />
       <${Row} title="Memory & Context" onClick=${() => go('memory')} />
       <${Row} title="Routines" onClick=${() => ui.openSheet('routines', {})} />
@@ -232,21 +168,6 @@ async function signOut(app, ui) {
   await app.db?.close?.({ forget: true });
   saveConnection(null);
   await account.signOut(); // src/main.js reloads into the welcome screen
-}
-
-function ProfilePage() {
-  const app = useApp();
-  const p = app.settings.profile || {};
-  const save = (patch) => app.saveSettings({ profile: { ...p, ...patch } });
-  return html`
-    <div class="create-preview" style="padding:10px 0 16px"><span class="initials" style="width:84px;height:84px;font-size:30px">${p.name ? initials(p.name) : '?'}</span></div>
-    <${Group}>
-      <div class="row"><div class="label"><div class="t">Name</div></div><input type="text" value=${p.name || ''} placeholder="Your name" onChange=${(e) => save({ name: e.currentTarget.value.trim() })} /></div>
-      <div class="row"><div class="label"><div class="t">Email</div></div><input type="email" value=${p.email || ''} placeholder="Optional" onChange=${(e) => save({ email: e.currentTarget.value.trim() })} /></div>
-    <//>
-    <${Field} label="About you (shared with all your bots)" hint="Anything every bot should know: what you do, where you live, how you like answers.">
-      <textarea class="textarea" value=${p.about || ''} placeholder="e.g. I run a hair studio in Austin, TX. I like short, direct answers." onChange=${(e) => save({ about: e.currentTarget.value })}></textarea>
-    <//>`;
 }
 
 /** This month's AI credits (convex/credits.ts `mine`), for the Usage row and
@@ -552,10 +473,25 @@ function LinkedComputers() {
     <div class="group-note">While Holly Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.</div>`;
 }
 
+/** Whether the computer this app controls is the one that comes with the
+ * plan, which stays linked to the account: Holly Computer says so
+ * (computer/src/home.mjs), and so does the account's list of computers
+ * (convex/devices.ts). Null until that's known. */
+function usePlanServer(app) {
+  const ask = !!app.remote && !!app.server?.account?.linked && account.signedIn && signInWorksHere();
+  const { data: device } = useAsync(() => (ask
+    ? account.authed('query', 'devices:list').then((list) => list.find((d) => sameComputer(d, { device: app.device, name: app.server?.name, url: app.base })) || null)
+    : Promise.resolve(null)), [ask]);
+  if (app.server?.account?.server) return true;
+  if (!ask) return false;
+  return device === undefined ? null : !!device?.server;
+}
+
 function ComputerPage() {
   const app = useApp();
   const ui = useUi();
   useTopics(['reachable']);
+  const planServer = usePlanServer(app);
   const [url, setUrl] = useState('http://localhost:8787');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
@@ -583,7 +519,7 @@ function ComputerPage() {
         <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them. Holly Bot on any device signed in to your account connects to it by itself.`} /><//>`}
       <div class="group-note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</div>
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
-      ${app.server?.account?.linked && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
+      ${app.server?.account?.linked && planServer === false && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         if (!(await ui.confirm({ title: `Unlink ${name}?`, message: `Your bots stay in your account, and this device switches to them. ${name} stops running them until you link it again.`, confirmText: 'Unlink', danger: true }))) return;
         try {
           await app.rpc('account.unlink');
@@ -717,24 +653,6 @@ function VoicePage() {
     <${Field} label=${`Speed ${cur.rate || 1.05}×`}><input type="range" min="0.7" max="1.6" step="0.05" value=${cur.rate || 1.05} onInput=${(e) => app.saveSettings({ voice: { ...cur, rate: +e.currentTarget.value } })} /><//>`;
 }
 
-function TimeZonePage({ back }) {
-  const app = useApp();
-  const [q, setQ] = useState('');
-  let zones = [];
-  try {
-    zones = Intl.supportedValuesOf('timeZone');
-  } catch {
-    zones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Australia/Sydney'];
-  }
-  const list = zones.filter((z) => z.toLowerCase().includes(q.toLowerCase())).slice(0, 80);
-  return html`
-    <div class="search-bar" style="margin:4px 0 10px"><${Icon.search} /><input placeholder="Search time zones" value=${q} onInput=${(e) => setQ(e.currentTarget.value)} /></div>
-    <div class="group">${list.map((z) => html`<button class="row" key=${z} onClick=${async () => {
-      await app.saveSettings({ timeZone: z, timeZoneAuto: false });
-      back();
-    }}><div class="label"><div class="t" style="font-size:16px">${z.replace(/_/g, ' ')}</div></div>${app.timeZone() === z && html`<span class="ok-check"><${Icon.check} /></span>`}</button>`)}</div>`;
-}
-
 function MemorySettingsPage() {
   const app = useApp();
   const ui = useUi();
@@ -834,8 +752,8 @@ function HelpPage() {
     <h3>Email and GitHub</h3>
     <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
     <h3>Your subscription</h3>
-    <p>Settings → <b>Subscription</b> shows your plan. Tap it to change plan, update your card, see invoices or cancel, on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.</p>
-    <p>Every plan comes with <b>your own computer</b>, a server that runs your bots around the clock. The app connects to it by itself, and Settings shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.</p>
+    <p>You change your plan, update your card, see invoices or cancel on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.</p>
+    <p>Every plan comes with <b>your own computer</b>, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and Settings → <b>Bot Computer</b> shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.</p>
     <h3>Install as an app</h3>
     <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>

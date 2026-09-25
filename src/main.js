@@ -20,6 +20,7 @@ import { CloudDB, inactive } from './account/cloud-db.js';
 import { makeLinkCode } from './account/device-link.js';
 import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/device-data.js';
 import { APP_VERSION } from './core/constants.js';
+import { deviceTimeZone } from './core/routines.js';
 
 // Boot. Holly Bot needs an account (Sign in with Apple or Google) with an
 // active subscription: until it has one, the subscription page stands in for
@@ -742,6 +743,7 @@ function mount(app, { chiefDone = false } = {}) {
   render(html`<${Root} app=${app} />`, root);
   document.getElementById('boot')?.remove();
   registerServiceWorker();
+  keepTimeZone(app);
   if (signInWorksHere() && account.signedIn) {
     if (billing?.pastDue) paymentBanner();
     watchSubscription();
@@ -749,6 +751,17 @@ function mount(app, { chiefDone = false } = {}) {
     watchServerSetup(app);
   }
   if (signInWorksHere()) watchUpdates();
+}
+
+/** The time zone is found, not set: the one this device is in. Bots running
+ * here use it as it is; this keeps it in the settings for bots on a
+ * computer (src/core/app.js timeZone()), whose own clock may be set to
+ * another zone, as a server's often is. Written only when it changed, as the
+ * app opens, while what it holds of the settings is fresh. */
+function keepTimeZone(app) {
+  const tz = deviceTimeZone();
+  if (!tz || app.settings?.timeZone === tz) return;
+  Promise.resolve(app.saveSettings({ timeZone: tz })).catch((err) => console.warn('time zone', err));
 }
 
 const CHIEF_LATER = 'holly.chiefLater';
@@ -802,8 +815,7 @@ function settingUp(status) {
  * seconds while the app is in front) and, once the server is ready, moves onto
  * it as soon as nothing's going on here. Setup that hasn't started after a
  * minute and a half (Stripe's word didn't come) is started (servers:retry).
- * If it fails, the button goes gray, and Settings says why and offers to try
- * again.
+ * If it fails, the button goes gray.
  */
 function watchServerSetup(app) {
   if (!settingUp(billing)) return;
@@ -836,7 +848,7 @@ function watchServerSetup(app) {
           }
           return;
         }
-        if (!['ready', 'resizing'].includes(status.server?.status)) return stop(); // it failed: Settings says why
+        if (!['ready', 'resizing'].includes(status.server?.status)) return stop(); // it failed
         ready = true;
       }
       const list = await linkedComputers();

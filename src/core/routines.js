@@ -2,7 +2,7 @@ import { uid, now } from './util.js';
 import { range } from './db.js';
 
 // Routine schedules and storage. Times are interpreted in the user's time
-// zone (Settings → Time Zone), defaulting to the device's.
+// zone (app.timeZone(): the one their device is in, found automatically).
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 

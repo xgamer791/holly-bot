@@ -12,7 +12,9 @@
 // devices can reach it (convex/devices.ts `report`): its tunnel or
 // --public-url address and its access key (computer/src/account.mjs). The app
 // on every device signed in to the account connects with them by itself
-// (src/main.js), and follows it to its new address after a restart.
+// (src/main.js), and follows it to its new address after a restart. The
+// account answers with whether this is the server that comes with a plan,
+// which stays linked to it: then this computer won't unlink (`planServer`).
 
 import { existsSync, renameSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
@@ -39,6 +41,7 @@ export class BotHome {
     this.busy = null; // a link, unlink or reload under way
     this.address = null; // where the account's devices can reach this computer (setAddress)
     this.reporting = Promise.resolve();
+    this.planServer = false; // the server that comes with the account's plan (report)
     this.closing = false;
     this.onSwap = () => {};
     account.onEnded = () => this.linkEnded();
@@ -53,7 +56,7 @@ export class BotHome {
   }
 
   status() {
-    return { linked: this.account.linked, userId: this.account.userId };
+    return { linked: this.account.linked, userId: this.account.userId, ...(this.account.linked && this.planServer ? { server: true } : {}) };
   }
 
   /** Starts the app from wherever the bots are kept. */
@@ -92,7 +95,8 @@ export class BotHome {
       const url = stopping ? '' : this.address || '';
       const access = url ? this.account.accessKey || '' : '';
       try {
-        await this.account.authed('mutation', 'devices:report', { url, access, ...(stopping ? { stopping } : {}) });
+        const answer = await this.account.authed('mutation', 'devices:report', { url, access, ...(stopping ? { stopping } : {}) });
+        if (answer && typeof answer.server === 'boolean') this.planServer = answer.server;
         this.reportFailed = false;
       } catch (err) {
         // A ConvexError carries the server's own words in `data`.
@@ -212,6 +216,8 @@ export class BotHome {
   async unlink() {
     if (this.busy) throw new Error('Holly Computer is busy. Try again in a minute.');
     if (!this.account.linked) return this.status();
+    if (!this.planServer) await this.report(); // the account says which this is
+    if (this.planServer) throw new Error('This is the computer that comes with your Holly Bot plan: it stays linked to your account.');
     this.busy = 'unlink';
     try {
       const { userId } = this.account;

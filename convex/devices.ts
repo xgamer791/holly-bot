@@ -146,20 +146,23 @@ const ACCESS = /^[A-Za-z0-9_-]{32,128}$/;
  * has no address they can reach (no tunnel, or the tunnel closed). It says
  * so as it starts, every few minutes while it runs, and once more with
  * `stopping` as it stops. Only a linked computer's own session can, and only
- * for itself; it needs no subscription, like the rest of devices:*.
+ * for itself; it needs no subscription, like the rest of devices:*. The
+ * answer says whether it's the server that comes with the plan, which stays
+ * linked to the account (unlink).
  */
 export const report = mutation({
   args: { url: v.string(), access: v.string(), stopping: v.optional(v.boolean()) },
-  returns: v.null(),
+  returns: v.object({ server: v.boolean() }),
   handler: async (ctx, { url, access, stopping }) => {
     const userId = await requireUserId(ctx);
     const sessionId = await getAuthSessionId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
     const device = devices.find((row) => row.sessionId === sessionId);
     if (!device) throw new ConvexError("Only a linked Holly Computer can say where it is");
+    const server = !!device.serverKey;
     if (stopping) {
       await ctx.db.patch(device._id, { url: undefined, access: undefined, stoppedAt: Date.now() });
-      return null;
+      return { server };
     }
     if (url && (url.length > 300 || !ADDRESS.test(url))) throw new ConvexError("That address isn't a public https address");
     if (url && !ACCESS.test(access)) throw new ConvexError("Bad access key");
@@ -169,12 +172,14 @@ export const report = mutation({
       seenAt: Date.now(),
       stoppedAt: undefined,
     });
-    return null;
+    return { server };
   },
 });
 
 /** Unlinks a computer from the account: its session ends, so the next thing
- * it asks the server fails and it stops using the account. */
+ * it asks the server fails and it stops using the account. Not the server
+ * that comes with the plan: that one stays linked for as long as the plan
+ * lasts (convex/servers.ts links it and lets it go). */
 export const unlink = mutation({
   args: { id: v.id("devices") },
   returns: v.null(),
@@ -182,6 +187,7 @@ export const unlink = mutation({
     const userId = await requireUserId(ctx);
     const device = await ctx.db.get(id);
     if (!device || device.userId !== userId) return null;
+    if (device.serverKey) throw new ConvexError("The computer that comes with your plan stays linked to your account.");
     await endSession(ctx, device.sessionId);
     await ctx.db.delete(device._id);
     return null;

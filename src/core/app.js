@@ -32,7 +32,8 @@ export const DEFAULT_SETTINGS = {
   // Ask before risky actions (shell, clicks, MCP, sending email). Off, bots just
   // do them. Replaces `autoReview`, which was on; saved values of it are ignored.
   askFirst: false,
-  timeZoneAuto: true,
+  // The person's time zone, as the app last saw it on their device (src/main.js):
+  // what bots on Holly Computer go by (timeZone()).
   timeZone: '',
   notifications: false,
   appearance: 'black',
@@ -260,8 +261,11 @@ export class App {
     if (threadId) this.markRead(threadId);
   }
 
+  /** The person's time zone: this device's, where the bots run in the app.
+   * Holly Computer goes by the one the app last saw on the person's own
+   * device (settings.timeZone), and its own until then. */
   timeZone() {
-    return (!this.settings.timeZoneAuto && this.settings.timeZone) || deviceTimeZone();
+    return (this.host === 'computer' && this.settings.timeZone) || deviceTimeZone();
   }
 
   // ----- settings -----------------------------------------------------------
