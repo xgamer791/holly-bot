@@ -179,6 +179,8 @@ export async function main(argv = process.argv.slice(2)) {
   const account = new AccountLink(join(dataDir, 'account.json'), { name: cfg.name });
   await account.keepAccessKey({ renew: args.newToken });
   const home = new BotHome({ dataDir, account, computer });
+  // A working bot's own screen stays up (computer/src/screens.mjs).
+  computer.isBusy = (owner) => !!home.app?.runtime.isAgentBusy(owner);
   const app = await home.open();
 
   const serverInfo = {

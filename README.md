@@ -14,7 +14,7 @@ Holly Bot is a subscription, and every plan comes with a dedicated server of you
 | Pro | $990 a year | $120 a month | 4 CPU, 8 GB RAM |
 | Ultra | $1,790 a year | $200 a month | 6 CPU, 16 GB RAM |
 
-- Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer that's always on: an XFCE desktop you can watch and use from the app (Screen), the shell, files and a Chrome browser that opens on that desktop. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
+- Your server is yours alone, at Vultr in Chicago. It runs Holly Computer linked to your account, and the app connects to it by itself, so your bots have a real Linux computer that's always on: the shell, files, and for each bot a screen of its own, an XFCE desktop with its own Chrome that you can watch and use from the app (Screen, in that bot's chat). Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.
 - Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for; then the server and the files on it are deleted, and your bots, chats and memories stay in your account.
 - If a renewal doesn't go through, everything keeps working while Stripe tries your card again, and the app asks you to update it.
 - Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
@@ -72,7 +72,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Linux:** needs an X11 session, `xdotool`, and ImageMagick or scrot.
 - **Windows:** works out of the box through PowerShell. Bots can't click into windows running as administrator unless Holly Computer also runs as administrator.
 
-**Bot browser:** bots use their own Chrome, Edge, Brave or Chromium profile, so your logins there persist. Each bot gets its own tab.
+**Bot browser:** bots use their own Chrome, Edge, Brave or Chromium profile, so your logins there persist. Each bot gets its own tab. On a Holly Bot server each bot has a Chrome of its own, on its own screen, with its own logins (the first time, a copy of the shared profile's).
 
 ## Brains (bring your own key)
 
@@ -109,7 +109,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Computer:**
   - Shell and files.
   - A real browser: pages come back as text with clickable element refs, and new tabs, dialogs and downloads are handled.
-  - The screen, mouse and keyboard.
+  - The screen, mouse and keyboard. On a Holly Bot server each bot has a screen of its own: a virtual display with its own XFCE desktop and its own Chrome, started when it's first needed and stopped after half an hour unused, so bots never share a screen. A computer with a real screen (your PC or Mac) has the one, which its bots share.
 - **Workspace:** the button in the prompt bar sets what a chat's bot works on: one or more GitHub repositories, or one of your servers (a computer linked to your account, running Holly Computer) and, if you like, some of its apps, which Holly Computer finds among its project folders and running Docker containers. Never both. In that chat the bot gets GitHub's tools or the server's, and GitHub's tools stay inside the chosen repositories. Picking a server this app isn't connected to connects to it.
 - **Prompt bar**, after Perplexity's: attach, web search on or off for the chat's bots, the bot's computer (grayed out: the computer button at the top right of the chat shows the connection, grayed out with none, the computer pulsing blue while connecting and solid green while connected, and opens the computer), Workspace, dictation, and the round button for voice, send or stop.
 - **Stop** ends whatever the bot is doing in the chat, at once: the reply it's writing, a running tool (a shell command is killed), turns waiting behind it, and tasks it handed to other bots. What it wrote stays. Tap Continue under the stopped reply (or tell it to carry on) and it picks up where it left off: it knows it was stopped and checks what got done first.

@@ -553,9 +553,11 @@ class Tab {
 }
 
 export class CdpBrowser {
-  constructor({ executablePath, userDataDir, headless = false, log = console, downloadDir = null, width = 1280, height = 900, extraArgs = [] } = {}) {
+  /** `env`: what Chrome runs with, e.g. the DISPLAY of a bot's own screen. */
+  constructor({ executablePath, userDataDir, headless = false, log = console, downloadDir = null, width = 1280, height = 900, extraArgs = [], env = process.env } = {}) {
     this.executablePath = executablePath;
     this.extraArgs = extraArgs;
+    this.env = env;
     this.userDataDir = userDataDir;
     this.headless = headless;
     this.log = log;
@@ -635,7 +637,7 @@ export class CdpBrowser {
     return new Promise((resolve, reject) => {
       let child;
       try {
-        child = spawn(this.executablePath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+        child = spawn(this.executablePath, args, { stdio: ['ignore', 'ignore', 'pipe'], env: this.env });
       } catch (err) {
         reject(new Error(`Could not start the browser: ${err.message}`));
         return;

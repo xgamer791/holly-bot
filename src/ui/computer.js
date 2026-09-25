@@ -28,7 +28,7 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
       right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast('Stopped all bots'), (err) => ui.toast(err.message, { error: true }))}>Stop all</button>`
         : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? 'Online' : 'Browser only'}</span>`}>
       <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
-      ${tab === 'screen' && html`<${Screen} />`}
+      ${tab === 'screen' && html`<${Screen} agentId=${agent?.id} />`}
       ${tab === 'files' && agent && (openFile
         ? html`<${FilePreview} fileId=${openFile} onBack=${() => setOpenFile(null)} />`
         : html`<${FileList} agentId=${agentId} onOpen=${setOpenFile} />`)}
@@ -166,10 +166,14 @@ function Terminal() {
     </div>`;
 }
 
-function Screen() {
+/** The computer's screen, or with `agentId`, that bot's: on a server each bot
+ * has a screen of its own, with its own Chrome (computer/src/screens.mjs);
+ * elsewhere they share the one. */
+function Screen({ agentId }) {
   const app = useApp();
   const ui = useUi();
   const caps = app.computer.info?.capabilities || {};
+  const own = !!(caps.screens && agentId);
   const [mode, setMode] = useState(caps.screenshot ? 'desktop' : 'browser');
   const [shot, setShot] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -197,8 +201,8 @@ function Screen() {
     inflight.current = true;
     if (!quiet) setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280 }), true);
-      else show(await app.computer.browser('screenshot', { ifRunning: true }), false);
+      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280, agentId }), true);
+      else show(await app.computer.browser('screenshot', { ifRunning: true, agentId }), false);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });
       setLive(false);
@@ -222,11 +226,11 @@ function Screen() {
   const act = async (action, args = {}) => {
     setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width }), true);
+      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width, agentId }), true);
       else {
         // Act on the tab being shown; after that the view follows whichever tab the bots use.
         const tab = action === 'goto' && closed ? undefined : shot?.tab;
-        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true }), false);
+        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true, agentId }), false);
       }
     } catch (err) {
       ui.toast(err.message, { error: true });
@@ -267,7 +271,9 @@ function Screen() {
         : html`<div class="notice" style="padding:60px 0">${busy ? 'Connecting to the screen…' : mode === 'browser' && closed ? 'The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.' : 'No picture yet.'}</div>`}
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
-    <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.'}</div>
+    <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${own
+      ? (mode === 'browser' ? 'Sign in to sites here for this bot — logins stay in its own browser.' : 'This bot\'s own screen: each bot has one of its own.')
+      : (mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.')}</div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <input class="input" placeholder="Type text…" value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />
       <button class="btn" onClick=${typeNow}>Type</button>

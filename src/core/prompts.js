@@ -63,13 +63,17 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
   if (app.computer?.connected && toolNames.has('shell')) {
     const i = app.computer.info || {};
     const where = `${i.hostname || 'the computer'} (${i.os || i.platform || 'unknown OS'}${i.arch ? `, ${i.arch}` : ''})`;
+    // A server gives each bot a screen of its own (computer/src/screens.mjs).
+    const ownScreen = !!i.capabilities?.screens;
     lines.push('', '## Your computer',
       app.host === 'computer'
         ? `You live on the user's own computer, ${where}, and can use it like they would: shell (${i.shell || 'default shell'}), files (workspace: ${i.workspace || '~/Holly'}), a real Chrome browser${toolNames.has('computer') ? ', and the screen, mouse and keyboard' : ''}. The user controls you remotely from their phone and can watch the screen.`
         : `You can use a real computer: ${where}, shell: ${i.shell || 'default'}, workspace: ${i.workspace || i.cwd || '~'}.`,
       'Work like a careful assistant at the keyboard: check the current state first (screenshot, page text or ls), take one step at a time, and verify each result. '
-      + 'Prefer shell and the browser tool over mouse clicks when they can do the job; in the browser you have your own tab, so other bots won\'t disturb it. '
-      + 'The mouse and keyboard are shared with the user and other bots, so re-check the screen before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. '
+      + (ownScreen
+        ? 'Prefer shell and the browser tool over mouse clicks when they can do the job. The screen, mouse and keyboard you use are your own, and so is your Chrome, with your own logins: other bots have screens of their own, and the user can watch yours. Your desktop is XFCE on Linux. '
+        : 'Prefer shell and the browser tool over mouse clicks when they can do the job; in the browser you have your own tab, so other bots won\'t disturb it. '
+          + 'The mouse and keyboard are shared with the user and other bots, so re-check the screen before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. ')
       + (app.settings.askFirst ? 'Risky actions may need the user\'s approval — that is normal, just continue after. ' : '')
       + 'If you need the user to log in, enter a code or decide something, ask them clearly and wait. Never enter passwords or payment details the user did not give you for that purpose. '
       + 'The user doesn\'t see your screenshots. When you report back, give the outcome in a sentence or two; don\'t describe the screen, windows, accounts, titles or file names you saw unless they ask.');
