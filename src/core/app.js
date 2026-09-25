@@ -10,6 +10,7 @@ import { Runtime, finalText, messageText } from './runtime.js';
 import { BM25 } from './memory/text.js';
 import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE, THINKING_KEYS, TOOL_GROUPS, FOCUS_OPTIONS } from './constants.js';
 import { CHIEF, chiefGreeting, chiefOf } from './chief.js';
+import { firstWords, languageName, phrase, spoken } from './i18n.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 
@@ -37,7 +38,10 @@ export const DEFAULT_SETTINGS = {
   timeZone: '',
   notifications: false,
   appearance: 'black',
+  // Settings → Language: 'system', 'en', 'es' or 'zh' (src/ui/i18n.js). And
+  // the language the app was last shown in, which bots write in (src/main.js).
   language: 'system',
+  uiLanguage: '',
   haptics: true,
   usage: { since: 0, byModel: {} },
   onboarded: false,
@@ -54,6 +58,13 @@ function untilAborted(promise, signal) {
   });
 }
 
+/** A phrase as a message part or preview keeps it: its English as `text`,
+ * and the phrase as `say`, for the app to show translated. */
+function shown(p) {
+  const { text, say } = spoken(p);
+  return { text, say };
+}
+
 /** How long creating a bot waits for its focus options before using the usual ones. */
 const FOCUS_WAIT_MS = 8000;
 
@@ -64,13 +75,14 @@ const FOCUS_PROMPT = 'Someone just made an AI assistant bot and named it. From i
   + 'Reply with JSON only: {"options":["…","…","…","…"]}';
 
 /** The model's focus options, tidied: no numbering or end punctuation, short,
- * no repeats, and no "Something else" (the card adds its own). Four at most. */
-function focusChoices(list) {
+ * no repeats, and no "Something else" (`other`, as the card adds it). Four
+ * at most. */
+function focusChoices(list, other = 'Something else') {
   const out = [];
   for (const item of Array.isArray(list) ? list : []) {
     if (typeof item !== 'string') continue;
-    const text = item.trim().replace(/^(?:[A-Ea-e1-9][.)]|[-•*])\s+/, '').replace(/[.!]+$/, '').trim();
-    if (!text || text.length > 40 || /^something else$/i.test(text)) continue;
+    const text = item.trim().replace(/^(?:[A-Ea-e1-9][.)]|[-•*])\s+/, '').replace(/[.!。！]+$/, '').trim();
+    if (!text || text.length > 40 || /^something else$/i.test(text) || text.toLowerCase() === other.toLowerCase()) continue;
     if (out.some((o) => o.toLowerCase() === text.toLowerCase())) continue;
     out.push(text);
   }
@@ -371,14 +383,17 @@ export class App {
 
   /** The bot's first message: a hello plus the "what should I focus on" card,
    * with options that fit its name (focusOptions). The Chief Coordinator's
-   * asks what the team should take on first. */
+   * asks what the team should take on first. In the language the app was
+   * last shown in (settings.uiLanguage). */
   async greet(agent, thread) {
     const callId = `onboard_${agent.id}`;
     const chief = agent.role === 'chief';
-    const text = chief ? chiefGreeting(agent.name) : `Hey — I'm ${agent.name}. Ready whenever you are.\n\nWhat do you want me helping with most?`;
-    const question = chief ? CHIEF.question : 'What should I focus on first?';
-    const subtitle = chief ? CHIEF.subtitle : "Pick whatever's most useful — we can expand from there.";
-    const options = chief ? CHIEF.focus : await this.focusOptions(agent);
+    const lang = this.settings.uiLanguage || 'en';
+    const say = (text, vars) => firstWords(lang, text, vars);
+    const text = chief ? chiefGreeting(agent.name, lang) : say("Hey — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?", { name: agent.name });
+    const question = say(chief ? CHIEF.question : 'What should I focus on first?');
+    const subtitle = say(chief ? CHIEF.subtitle : "Pick whatever's most useful — we can expand from there.");
+    const options = chief ? CHIEF.focus.map((o) => say(o)) : await this.focusOptions(agent);
     await this.addMessage({
       threadId: thread.id,
       authorType: 'agent',
@@ -405,17 +420,19 @@ export class App {
 
   /**
    * What a new bot offers to start on: four options the AI picks from its
-   * name (and its role, when a bot made it with one), then "Something else".
-   * The usual FOCUS_OPTIONS without an API key, or without a usable answer
-   * within a few seconds.
+   * name (and its role, when a bot made it with one), then "Something else",
+   * in the app's language. The usual FOCUS_OPTIONS without an API key, or
+   * without a usable answer within a few seconds.
    */
   async focusOptions(agent) {
+    const lang = this.settings.uiLanguage || 'en';
+    const say = (text) => firstWords(lang, text);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FOCUS_WAIT_MS);
     try {
       const out = await this.providers.complete({
         agent,
-        system: FOCUS_PROMPT,
+        system: lang === 'en' ? FOCUS_PROMPT : `${FOCUS_PROMPT} Write the options in ${languageName(lang)}.`,
         prompt: [
           `Name: ${agent.name}`,
           agent.description && `Role: ${agent.description}`,
@@ -426,14 +443,14 @@ export class App {
         signal: ctrl.signal,
       });
       const parsed = extractJson(out);
-      const picked = focusChoices(Array.isArray(parsed) ? parsed : parsed?.options);
-      if (picked.length >= 3) return [...picked, 'Something else'];
+      const picked = focusChoices(Array.isArray(parsed) ? parsed : parsed?.options, say('Something else'));
+      if (picked.length >= 3) return [...picked, say('Something else')];
     } catch (err) {
       if (err?.kind !== 'no_key') console.warn('focus options', err?.message || err);
     } finally {
       clearTimeout(timer);
     }
-    return FOCUS_OPTIONS;
+    return FOCUS_OPTIONS.map(say);
   }
 
   async updateAgent(id, patch) {
@@ -512,9 +529,9 @@ export class App {
     await this.db.put('threads', t);
     await this.addMessage({
       threadId: t.id, authorType: 'system', authorId: 'system',
-      parts: [{ type: 'text', text: `Group created with ${agentIds.map((id) => this.getAgent(id)?.name).join(', ')}. Mention a bot with @Name to ask it directly.` }],
+      parts: [{ type: 'text', ...shown(phrase('Group created with {names}. Mention a bot with @Name to ask it directly.', { names: agentIds.map((id) => this.getAgent(id)?.name).join(', ') })) }],
     });
-    await this.updateThread(t.id, { preview: { kind: 'normal', text: 'Group created', at: now() } });
+    await this.updateThread(t.id, { preview: { kind: 'normal', ...shown(phrase('Group created')), at: now() } });
     this.emit('threads');
     return t;
   }
@@ -549,7 +566,7 @@ export class App {
     this.runtime.stop(id);
     await this.db.deleteWhere('messages', 'byThread', range.prefix([id]));
     this.messageCache.set(id, []);
-    await this.updateThread(id, { summary: '', summaryUpToSeq: 0, preview: { kind: 'normal', text: 'Chat cleared', at: now() }, status: 'idle' });
+    await this.updateThread(id, { summary: '', summaryUpToSeq: 0, preview: { kind: 'normal', ...shown(phrase('Chat cleared')), at: now() }, status: 'idle' });
     this.emit(`messages:${id}`);
   }
 
@@ -679,8 +696,11 @@ export class App {
     return task;
   }
 
+  /** Adds a line to a bot's activity. `entry.title` can be a phrase
+   * (src/core/i18n.js): the row keeps the English, and the phrase as `say`. */
   logActivity(agentId, entry) {
-    const row = { id: uid('act'), agentId, createdAt: now(), ...entry };
+    const { text, say } = spoken(entry.title);
+    const row = { id: uid('act'), agentId, createdAt: now(), ...entry, title: text, ...(say ? { say } : {}) };
     this.activity.unshift(row);
     if (this.activity.length > 300) this.activity.length = 300;
     this.db.put('activity', row).catch(() => {});
@@ -774,8 +794,9 @@ export class App {
 
   // ----- notifications ------------------------------------------------------
 
-  notify(agent, text, threadId) {
-    this.emit('notify', { agent, agentId: agent?.id, text, threadId });
+  /** `say`: the phrase for `text`, to show it translated (src/core/i18n.js). */
+  notify(agent, text, threadId, say = null) {
+    this.emit('notify', { agent, agentId: agent?.id, text, threadId, ...(say ? { say } : {}) });
   }
 
   // ----- backup ---------------------------------------------------------------

@@ -590,6 +590,10 @@ button.row:active { background: var(--surface-2); }
 .credits-bar span.mid { background: var(--orange); }
 .credits-bar span.low { background: var(--red-strong); }
 .credits-sub { margin-top: 10px; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Settings: the usage bar under the account, a row that opens Usage. */
+.usage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.usage-left { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.credits-bar.usage-bar { height: 8px; margin-top: 10px; border-radius: 4px; }
 @media (prefers-reduced-motion: reduce) { .credits-bar span { transition: none; } }
 .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 12px; background: var(--surface-2); color: var(--muted); }
 .status-pill.ok { color: var(--green); }

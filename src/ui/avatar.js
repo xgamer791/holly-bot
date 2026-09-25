@@ -1,5 +1,6 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { THINKING_KEYS } from '../core/constants.js';
+import { mark } from './i18n.js';
 
 // Bot avatars: a colored shape with a two-stroke face whose "eyes" glide between
 // expressions. The eyes are white (dark on a white bot, where white wouldn't
@@ -13,40 +14,40 @@ import { THINKING_KEYS } from '../core/constants.js';
 // one holds still (styles.css); both still blink.
 
 export const SHAPES = {
-  circle: { label: 'Circle', d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
+  circle: { label: mark('Circle'), d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
   blob: {
-    label: 'Blob',
+    label: mark('Blob'),
     d: 'M53 13C81 12 97 30 96 53C95 76 75 89 49 88C23 87 4 75 4 52C5 29 25 14 53 13Z',
     face: [50, 52],
     lim: [1, 0.85, 1],
   },
   squircle: {
-    label: 'Squircle',
+    label: mark('Squircle'),
     d: 'M50 5C83 5 95 17 95 50C95 83 83 95 50 95C17 95 5 83 5 50C5 17 17 5 50 5Z',
     face: [50, 52],
     lim: [1, 1, 1],
   },
-  pill: { label: 'Pill', d: 'M28 25H72A25 25 0 0 1 72 75H28A25 25 0 0 1 28 25Z', face: [50, 50], lim: [1, 0.4, 0.75] },
+  pill: { label: mark('Pill'), d: 'M28 25H72A25 25 0 0 1 72 75H28A25 25 0 0 1 28 25Z', face: [50, 50], lim: [1, 0.4, 0.75] },
   triangle: {
-    label: 'Triangle',
+    label: mark('Triangle'),
     d: 'M42.2 13.4Q50 1 57.8 13.4L93 75Q99 88 84 88H16Q1 88 7 75Z',
     face: [50, 63],
     lim: [0.7, 0.6, 0.85],
   },
   hexagon: {
-    label: 'Hexagon',
+    label: mark('Hexagon'),
     d: 'M44 6.5Q50 3 56 6.5L86 23.8Q92 27.3 92 34.2V65.8Q92 72.7 86 76.2L56 93.5Q50 97 44 93.5L14 76.2Q8 72.7 8 65.8V34.2Q8 27.3 14 23.8Z',
     face: [50, 52],
     lim: [1, 1, 1],
   },
   cloud: {
-    label: 'Cloud',
+    label: mark('Cloud'),
     d: 'M27 82C14 82 5 74 5 63C5 53 12 46 22 45C22 32 33 22 46 23C53 15 67 14 75 23C85 25 92 33 91 43C97 47 99 54 97 62C95 74 86 82 74 82C68 88 58 89 50 84C43 88 33 88 27 82Z',
     face: [51, 56],
     lim: [1, 0.75, 1],
   },
   drop: {
-    label: 'Drop',
+    label: mark('Drop'),
     d: 'M53 5C60 17 83 40 83 62C83 81 69 95 50 95C31 95 17 81 17 62C17 42 42 20 53 5Z',
     face: [50, 64],
     lim: [0.8, 0.75, 0.9],
@@ -70,6 +71,21 @@ export const COLORS = {
 };
 
 export const COLOR_KEYS = Object.keys(COLORS);
+
+/** What the color picker calls each color (shown with tr()). */
+export const COLOR_NAMES = {
+  white: mark('white'),
+  brown: mark('brown'),
+  red: mark('red'),
+  vermilion: mark('vermilion'),
+  orange: mark('orange'),
+  green: mark('green'),
+  teal: mark('teal'),
+  blue: mark('blue'),
+  purple: mark('purple'),
+  pink: mark('pink'),
+  gray: mark('gray'),
+};
 
 /** White eyes, or dark ones on a white body, where white wouldn't show. */
 function eyeColorOf(color) {
@@ -107,15 +123,15 @@ const EYE_HALF = 8.5;
 // eyes stay in step with the CSS body motion in styles.css → .think-*).
 const cycle = (list, ms) => (t) => list[Math.floor(t / ms) % list.length];
 export const THINKING = {
-  ponder: { label: 'Ponder', eyes: cycle(['upRight', 'upRight', 'curious', 'up'], 1100) },
-  hop: { label: 'Hop', eyes: cycle(['happy', 'focused'], 450) },
-  jelly: { label: 'Jelly', eyes: cycle(['surprised', 'curious', 'happy'], 650) },
-  orbit: { label: 'Orbit', eyes: (t) => ['up', 'right', 'down', 'left'][Math.floor(((t % 2400) + 300) / 600) % 4] },
-  scan: { label: 'Scan', eyes: cycle(['left', 'right'], 420) },
-  sparkle: { label: 'Sparkle', eyes: cycle(['happy', 'up', 'wink', 'happy'], 800) },
-  float: { label: 'Float', eyes: cycle(['up', 'neutral', 'upRight', 'neutral'], 1000) },
-  nod: { label: 'Nod', eyes: cycle(['focused', 'down'], 400) },
-  twirl: { label: 'Twirl', eyes: (t) => (t % 2200 < 800 ? 'surprised' : 'happy') },
+  ponder: { label: mark('Ponder'), eyes: cycle(['upRight', 'upRight', 'curious', 'up'], 1100) },
+  hop: { label: mark('Hop'), eyes: cycle(['happy', 'focused'], 450) },
+  jelly: { label: mark('Jelly'), eyes: cycle(['surprised', 'curious', 'happy'], 650) },
+  orbit: { label: mark('Orbit'), eyes: (t) => ['up', 'right', 'down', 'left'][Math.floor(((t % 2400) + 300) / 600) % 4] },
+  scan: { label: mark('Scan'), eyes: cycle(['left', 'right'], 420) },
+  sparkle: { label: mark('Sparkle'), eyes: cycle(['happy', 'up', 'wink', 'happy'], 800) },
+  float: { label: mark('Float'), eyes: cycle(['up', 'neutral', 'upRight', 'neutral'], 1000) },
+  nod: { label: mark('Nod'), eyes: cycle(['focused', 'down'], 400) },
+  twirl: { label: mark('Twirl'), eyes: (t) => (t % 2200 < 800 ? 'surprised' : 'happy') },
 };
 
 /** Doing a task: eyes on the work, now and then checking around. */

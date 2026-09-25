@@ -3,9 +3,10 @@ import { useApp, useUi, useTopics, haptic } from './hooks.js';
 import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
-import { initials, formatShort } from '../core/util.js';
+import { initials } from '../core/util.js';
 import { chiefOf } from '../core/chief.js';
 import { ComputerButton } from './computer-button.js';
+import { phraseOr, shortTime, tr } from './i18n.js';
 
 export function HomeScreen({ activeThreadId }) {
   const app = useApp();
@@ -32,27 +33,27 @@ export function HomeScreen({ activeThreadId }) {
   return html`
     <div class="pane-list">
       <header class="topbar">
-        <button class="initials" aria-label="Settings" onClick=${() => ui.openSheet('settings')}>${profileName ? initials(profileName) : html`<${Icon.gear} size="20" />`}</button>
+        <button class="initials" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}>${profileName ? initials(profileName) : html`<${Icon.gear} size="20" />`}</button>
         <div class="spacer"></div>
         <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
-        <button class="circle-btn" aria-label="Search" onClick=${() => {
+        <button class="circle-btn" aria-label=${tr('Search')} onClick=${() => {
           setSearching(!searching);
           setQuery('');
         }}><${Icon.search} /></button>
-        <button ref=${plusRef} class="circle-btn" aria-label="New" onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
+        <button ref=${plusRef} class="circle-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       </header>
       ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} items=${[
-        { label: 'New Bot', onClick: () => ui.openSheet('createBot') },
-        { label: 'New Group Chat', onClick: () => ui.openSheet('newGroup') },
+        { label: tr('New Bot'), onClick: () => ui.openSheet('createBot') },
+        { label: tr('New Group Chat'), onClick: () => ui.openSheet('newGroup') },
       ]} />`}
       <div class="home-scroll" onScroll=${() => swiped && setSwiped(null)}>
         ${searching && html`<div class="search-bar"><${Icon.search} />
-          <input autofocus placeholder="Search bots and chats" value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} />
-          ${query && html`<button aria-label="Clear" onClick=${() => setQuery('')}><${Icon.x} size="16" /></button>`}
+          <input autofocus placeholder=${tr('Search bots and chats')} value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} />
+          ${query && html`<button aria-label=${tr('Clear')} onClick=${() => setQuery('')}><${Icon.x} size="16" /></button>`}
         </div>`}
         <${ComputerNotice} />
         ${!threads.length && !q && html`<${EmptyHome} />`}
-        ${!threads.length && q && html`<div class="empty-home"><p>No bots match “${query}”.</p></div>`}
+        ${!threads.length && q && html`<div class="empty-home"><p>${tr('No bots match “{query}”.', { query })}</p></div>`}
         ${threads.map((t) => html`<${ThreadRow} key=${t.id} thread=${t} active=${t.id === activeThreadId} swiped=${swiped} onSwipe=${setSwiped} />`)}
       </div>
     </div>`;
@@ -92,12 +93,12 @@ function ComputerNotice() {
       <${Icon.monitor} size="18" />
       <span>${notice.text}</span>
       ${notice.action && html`<button class="list-notice-action" onClick=${notice.action.onClick}>${notice.action.label}</button>`}
-      <button class="list-notice-close" aria-label="Dismiss" onClick=${dismiss}><${Icon.x} size="16" /></button>
+      <button class="list-notice-close" aria-label=${tr('Dismiss')} onClick=${dismiss}><${Icon.x} size="16" /></button>
     </div>`;
 }
 
 export function threadTitle(app, t) {
-  if (t.kind === 'dm') return app.getAgent(t.agentIds[0])?.name || t.title || 'Bot';
+  if (t.kind === 'dm') return app.getAgent(t.agentIds[0])?.name || t.title || tr('Bot');
   return t.title || t.agentIds.map((id) => app.getAgent(id)?.name).filter(Boolean).join(', ');
 }
 
@@ -122,12 +123,12 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
   const isChief = thread.kind === 'dm' && agent?.role === 'chief';
   const title = threadTitle(app, thread);
   const at = thread.preview?.at || thread.updatedAt;
-  let preview = thread.preview?.text || '';
+  let preview = phraseOr(thread.preview?.say, thread.preview?.text || '');
   if (thread.kind === 'group' && thread.preview?.authorId && thread.preview.authorId !== 'user' && kind === 'normal') {
     const who = app.getAgent(thread.preview.authorId)?.name;
     if (who) preview = `${who}: ${preview}`;
   }
-  if (busy && !preview) preview = 'Working…';
+  if (busy && !preview) preview = tr('Working…');
 
   // A sideways drag moves the row; an up-and-down one is left to the list's scrolling.
   const down = (e) => {
@@ -169,8 +170,8 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
   const remove = async () => {
     const dm = thread.kind === 'dm' && agent;
     const ok = await ui.confirm(dm
-      ? { title: `Delete ${agent.name}?`, message: 'This deletes the bot, its chats, memories, files and routines. This cannot be undone.', confirmText: 'Delete', danger: true }
-      : { title: `Delete ${title}?`, message: 'Bots and their memories are not affected.', confirmText: 'Delete', danger: true });
+      ? { title: tr('Delete {name}?', { name: agent.name }), message: tr('This deletes the bot, its chats, memories, files and routines. This cannot be undone.'), confirmText: tr('Delete'), danger: true }
+      : { title: tr('Delete {name}?', { name: title }), message: tr('Bots and their memories are not affected.'), confirmText: tr('Delete'), danger: true });
     onSwipe(null);
     if (!ok) return;
     if (active) ui.navigate('#/');
@@ -181,7 +182,7 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
 
   return html`
     <div class=${`swipe-row ${x ? 'shifted' : ''}`}>
-      <button class="swipe-delete" tabindex=${open ? 0 : -1} aria-hidden=${!open} onClick=${remove}><${Icon.trash} size="20" />Delete</button>
+      <button class="swipe-delete" tabindex=${open ? 0 : -1} aria-hidden=${!open} onClick=${remove}><${Icon.trash} size="20" />${tr('Delete')}</button>
       <button class=${`row-bot ${active ? 'active' : ''} ${drag !== null ? 'dragging' : ''}`} style=${x ? `transform:translateX(${x}px)` : ''}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onClick=${tap}>
         ${thread.kind === 'group'
@@ -190,8 +191,8 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
         <div class="meta">
           <div class=${`line1 ${isChief ? 'tagged' : ''}`}>
             <span class="title">${title}</span>
-            ${isChief && html`<span class="chief-tag">Chief</span>`}
-            ${!(thread.unread && !active) && html`<span class="time">${at ? formatShort(at) : ''}</span>`}
+            ${isChief && html`<span class="chief-tag">${tr('Chief')}</span>`}
+            ${!(thread.unread && !active) && html`<span class="time">${at ? shortTime(at) : ''}</span>`}
           </div>
           <div class="line2">
             <span class=${`preview ${waiting ? 'waiting' : previewClass}`}>${preview}</span>
@@ -208,15 +209,15 @@ function EmptyHome() {
   return html`
     <div class="empty-home">
       <${Avatar} shape="cloud" color="blue" size=${96} live />
-      <h2>Make your first bot</h2>
-      <p>Each bot gets its own name, look, personality and long-term memory — and your bots can talk to each other.</p>
+      <h2>${tr('Make your first bot')}</h2>
+      <p>${tr('Each bot gets its own name, look, personality and long-term memory — and your bots can talk to each other.')}</p>
       <div class="btn-row" style="justify-content:center">
-        <button class="btn primary" onClick=${() => ui.openSheet('createBot')}><${Icon.plus} size="18" /> New Bot</button>
+        <button class="btn primary" onClick=${() => ui.openSheet('createBot')}><${Icon.plus} size="18" /> ${tr('New Bot')}</button>
       </div>
       ${!app.remote && html`
         <button class="computer-cta" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>
           <${Icon.monitor} size="22" />
-          <span><b>Let your bots use your computer</b><br />Run Holly Computer on your PC or Mac: bots work there around the clock and you control them from your phone.</span>
+          <span><b>${tr('Let your bots use your computer')}</b><br />${tr('Run Holly Computer on your PC or Mac: bots work there around the clock and you control them from your phone.')}</span>
           <${Icon.chevron} size="18" />
         </button>`}
     </div>`;

@@ -1,5 +1,6 @@
 import { SHARED_ID, MEMORY_TYPES, formatMemories } from '../memory/store.js';
 import { truncate } from '../util.js';
+import { phrase } from '../i18n.js';
 
 // Tools an agent uses to manage its own deep memory.
 
@@ -9,7 +10,7 @@ export const memoryTools = [
   {
     name: 'remember',
     group: 'memory',
-    label: (a) => (a.shared ? 'Saved to team memory' : 'Saved to memory'),
+    label: (a) => (a.shared ? phrase('Saved to team memory') : phrase('Saved to memory')),
     description: 'Save a durable fact to long-term memory: user preferences, personal details, projects, goals, decisions, promises, important people. '
       + 'Write one self-contained sentence. Set shared=true only for information every bot on the team should know.',
     parameters: {
@@ -41,7 +42,7 @@ export const memoryTools = [
   {
     name: 'recall',
     group: 'memory',
-    label: (a) => `Searched memory for “${truncate(a.query || '', 40)}”`,
+    label: (a) => phrase('Searched memory for “{query}”', { query: truncate(a.query || '', 40) }),
     description: 'Search your long-term memory (and the shared team memory) for facts related to a query. Use different keywords if the first search misses.',
     parameters: {
       type: 'object',
@@ -62,7 +63,7 @@ export const memoryTools = [
   {
     name: 'update_memory',
     group: 'memory',
-    label: () => 'Updated a memory',
+    label: () => phrase('Updated a memory'),
     description: 'Rewrite an existing memory (by id) when information changed or was refined.',
     parameters: {
       type: 'object',
@@ -83,7 +84,7 @@ export const memoryTools = [
   {
     name: 'forget',
     group: 'memory',
-    label: () => 'Forgot a memory',
+    label: () => phrase('Forgot a memory'),
     description: 'Delete a memory (by id) that is wrong, outdated, or that the user asked you to forget.',
     parameters: {
       type: 'object',
@@ -100,7 +101,7 @@ export const memoryTools = [
   {
     name: 'core_memory',
     group: 'memory',
-    label: (a) => `Updated core memory (${a.block})`,
+    label: (a) => phrase('Updated core memory ({block})', { block: a.block }),
     description: 'Edit your always-visible core memory. Blocks: "persona" (who you are, your personality and role), "human" (key facts about the user), "notes" (current goals, ongoing tasks, reminders to self). '
       + 'Operations: append (add text), replace (swap old_text for text), rewrite (replace the whole block). Keep blocks concise.',
     parameters: {
@@ -131,7 +132,7 @@ export const memoryTools = [
   {
     name: 'search_history',
     group: 'memory',
-    label: (a) => `Searched past chats for “${truncate(a.query || '', 40)}”`,
+    label: (a) => phrase('Searched past chats for “{query}”', { query: truncate(a.query || '', 40) }),
     description: 'Full-text search over all your past conversations (with the user, other bots and groups), including messages older than your context window.',
     parameters: {
       type: 'object',

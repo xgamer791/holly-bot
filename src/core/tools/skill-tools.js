@@ -1,4 +1,5 @@
 // Skills: reusable instruction packs the user writes once (Settings → Plugins → Skills)
+import { phrase } from '../i18n.js';
 // and any bot can load on demand.
 
 export const skillTools = [
@@ -6,7 +7,7 @@ export const skillTools = [
     name: 'use_skill',
     group: 'core',
     available: (app) => (app.settings.skills || []).some((s) => s.enabled !== false),
-    label: (a) => `Loaded skill “${a.name}”`,
+    label: (a) => phrase('Loaded skill “{name}”', { name: a.name }),
     description: 'Load the full instructions of one of the user\'s skills (listed in your instructions) before doing a task it covers.',
     parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
     async run(args, ctx) {

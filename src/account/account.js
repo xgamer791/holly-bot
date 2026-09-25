@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from '../../vendor/convex.js';
 import { CONVEX_URL, SITE } from './config.js';
+import { tr } from '../ui/i18n.js';
 
 // Holly Bot accounts: Sign in with Apple or Google, kept in Holly Bot's own
 // Convex database (CONVEX.md). This speaks the same protocol as Convex Auth's
@@ -93,10 +94,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Turns a failed call into something a person can act on. */
 export function friendlyError(err) {
   const message = String(err?.message || err || '');
-  if (isNetworkError(err)) return "Couldn't reach Holly Bot's server. Check your connection and try again.";
-  if (/could not find public function/i.test(message)) return "Sign-in isn't set up on Holly Bot's server yet.";
-  if (/rate limit|too many/i.test(message)) return 'Too many attempts. Wait a minute and try again.';
-  return 'Something went wrong signing in. Please try again.';
+  if (isNetworkError(err)) return tr("Couldn't reach Holly Bot's server. Check your connection and try again.");
+  if (/could not find public function/i.test(message)) return tr("Sign-in isn't set up on Holly Bot's server yet.");
+  if (/rate limit|too many/i.test(message)) return tr('Too many attempts. Wait a minute and try again.');
+  return tr('Something went wrong signing in. Please try again.');
 }
 
 class Account {
@@ -196,7 +197,7 @@ class Account {
     if (!code) {
       // Convex sends people back without a code when they cancel or the provider fails.
       const recent = pending && Date.now() - pending.at < 15 * 60 * 1000;
-      return recent ? { from, error: "Sign-in didn't finish. Please try again." } : null;
+      return recent ? { from, error: tr("Sign-in didn't finish. Please try again.") } : null;
     }
     url.searchParams.delete('code');
     history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
@@ -204,7 +205,7 @@ class Account {
     write(this.keys.verifier, null);
     try {
       const result = await this.exchange({ params: { code }, verifier });
-      if (!result?.tokens) return { from, error: "That sign-in didn't finish. Please try again." };
+      if (!result?.tokens) return { from, error: tr("That sign-in didn't finish. Please try again.") };
       this.store(result.tokens);
       return 'signed-in';
     } catch (err) {

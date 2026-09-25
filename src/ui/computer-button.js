@@ -1,6 +1,7 @@
 import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp, useTopics } from './hooks.js';
 import { Icon } from './icons.js';
+import { mark, tr } from './i18n.js';
 
 // The computer button, at the top right of the bot list and of each chat. It
 // opens the computer and shows the connection: grayed out while there's none,
@@ -19,7 +20,7 @@ function computerStatus(app, now = Date.now()) {
   return app.awaitingServer ? 'connecting' : 'off';
 }
 
-const LABEL = { connected: 'Computer, connected', connecting: 'Computer, connecting', off: 'Computer, not connected' };
+const LABEL = { connected: mark('Computer, connected'), connecting: mark('Computer, connecting'), off: mark('Computer, not connected') };
 
 export function ComputerButton({ onClick }) {
   const app = useApp();
@@ -32,5 +33,5 @@ export function ComputerButton({ onClick }) {
     const t = setTimeout(() => redraw((n) => n + 1), Math.max(0, app.unreachableSince + RECONNECT_MS - Date.now()) + 50);
     return () => clearTimeout(t);
   }, [status, app.unreachableSince]);
-  return html`<button class=${`circle-btn computer-btn is-${status}`} aria-label=${LABEL[status]} onClick=${onClick}><${Icon.monitor} /></button>`;
+  return html`<button class=${`circle-btn computer-btn is-${status}`} aria-label=${tr(LABEL[status])} onClick=${onClick}><${Icon.monitor} /></button>`;
 }

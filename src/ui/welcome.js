@@ -2,6 +2,7 @@ import { html, useEffect, useState } from '../../vendor/preact.js';
 import { account, friendlyError } from '../account/account.js';
 import { Avatar } from './avatar.js';
 import { Icon } from './icons.js';
+import { listText, tr, trn, trx } from './i18n.js';
 
 // What people see before they have signed in: Macronaut's welcome and sign-in
 // screens on a plain white page. A stacked wordmark with two identical actions
@@ -70,7 +71,7 @@ function ProviderButtons({ signUp, from, notice }) {
     const ready = options && !options.problem ? options : await check();
     if (!ready?.[provider]) {
       setBusy(null);
-      if (ready) setError(`${PROVIDERS[provider]} sign-in isn't set up yet.`);
+      if (ready) setError(tr("{provider} sign-in isn't set up yet.", { provider: PROVIDERS[provider] }));
       return;
     }
     try {
@@ -82,13 +83,13 @@ function ProviderButtons({ signUp, from, notice }) {
   };
 
   const unavailable = options?.problem
-    || (options && !options.apple && !options.google ? "Sign-in isn't set up on Holly Bot's server yet." : null);
+    || (options && !options.apple && !options.google ? tr("Sign-in isn't set up on Holly Bot's server yet.") : null);
   const missing = !unavailable && options && Object.keys(PROVIDERS).find((provider) => !options[provider]);
   const off = (provider) => !!busy || (!!options && !options.problem && !options[provider]);
   const button = (provider, Logo) => html`
     <button class=${`auth-btn ${provider}`} disabled=${off(provider)} onClick=${() => start(provider)}>
       ${busy === provider ? html`<span class="spinner"></span>` : html`<${Logo} />`}
-      <span>${signUp ? 'Sign up' : 'Continue'} with ${PROVIDERS[provider]}</span>
+      <span>${signUp ? tr('Sign up with {provider}', { provider: PROVIDERS[provider] }) : tr('Continue with {provider}', { provider: PROVIDERS[provider] })}</span>
     </button>`;
 
   return html`
@@ -96,7 +97,7 @@ function ProviderButtons({ signUp, from, notice }) {
       ${button('apple', AppleLogo)}
       ${button('google', GoogleLogo)}
     </div>
-    ${missing && html`<p class="auth-note">${PROVIDERS[missing]} sign-in isn't set up yet.</p>`}
+    ${missing && html`<p class="auth-note">${tr("{provider} sign-in isn't set up yet.", { provider: PROVIDERS[missing] })}</p>`}
     ${error && html`<p class="auth-error" role="alert">${error}</p>`}
     ${unavailable && html`
       <div class="auth-unavailable">
@@ -104,16 +105,17 @@ function ProviderButtons({ signUp, from, notice }) {
         <button class="auth-skip" onClick=${() => {
           setOptions(null);
           check();
-        }}>Try again</button>
+        }}>${tr('Try again')}</button>
       </div>`}
     <${LegalNote} />`;
 }
 
 /** The agreement people make by signing in, with both documents a tap away. */
 function LegalNote() {
-  return html`<p class="auth-legal">By continuing, you agree to Holly Bot's
-    <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and
-    <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
+  return html`<p class="auth-legal">${trx("By continuing, you agree to Holly Bot's {terms} and {privacy}.", {
+    terms: html`<a href="terms.html" target="_blank" rel="noopener">${tr('Terms of Service')}</a>`,
+    privacy: html`<a href="privacy.html" target="_blank" rel="noopener">${tr('Privacy Policy')}</a>`,
+  })}</p>`;
 }
 
 function MoreOptions({ onClose }) {
@@ -124,11 +126,11 @@ function MoreOptions({ onClose }) {
   }, []);
   return html`
     <div class="hello-scrim" onClick=${onClose}></div>
-    <section class="hello-sheet" role="dialog" aria-modal="true" aria-label="More options">
+    <section class="hello-sheet" role="dialog" aria-modal="true" aria-label=${tr('More options')}>
       <div class="hello-grabber"></div>
-      <h2>More options</h2>
+      <h2>${tr('More options')}</h2>
       <${ProviderButtons} from="sign-in" />
-      <button class="hello-sheet-cancel" onClick=${onClose}>Cancel</button>
+      <button class="hello-sheet-cancel" onClick=${onClose}>${tr('Cancel')}</button>
     </section>`;
 }
 
@@ -148,10 +150,10 @@ function WelcomeScreen({ go, notice }) {
       </div>
       <div class="hello-dock">
         <div class="hello-ctas">
-          <button class="hello-cta" onClick=${() => go('create-account')}>Create Account</button>
-          <button class="hello-cta" onClick=${() => go('sign-in')}>Sign In</button>
+          <button class="hello-cta" onClick=${() => go('create-account')}>${tr('Create Account')}</button>
+          <button class="hello-cta" onClick=${() => go('sign-in')}>${tr('Sign In')}</button>
         </div>
-        <button class="hello-more" onClick=${() => setMore(true)}>More options</button>
+        <button class="hello-more" onClick=${() => setMore(true)}>${tr('More options')}</button>
       </div>
       ${more && html`<${MoreOptions} onClose=${() => setMore(false)} />`}
     </div>`;
@@ -164,18 +166,18 @@ function AuthScreen({ screen, notice, back, go }) {
   return html`
     <div class="hello-canvas auth">
       <header class="auth-head">
-        <button class="auth-back" aria-label="Back" onClick=${back}><${Icon.back} size=${28} /></button>
-        <h1>${signUp ? 'Create Account' : 'Sign In'}</h1>
+        <button class="auth-back" aria-label=${tr('Back')} onClick=${back}><${Icon.back} size=${28} /></button>
+        <h1>${signUp ? tr('Create Account') : tr('Sign In')}</h1>
         <span class="auth-back" aria-hidden="true"></span>
       </header>
       <div class="auth-form">
         <p class="auth-lead">${signUp
-          ? "Holly Bot uses your Apple or Google account, so there's no new password to remember."
-          : 'Welcome back. Use the Apple or Google account you signed up with.'}</p>
+          ? tr("Holly Bot uses your Apple or Google account, so there's no new password to remember.")
+          : tr('Welcome back. Use the Apple or Google account you signed up with.')}</p>
         <${ProviderButtons} signUp=${signUp} from=${screen} notice=${notice} />
         <button class="auth-switch" onClick=${() => go(signUp ? 'sign-in' : 'create-account', { replace: true })}>
-          <span>${signUp ? 'Already have an account? ' : "Don't have an account? "}</span>
-          <u>${signUp ? 'Sign In.' : 'Create Account.'}</u>
+          <span>${signUp ? tr('Already have an account?') : tr("Don't have an account?")} </span>
+          <u>${signUp ? tr('Sign In.') : tr('Create Account.')}</u>
         </button>
       </div>
     </div>`;
@@ -218,10 +220,6 @@ function signedInAs() {
   return user?.email || user?.name || '';
 }
 
-function count(n, one, many) {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 /**
  * Right after signing in on a device that kept bots and chats from before
  * Holly Bot had accounts (`found`: { bots, chats, computer }). They go into
@@ -234,12 +232,12 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(null);
   const parts = [
-    found.bots && count(found.bots, 'bot', 'bots'),
-    found.chats && count(found.chats, 'chat', 'chats'),
-    !found.bots && !found.chats && found.settings && 'your settings and keys',
-    found.computer && 'a link to your Holly Computer',
+    found.bots && trn(found.bots, '{n} bot', '{n} bots'),
+    found.chats && trn(found.chats, '{n} chat', '{n} chats'),
+    !found.bots && !found.chats && found.settings && tr('your settings and keys'),
+    found.computer && tr('a link to your Holly Computer'),
   ].filter(Boolean);
-  const what = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0] || 'settings';
+  const what = parts.length > 1 ? listText(parts) : parts[0] || tr('settings');
   const run = (name, fn) => async () => {
     setBusy(name);
     setError(null);
@@ -261,21 +259,22 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
       <div class="hello-canvas">
         <div class="hello-hero device">
           <${Avatar} shape="cloud" color="blue" size=${72} />
-          <h1 class="device-title">Found on this device</h1>
-          <p class="device-text">This device has ${what} from before Holly Bot had accounts.
-            Add them to your account${who ? html` (<b>${who}</b>)` : ''} to keep them, or delete them. Either way they're removed from this device.</p>
+          <h1 class="device-title">${tr('Found on this device')}</h1>
+          <p class="device-text">${who
+            ? trx("This device has {what} from before Holly Bot had accounts. Add them to your account (**{who}**) to keep them, or delete them. Either way they're removed from this device.", { what, who })
+            : tr("This device has {what} from before Holly Bot had accounts. Add them to your account to keep them, or delete them. Either way they're removed from this device.", { what })}</p>
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>
         <div class="hello-dock">
           <div class="hello-ctas">
             <button class="hello-cta" disabled=${!!busy} onClick=${run('add', onAdd)}>
-              ${busy === 'add' ? html`<span class="spinner"></span>` : 'Add to My Account'}
+              ${busy === 'add' ? html`<span class="spinner"></span>` : tr('Add to My Account')}
             </button>
             <button class=${`hello-cta secondary${confirming ? ' danger' : ''}`} disabled=${!!busy} onClick=${remove}>
-              ${busy === 'delete' ? html`<span class="spinner"></span>` : confirming ? 'Tap Again to Delete Them' : 'Delete from This Device'}
+              ${busy === 'delete' ? html`<span class="spinner"></span>` : confirming ? tr('Tap Again to Delete Them') : tr('Delete from This Device')}
             </button>
           </div>
-          <button class="hello-more" disabled=${!!busy} onClick=${run('sign-out', onSignOut)}>Use a Different Account</button>
+          <button class="hello-more" disabled=${!!busy} onClick=${run('sign-out', onSignOut)}>${tr('Use a Different Account')}</button>
         </div>
       </div>
     </div>`;
@@ -310,18 +309,20 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto
       <div class="hello-canvas">
         <div class="hello-hero device">
           <${Avatar} shape="cloud" color="blue" size=${72} />
-          <h1 class="device-title">Keep your bots in your account</h1>
-          <p class="device-text">Link <b>${name}</b> to your account${who ? html` (<b>${who}</b>)` : ''}. Its bots, chats, memories and keys move into your account, and ${name} keeps running your bots around the clock.</p>
-          <p class="hello-warning" role="note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with <code>--new-token</code> and the old links stop working.</p>
-          ${busy && html`<p class="hello-note" role="status">Moving your bots into your account. This can take a minute.</p>`}
+          <h1 class="device-title">${tr('Keep your bots in your account')}</h1>
+          <p class="device-text">${who
+            ? trx('Link **{name}** to your account (**{who}**). Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name, who })
+            : trx('Link **{name}** to your account. Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name })}</p>
+          <p class="hello-warning" role="note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with {flag} and the old links stop working.", { name, flag: html`<code>--new-token</code>` })}</p>
+          ${busy && html`<p class="hello-note" role="status">${tr('Moving your bots into your account. This can take a minute.')}</p>`}
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>
         <div class="hello-dock">
           <div class="hello-ctas">
-            <button class="hello-cta" disabled=${busy} onClick=${link}>${busy ? html`<span class="spinner"></span>` : 'Add to My Account'}</button>
-            <button class="hello-cta secondary" disabled=${busy} onClick=${onSignOut}>Use a Different Account</button>
+            <button class="hello-cta" disabled=${busy} onClick=${link}>${busy ? html`<span class="spinner"></span>` : tr('Add to My Account')}</button>
+            <button class="hello-cta secondary" disabled=${busy} onClick=${onSignOut}>${tr('Use a Different Account')}</button>
           </div>
-          <button class="hello-more" disabled=${busy} onClick=${onDisconnect}>Disconnect from ${name}</button>
+          <button class="hello-more" disabled=${busy} onClick=${onDisconnect}>${tr('Disconnect from {name}', { name })}</button>
         </div>
       </div>
     </div>`;
@@ -334,14 +335,14 @@ export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
       <div class="hello-canvas">
         <div class="hello-hero device">
           <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
-          <h1 class="device-title">Linked to another account</h1>
-          <p class="device-text"><b>${name}</b> keeps its bots in a different Holly Bot account. Sign in with that account to use it here.</p>
+          <h1 class="device-title">${tr('Linked to another account')}</h1>
+          <p class="device-text">${trx('**{name}** keeps its bots in a different Holly Bot account. Sign in with that account to use it here.', { name })}</p>
         </div>
         <div class="hello-dock">
           <div class="hello-ctas">
-            <button class="hello-cta" onClick=${onSignOut}>Use a Different Account</button>
+            <button class="hello-cta" onClick=${onSignOut}>${tr('Use a Different Account')}</button>
           </div>
-          <button class="hello-more" onClick=${onDisconnect}>Disconnect from ${name}</button>
+          <button class="hello-more" onClick=${onDisconnect}>${tr('Disconnect from {name}', { name })}</button>
         </div>
       </div>
     </div>`;
@@ -355,7 +356,7 @@ export function ProblemScreen({ message, onRetry, onSignOut }) {
       <div class="hello-canvas">
         <div class="hello-hero device">
           <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
-          <h1 class="device-title">Couldn't load your account</h1>
+          <h1 class="device-title">${tr("Couldn't load your account")}</h1>
           <p class="device-text">${message}</p>
         </div>
         <div class="hello-dock">
@@ -364,9 +365,9 @@ export function ProblemScreen({ message, onRetry, onSignOut }) {
               setBusy(true);
               await onRetry();
               setBusy(false);
-            }}>${busy ? html`<span class="spinner"></span>` : 'Try Again'}</button>
+            }}>${busy ? html`<span class="spinner"></span>` : tr('Try Again')}</button>
           </div>
-          ${onSignOut && html`<button class="hello-more" disabled=${busy} onClick=${onSignOut}>Sign Out</button>`}
+          ${onSignOut && html`<button class="hello-more" disabled=${busy} onClick=${onSignOut}>${tr('Sign Out')}</button>`}
         </div>
       </div>
     </div>`;

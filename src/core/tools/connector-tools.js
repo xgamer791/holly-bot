@@ -1,4 +1,5 @@
 import { truncate } from '../util.js';
+import { phrase } from '../i18n.js';
 
 // Gmail, Outlook and GitHub for bots, through the accounts connected in
 // Settings → Plugins (convex/connectors.ts). The server keeps the tokens and
@@ -76,25 +77,39 @@ function target(a) {
 }
 
 function deleteLabel(name, a) {
-  const ids = Array.isArray(a.ids) ? a.ids : [];
-  const what = ids.length ? plural(ids.length, 'email') : a.query ? `emails matching “${truncate(a.query, 40)}”` : a.folder ? `emails in ${a.folder}` : 'emails';
-  return `${a.forever ? 'Permanently delete' : 'Delete'} ${what} in ${name}`;
+  const n = Array.isArray(a.ids) ? a.ids.length : 0;
+  const service = name;
+  const query = a.query && truncate(a.query, 40);
+  if (a.forever) {
+    if (n) return n === 1 ? phrase('Permanently delete {n} email in {service}', { n, service }) : phrase('Permanently delete {n} emails in {service}', { n, service });
+    if (query) return phrase('Permanently delete emails matching “{query}” in {service}', { query, service });
+    if (a.folder) return phrase('Permanently delete emails in {folder} in {service}', { folder: a.folder, service });
+    return phrase('Permanently delete emails in {service}', { service });
+  }
+  if (n) return n === 1 ? phrase('Delete {n} email in {service}', { n, service }) : phrase('Delete {n} emails in {service}', { n, service });
+  if (query) return phrase('Delete emails matching “{query}” in {service}', { query, service });
+  if (a.folder) return phrase('Delete emails in {folder} in {service}', { folder: a.folder, service });
+  return phrase('Delete emails in {service}', { service });
 }
 
 const nothing = (a) => (a.query ? `No emails match “${a.query}”, so nothing was deleted.` : 'Those emails weren\'t found, so nothing was deleted.');
 
 /** What a delete will do, for the person to approve: the mailbox, how many,
- * and the first few by sender and subject, as the service listed them. */
+ * and the first few by sender and subject, as the service listed them. One
+ * line each (src/core/i18n.js spoken). */
 function deleteSummary(service, account, p, forever) {
-  const where = account ? ` in ${account}` : '';
+  const n = p.total;
+  const emails = account
+    ? (n === 1 ? phrase('{n} email in {account}', { n, account }) : phrase('{n} emails in {account}', { n, account }))
+    : (n === 1 ? phrase('{n} email', { n }) : phrase('{n} emails', { n }));
   const head = forever
-    ? `Delete ${plural(p.total, 'email')}${where} forever. This can't be undone.`
+    ? phrase("Delete {emails} forever. This can't be undone.", { emails })
     : service === 'gmail'
-      ? `Move ${plural(p.total, 'email')}${where} to Trash. Gmail keeps them there for 30 days.`
-      : `Move ${plural(p.total, 'email')}${where} to Deleted Items.`;
+      ? phrase('Move {emails} to Trash. Gmail keeps them there for 30 days.', { emails })
+      : phrase('Move {emails} to Deleted Items.', { emails });
   const lines = p.named.map((m) => `• ${m.from || 'Unknown sender'} — ${m.subject || '(no subject)'}${m.date ? ` · ${shortDate(m.date)}` : ''}`);
   const more = p.total - p.named.length;
-  return [head, '', ...lines, ...(more > 0 ? [`…and ${more} more`] : [])].join('\n');
+  return [head, '', ...lines, ...(more > 0 ? [phrase('…and {n} more', { n: more })] : [])];
 }
 
 function deletedText(service, r) {
@@ -119,7 +134,7 @@ function emailTools(service) {
       name: `${service}_search`,
       group: 'email',
       available,
-      label: (a) => (a.query ? `Search ${name} for “${truncate(a.query, 40)}”` : `Check the ${name} inbox`),
+      label: (a) => (a.query ? phrase('Search {service} for “{query}”', { service: name, query: truncate(a.query, 40) }) : phrase('Check the {service} inbox', { service: name })),
       description: `Search the user's ${name} mailbox, newest first. Without a query, the newest emails in the inbox. `
         + `Returns each email's id, sender, subject, date and a preview; read the whole email with ${service}_read.`,
       parameters: {
@@ -140,7 +155,7 @@ function emailTools(service) {
       name: `${service}_read`,
       group: 'email',
       available,
-      label: () => `Read an email in ${name}`,
+      label: () => phrase('Read an email in {service}', { service: name }),
       description: `Read one email from the user's ${name} mailbox by its id (from ${service}_search): sender, recipients, date, subject, the full text and its attachments' names.`,
       parameters: {
         type: 'object',
@@ -157,7 +172,11 @@ function emailTools(service) {
       name: `${service}_send`,
       group: 'email',
       available,
-      label: (a) => (a.reply_to ? `Reply to an email with ${name}` : `Email ${truncate(listed(a.to), 60) || 'someone'} with ${name}`),
+      label: (a) => {
+        if (a.reply_to) return phrase('Reply to an email with {service}', { service: name });
+        const to = truncate(listed(a.to), 60);
+        return to ? phrase('Email {to} with {service}', { to, service: name }) : phrase('Email someone with {service}', { service: name });
+      },
       description: `Send an email from the user's ${name} address, as plain text. `
         + `To reply, give reply_to (the email's id): the reply goes in the same thread, to its sender unless you give "to". `
         + 'Send only what the user asked for, to the people they meant; when anything is unclear (who, what to say), ask first. '
@@ -187,7 +206,7 @@ function emailTools(service) {
           to: args.to, cc: args.cc, bcc: args.bcc, subject: args.subject, body: args.body, replyTo: args.reply_to,
         }, { signal: ctx.signal });
         const who = listed(sent.to) || 'the sender';
-        ctx.app.logActivity(ctx.agent.id, { type: 'email', title: `Emailed ${who}`, detail: sent.subject || '' });
+        ctx.app.logActivity(ctx.agent.id, { type: 'email', title: listed(sent.to) ? phrase('Emailed {who}', { who }) : phrase('Emailed the sender'), detail: sent.subject || '' });
         return { content: `Sent${args.reply_to ? ' the reply' : ''} to ${who}${sent.subject ? ` (subject: ${sent.subject})` : ''}.`, display: { kind: 'email', service, sent: true } };
       },
     },
@@ -220,7 +239,12 @@ function emailTools(service) {
       risk: 'high',
       // For good can't be undone: that asks every time, whatever Auto-review and Always allow say.
       alwaysAsk: (a) => a.forever === true,
-      approval: (a, { app } = {}) => `${a.forever ? 'Delete forever' : 'Delete'}${from(app, service) ? ` in ${from(app, service)}` : ''}: ${deleteLabel(name, a)}`,
+      approval: (a, { app } = {}) => {
+        const account = from(app, service);
+        const what = deleteLabel(name, a);
+        if (a.forever) return account ? phrase('Delete forever in {account}: {what}', { account, what }) : phrase('Delete forever: {what}', { what });
+        return account ? phrase('Delete in {account}: {what}', { account, what }) : phrase('Delete: {what}', { what });
+      },
       async preview(args, ctx) {
         const p = await ctx.app.connector(service, 'peek', target(args), { signal: ctx.signal });
         if (!p.total) return { result: { content: nothing(args) } };
@@ -229,7 +253,11 @@ function emailTools(service) {
       async run(args, ctx) {
         const r = await ctx.app.connector(service, 'delete', { ...target(args), forever: args.forever === true }, { signal: ctx.signal });
         if (!r.deleted && !r.failed?.length) return { content: nothing(args) };
-        ctx.app.logActivity(ctx.agent.id, { type: 'email', title: `${r.forever ? 'Deleted for good' : 'Deleted'} ${plural(r.deleted, 'email')} in ${name}`, detail: '' });
+        const n = r.deleted;
+        const title = r.forever
+          ? (n === 1 ? phrase('Deleted for good {n} email in {service}', { n, service: name }) : phrase('Deleted for good {n} emails in {service}', { n, service: name }))
+          : (n === 1 ? phrase('Deleted {n} email in {service}', { n, service: name }) : phrase('Deleted {n} emails in {service}', { n, service: name }));
+        ctx.app.logActivity(ctx.agent.id, { type: 'email', title, detail: '' });
         return { content: deletedText(service, r), display: { kind: 'email', service, deleted: r.deleted } };
       },
     },
@@ -237,7 +265,9 @@ function emailTools(service) {
       name: `${service}_restore`,
       group: 'email',
       available,
-      label: (a) => `Restore ${Array.isArray(a.ids) ? plural(a.ids.length, 'email') : 'emails'} in ${name}`,
+      label: (a) => (!Array.isArray(a.ids) ? phrase('Restore emails in {service}', { service: name })
+        : a.ids.length === 1 ? phrase('Restore {n} email in {service}', { n: 1, service: name })
+          : phrase('Restore {n} emails in {service}', { n: a.ids.length, service: name })),
       description: service === 'gmail'
         ? 'Bring emails back out of Gmail\'s Trash, by their ids: the ones gmail_delete gave back, or from gmail_search with in:trash.'
         : 'Move emails back to the Outlook inbox, by their ids: the ones outlook_delete gave back, or from outlook_search in the deleteditems folder.',
@@ -282,7 +312,7 @@ const githubTools = [
     name: 'github_list_repos',
     group: 'github',
     available: hasGitHub,
-    label: (a) => (a.owner ? `List ${a.owner}'s repositories` : 'List your GitHub repositories'),
+    label: (a) => (a.owner ? phrase("List {owner}'s repositories", { owner: a.owner }) : phrase('List your GitHub repositories')),
     description: 'The user\'s GitHub repositories (their own, their organizations\' and those they collaborate on), most recently changed first. With owner, that user\'s or organization\'s public ones.',
     parameters: {
       type: 'object',
@@ -301,7 +331,10 @@ const githubTools = [
     name: 'github_create_repo',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `Create the ${a.private === false ? 'public' : 'private'} repository ${a.org ? `${a.org}/` : ''}${a.name}`,
+    label: (a) => {
+      const repo = `${a.org ? `${a.org}/` : ''}${a.name}`;
+      return a.private === false ? phrase('Create the public repository {repo}', { repo }) : phrase('Create the private repository {repo}', { repo });
+    },
     description: 'Create a GitHub repository for the user (private unless they asked for a public one), with a README so it can take files right away. Give org to create it in an organization.',
     parameters: {
       type: 'object',
@@ -315,12 +348,15 @@ const githubTools = [
       required: ['name'],
     },
     risk: (a) => (a.private === false ? 'high' : 'low'),
-    approval: (a) => `Create ${a.org ? `${a.org}/` : ''}${a.name} as a public repository: anyone can see it.${a.description ? `\n\n${a.description}` : ''}`,
+    approval: (a) => {
+      const said = phrase('Create {repo} as a public repository: anyone can see it.', { repo: `${a.org ? `${a.org}/` : ''}${a.name}` });
+      return a.description ? [said, '', a.description] : said;
+    },
     async run(args, ctx) {
       const r = await ctx.app.connector('github', 'create_repo', {
         name: args.name, description: args.description || '', private: args.private !== false, org: args.org || '', autoInit: args.readme !== false,
       }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Created ${r.repo}`, detail: r.url });
+      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: phrase('Created {repo}', { repo: r.repo }), detail: r.url });
       return { content: `Created ${repoLine(r)}: ${r.url}`, display: { kind: 'github', repo: r.repo, url: r.url } };
     },
   },
@@ -328,9 +364,9 @@ const githubTools = [
     name: 'github_update_repo',
     group: 'github',
     available: hasGitHub,
-    label: (a) => (a.private === false ? `Make ${a.repo} public`
-      : a.archived === true ? `Archive ${a.repo}`
-        : a.name ? `Rename ${a.repo} to ${a.name}` : `Change ${a.repo}`),
+    label: (a) => (a.private === false ? phrase('Make {repo} public', { repo: a.repo })
+      : a.archived === true ? phrase('Archive {repo}', { repo: a.repo })
+        : a.name ? phrase('Rename {repo} to {name}', { repo: a.repo, name: a.name }) : phrase('Change {repo}', { repo: a.repo })),
     description: 'Change a repository\'s settings: rename it, change its description or homepage, make it private or public, change its default branch, archive or unarchive it.',
     parameters: {
       type: 'object',
@@ -347,10 +383,10 @@ const githubTools = [
     },
     risk: (a) => (a.private === false || a.archived === true ? 'high' : 'low'),
     approval: (a) => [
-      a.private === false && `Make ${a.repo} public: anyone can see its code and history.`,
-      a.archived === true && `Archive ${a.repo}: it becomes read-only.`,
-      a.name && `Rename it to ${a.name}.`,
-    ].filter(Boolean).join('\n'),
+      a.private === false && phrase('Make {repo} public: anyone can see its code and history.', { repo: a.repo }),
+      a.archived === true && phrase('Archive {repo}: it becomes read-only.', { repo: a.repo }),
+      a.name && phrase('Rename it to {name}.', { name: a.name }),
+    ].filter(Boolean),
     async run(args, ctx) {
       const blocked = outsideWorkspace(ctx, args.repo);
       if (blocked) return blocked;
@@ -358,7 +394,7 @@ const githubTools = [
         repo: args.repo, name: args.name, description: args.description, homepage: args.homepage,
         private: args.private, archived: args.archived, defaultBranch: args.default_branch,
       }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Changed ${r.repo}`, detail: r.url });
+      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: phrase('Changed {repo}', { repo: r.repo }), detail: r.url });
       return { content: `Updated: ${repoLine(r)} ${r.url}`, display: { kind: 'github', repo: r.repo, url: r.url } };
     },
   },
@@ -366,18 +402,18 @@ const githubTools = [
     name: 'github_delete_repo',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `Delete the repository ${a.repo}`,
+    label: (a) => phrase('Delete the repository {repo}', { repo: a.repo }),
     description: 'Delete a repository for good, with its code, issues, pull requests and history. It can\'t be undone, and the user is always asked first. Only when the user asked for exactly this repository to be deleted.',
     parameters: { type: 'object', properties: { repo: REPO }, required: ['repo'] },
     risk: 'high',
     // Can't be undone: asks every time, whatever Auto-review and Always allow say.
     alwaysAsk: true,
-    approval: (a) => `Delete ${a.repo} on GitHub, with its code, issues, pull requests and history.\nThis can't be undone.`,
+    approval: (a) => phrase("Delete {repo} on GitHub, with its code, issues, pull requests and history.\nThis can't be undone.", { repo: a.repo }),
     async run(args, ctx) {
       const blocked = outsideWorkspace(ctx, args.repo);
       if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'delete_repo', { repo: args.repo }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Deleted ${r.repo}`, detail: '' });
+      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: phrase('Deleted {repo}', { repo: r.repo }), detail: '' });
       return { content: `Deleted ${r.repo}.`, display: { kind: 'github', repo: r.repo } };
     },
   },
@@ -385,7 +421,7 @@ const githubTools = [
     name: 'github_list_files',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `List ${a.repo}${a.path ? `/${a.path}` : ''}`,
+    label: (a) => phrase('List {path}', { path: `${a.repo}${a.path ? `/${a.path}` : ''}` }),
     description: 'What\'s in a folder of a repository (the top by default): each file and folder with its size.',
     parameters: {
       type: 'object',
@@ -409,7 +445,7 @@ const githubTools = [
     name: 'github_read_file',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `Read ${a.path} in ${a.repo}`,
+    label: (a) => phrase('Read {path} in {repo}', { path: a.path, repo: a.repo }),
     description: 'Read a file from a repository (text files; up to about 60,000 characters).',
     parameters: {
       type: 'object',
@@ -433,7 +469,7 @@ const githubTools = [
     name: 'github_write_file',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `Write ${a.path} in ${a.repo}`,
+    label: (a) => phrase('Write {path} in {repo}', { path: a.path, repo: a.repo }),
     description: 'Create or replace a file in a repository with the full new content, as one commit (on branch, or the default branch). To edit a file, read it first and write it back whole. '
       + 'Folders are made as needed. Text files only.',
     parameters: {
@@ -454,7 +490,7 @@ const githubTools = [
       const r = await ctx.app.connector('github', 'write_file', {
         repo: args.repo, path: args.path, content: args.content, message: args.message || '', branch: args.branch || '',
       }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `${r.created ? 'Added' : 'Updated'} ${r.path} in ${r.repo}`, detail: r.url });
+      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: r.created ? phrase('Added {path} in {repo}', { path: r.path, repo: r.repo }) : phrase('Updated {path} in {repo}', { path: r.path, repo: r.repo }), detail: r.url });
       return { content: `${r.created ? 'Added' : 'Updated'} ${r.path} in ${r.repo} (commit ${r.commit.slice(0, 7)}): ${r.url}`, display: { kind: 'github', repo: r.repo, url: r.url } };
     },
   },
@@ -462,7 +498,7 @@ const githubTools = [
     name: 'github_delete_file',
     group: 'github',
     available: hasGitHub,
-    label: (a) => `Delete ${a.path} from ${a.repo}`,
+    label: (a) => phrase('Delete {path} from {repo}', { path: a.path, repo: a.repo }),
     description: 'Delete a file from a repository, as one commit (on branch, or the default branch).',
     parameters: {
       type: 'object',
@@ -479,7 +515,7 @@ const githubTools = [
       const blocked = outsideWorkspace(ctx, args.repo);
       if (blocked) return blocked;
       const r = await ctx.app.connector('github', 'delete_file', { repo: args.repo, path: args.path, message: args.message || '', branch: args.branch || '' }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: `Deleted ${r.path} from ${r.repo}`, detail: '' });
+      ctx.app.logActivity(ctx.agent.id, { type: 'github', title: phrase('Deleted {path} from {repo}', { path: r.path, repo: r.repo }), detail: '' });
       return { content: `Deleted ${r.path} from ${r.repo} (commit ${r.commit.slice(0, 7)}).`, display: { kind: 'github', repo: r.repo } };
     },
   },

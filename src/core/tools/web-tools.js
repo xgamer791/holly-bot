@@ -1,4 +1,5 @@
 import { truncate, truncateMiddle } from '../util.js';
+import { phrase } from '../i18n.js';
 
 // Client-side web access. Most chat providers also get their own server-side
 // search (xAI, Claude, OpenAI, OpenRouter); these tools cover the rest and add
@@ -113,7 +114,7 @@ export const webTools = [
   {
     name: 'web_search',
     group: 'web',
-    label: (a) => `Searched “${truncate(a.query || '', 50)}”`,
+    label: (a) => phrase('Searched “{query}”', { query: truncate(a.query || '', 50) }),
     description: 'Search the web for current information. Returns titles, URLs and snippets; use fetch_url to read a result in full. Cite sources as markdown links.',
     parameters: {
       type: 'object',
@@ -136,7 +137,7 @@ export const webTools = [
   {
     name: 'fetch_url',
     group: 'web',
-    label: (a) => `Read ${hostOf(a.url)}`,
+    label: (a) => phrase('Read {site}', { site: hostOf(a.url) }),
     description: 'Fetch a web page (or text/JSON/CSV URL) and return its readable content as text/markdown.',
     parameters: {
       type: 'object',

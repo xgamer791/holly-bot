@@ -7,12 +7,15 @@
 // role: 'chief'; its instructions are in src/core/prompts.js, and its tools
 // for talking to other bots can't be turned off (src/core/tools/index.js).
 
+import { firstWords, mark } from './i18n.js';
+
 export const CHIEF = {
-  name: 'Chief Coordinator',
+  name: mark('Chief Coordinator'),
   description: 'Chief of staff: runs your team of bots',
   shape: 'cloud',
   color: 'blue',
-  /** Its first question, with the choices on its card. */
+  /** Its first question, with the choices on its card (in the app's
+   * language when a bot is made: src/core/i18n.js firstWords). */
   question: 'What should your team take on first?',
   subtitle: "Pick one and I'll suggest the bots for it.",
   focus: ['Email & calendar', 'Research & writing', 'Coding & projects', 'Sales & outreach', 'Something else'],
@@ -23,9 +26,9 @@ export function chiefOf(app) {
   return app.listAgents().find((a) => a.role === 'chief') || null;
 }
 
-/** Its hello, as its first message. */
-export function chiefGreeting(name) {
-  return `Hi, I'm ${name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?`;
+/** Its hello, as its first message, in `lang`. */
+export function chiefGreeting(name, lang = 'en') {
+  return firstWords(lang, "Hi, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?", { name });
 }
 
 /** Its instructions (src/core/prompts.js). `alone`: no other bots yet. */

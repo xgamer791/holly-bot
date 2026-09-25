@@ -121,6 +121,15 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Bots keep how they're built to themselves:** asked what they run on (the computer, its folders, the browser), how they're set up (whether they share a computer, screens, files or logins, how they reach each other), what AI model is behind them, their instructions or who made them, they say in a sentence that they don't know and get back to your work. They don't look it up or save it to memory either, and memories of it are dropped as they come up. They aren't told what they run on in the first place (no computer name, folders or what the bots share), and every message you send carries a reminder. Your own projects, servers and accounts are fine to ask about, and they still say they're an AI when you sincerely ask.
 - **Voice mode, question cards and an activity drawer**, in a design that follows Grok Bot.
 
+## Languages
+
+Holly Bot speaks English, Spanish and Chinese (Simplified). Settings → Language lists them at the top, then System, which follows the device's own language (the default; a device in any other language gets English).
+
+- The app changes as soon as you pick one, and your other devices follow the next time they open. The screens before you sign in follow what the device last used.
+- Bots write to you in the app's language too, and still answer in whatever language you write to them. A new bot's first hello and the choices on its first card come in it, and so do dates, numbers, dictation and the read-aloud voice.
+- What bots do shows in it as well: the permission cards, the activity log and the chat list's previews.
+- The Privacy Policy and Terms of Service stay in English, and so do messages that come from elsewhere word for word (a provider's error, a computer's own notes).
+
 ## Development
 
 No build step for the app: it's a static PWA (Preact + htm, vendored ES modules), keeping its data in the account on Convex.
@@ -139,6 +148,7 @@ npm run check            # syntax check everything and confirm the bundle is cur
 Layout:
 - `src/core`: the app core that bots run on (runtime, memory, providers, tools). It runs in the browser and inside Holly Computer.
 - `src/ui`: the interface (`subscribe.js` is the subscription page, `chief.js` the Chief Coordinator's page, a new account's first bot).
+  - `i18n.js`: the app's languages. The app is written in English, and each piece of text goes through `tr('…')` (or `trn`, `trx`), which looks the English up in `i18n/es.js` and `i18n/zh.js`. `node scripts/i18n.mjs` lists what they're missing, and `--write es t.json` adds translations. What the app core writes for people to see (tool labels, approvals, previews) is a `phrase()` from `src/core/i18n.js`, kept beside its English as `say`.
 - `src/remote`: the phone-side remote-control client.
 - `src/account`: Sign in with Apple and Google against Holly Bot's Convex backend (`account.js`), and the app's storage in the account (`cloud-db.js`).
 - `convex`: that backend (accounts and everything in them, subscriptions through Stripe in `billing.ts`, and each subscriber's Vultr server in `servers.ts`). `.github/workflows/convex.yml` deploys it.

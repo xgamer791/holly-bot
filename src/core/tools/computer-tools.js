@@ -1,6 +1,7 @@
 import { truncate, truncateMiddle } from '../util.js';
 import { isSafeCommand } from '../computer.js';
 import { guessMime } from '../files.js';
+import { phrase, spoken } from '../i18n.js';
 
 // Tools that act on the Bot Computer (the user's own PC/Mac/Linux box running
 // Holly Computer). With Auto-review on, actions that change things ask for
@@ -22,11 +23,13 @@ export const computerTools = [
     name: 'computer',
     group: 'computer',
     available: (app) => connected(app) && (caps(app).desktop || caps(app).screenshot),
-    label: (a) => (a.action === 'screenshot' ? 'Looked at the screen'
-      : a.action === 'type' ? `Typed “${truncate(a.text || '', 40)}”`
-        : a.action === 'key' ? `Pressed ${a.keys}`
-          : a.action === 'click' || a.action === 'double_click' || a.action === 'right_click' ? `${a.action.replace('_', ' ')} at ${a.x}, ${a.y}`
-            : `${a.action}`),
+    label: (a) => (a.action === 'screenshot' ? phrase('Looked at the screen')
+      : a.action === 'type' ? phrase('Typed “{text}”', { text: truncate(a.text || '', 40) })
+        : a.action === 'key' ? phrase('Pressed {keys}', { keys: a.keys })
+          : a.action === 'click' ? phrase('click at {x}, {y}', { x: a.x, y: a.y })
+            : a.action === 'double_click' ? phrase('double click at {x}, {y}', { x: a.x, y: a.y })
+              : a.action === 'right_click' ? phrase('right click at {x}, {y}', { x: a.x, y: a.y })
+                : `${a.action}`),
     description: 'Use the computer like a person: see the screen and control the mouse and keyboard. '
       + 'Actions: screenshot; click / double_click / right_click {x, y}; move {x, y}; drag {x, y, to_x, to_y}; type {text}; key {keys, e.g. "ctrl+c", "cmd+space", "enter", "alt+tab"}; scroll {x, y, direction: up|down|left|right, amount}; wait {seconds}; cursor. '
       + 'Coordinates are pixels in the latest screenshot. Every action returns a fresh screenshot so you can check the result — look before you click, and verify after. '
@@ -53,7 +56,7 @@ export const computerTools = [
     async run(args, ctx) {
       // On a server, each bot's own screen (computer/src/screens.mjs).
       const r = await ctx.app.computer.desktopAction(args.action, { ...args, agentId: ctx.agent.id }, { signal: ctx.signal });
-      ctx.app.logActivity(ctx.agent.id, { type: 'desktop', title: safeLabel(this, args), detail: '' });
+      ctx.app.logActivity(ctx.agent.id, { type: 'desktop', ...titled(safeLabel(this, args)), detail: '' });
       if (args.action === 'cursor') return { content: `Cursor at ${r.cursor?.x}, ${r.cursor?.y}.` };
       const shot = r.screenshot;
       return {
@@ -67,7 +70,7 @@ export const computerTools = [
     name: 'browser',
     group: 'computer',
     available: (app) => connected(app) && caps(app).browser,
-    label: (a) => `Browser: ${a.action.replace('_', ' ')}${a.url ? ` ${truncate(a.url, 40)}` : a.ref ? ` ${a.ref}` : ''}`,
+    label: (a) => phrase('Browser: {action}', { action: `${a.action.replace('_', ' ')}${a.url ? ` ${truncate(a.url, 40)}` : a.ref ? ` ${a.ref}` : ''}` }),
     description: 'Drive a real Chrome browser on the computer (its own profile, so logins persist). You get your own tab. Pages come back as text with numbered element refs like [e12] — use them to click and type. '
       + 'Actions: goto {url}; snapshot; click {ref | text | selector}; type {ref | selector, text, submit?} (also picks an option in a select); type_text {text} (into the focused field); press {key: Enter, Tab, Escape, ArrowDown, Control+a…}; scroll {direction}; back; forward; reload; tabs; new_tab {url}; switch_tab {id}; close_tab {id}; screenshot; click_xy {x, y} (pixels in the last screenshot). '
       + 'Refs change when the page changes — use the ones from the latest result. Dialogs are accepted automatically and downloads go to the Downloads folder in the workspace. '
@@ -155,7 +158,18 @@ export const computerTools = [
     name: 'computer_files',
     group: 'computer',
     available: connected,
-    label: (a) => (a.op === 'send' ? `Sent ${String(a.path).split(/[\\/]/).pop()}` : `${{ list: 'Listed', read: 'Read', write: 'Wrote', append: 'Appended to', delete: 'Deleted' }[a.op] || a.op} ${a.path}`),
+    label: (a) => {
+      const path = a.path;
+      switch (a.op) {
+        case 'send': return phrase('Sent {file}', { file: String(a.path).split(/[\\/]/).pop() });
+        case 'list': return phrase('Listed {path}', { path });
+        case 'read': return phrase('Read {path}', { path });
+        case 'write': return phrase('Wrote {path}', { path });
+        case 'append': return phrase('Appended to {path}', { path });
+        case 'delete': return phrase('Deleted {path}', { path });
+        default: return `${a.op} ${a.path}`;
+      }
+    },
     description: 'Work with files on the computer. ops: list {path}; read {path}; write {path, content}; append {path, content}; delete {path}; send {path} — sends that file to the user\'s phone as an attachment. Paths may be absolute or relative to the Holly workspace folder; ~ is the home folder.',
     parameters: {
       type: 'object',
@@ -206,4 +220,11 @@ function safeLabel(tool, args) {
   } catch {
     return tool.name;
   }
+}
+
+/** An activity row's title: the English, and the phrase the app shows
+ * translated (`say`) when the label is one. */
+function titled(label) {
+  const { text, say } = spoken(label);
+  return say ? { title: text, say } : { title: text };
 }

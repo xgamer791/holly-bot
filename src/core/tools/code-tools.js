@@ -1,6 +1,7 @@
 import { truncateMiddle } from '../util.js';
 import { isTextPath } from '../files.js';
 import { blobBase64 } from './file-tools.js';
+import { phrase } from '../i18n.js';
 
 // Code execution in the browser: Python via Pyodide (with numpy, pandas,
 // matplotlib…) and plain JavaScript. The bot's drive is the working directory.
@@ -12,7 +13,7 @@ export const codeTools = [
     name: 'run_python',
     group: 'code',
     available: (app) => typeof Worker !== 'undefined' && app.host !== 'computer',
-    label: () => 'Ran Python',
+    label: () => phrase('Ran Python'),
     description: 'Run Python 3 code in a sandbox (Pyodide/WebAssembly) for calculations, data analysis, charts and file processing. '
       + 'numpy, pandas, matplotlib, scipy, scikit-learn and many other packages load automatically from imports; install pure-Python packages with `import micropip; await micropip.install("pkg")`. '
       + 'Your drive is the working directory: read files by relative path, and files you create are saved back to your drive. Charts made with matplotlib are shown to the user automatically. '
@@ -70,7 +71,7 @@ export const codeTools = [
     name: 'run_javascript',
     group: 'code',
     available: (app) => typeof Worker !== 'undefined' && app.host !== 'computer',
-    label: () => 'Ran JavaScript',
+    label: () => phrase('Ran JavaScript'),
     description: 'Run JavaScript (async function body) in a sandboxed worker. Use console.log for output; the return value is shown. fetch() works for CORS-enabled URLs. No DOM or access to app data.',
     parameters: {
       type: 'object',

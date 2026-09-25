@@ -4,7 +4,7 @@ import { Sheet, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { account } from '../account/account.js';
 import { RemoteApp, computerConnection, computerState, sameComputer, saveConnection } from '../remote/remote-app.js';
-import { formatShort } from '../core/util.js';
+import { shortTime, tr } from './i18n.js';
 
 // A chat's workspace (thread.workspace): what its bot works on. GitHub
 // repositories (as many as you like), or one server (a computer linked to the
@@ -30,15 +30,17 @@ export function WorkspaceSheet({ threadId, onClose }) {
     try {
       await app.updateThread(threadId, { workspace: next });
     } catch (err) {
-      ui.toast(err?.message || "Couldn't save the workspace.", { error: true });
+      ui.toast(err?.message || tr("Couldn't save the workspace."), { error: true });
     }
   };
 
   return html`
-    <${Sheet} title="Workspace" onClose=${onClose} className="ws-sheet"
-      footer=${ws ? html`<button class="btn block" onClick=${() => save(null)}>Clear Workspace</button>` : null}>
-      <p class="ws-lead">${bot ? `What ${bot} works on in this chat` : 'What the bots work on in this chat'}: GitHub repositories, or a server. One or the other, never both.</p>
-      <${Segmented} value=${tab} onChange=${setTab} options=${[{ value: 'github', label: 'GitHub' }, { value: 'server', label: 'Server' }]} />
+    <${Sheet} title=${tr('Workspace')} onClose=${onClose} className="ws-sheet"
+      footer=${ws ? html`<button class="btn block" onClick=${() => save(null)}>${tr('Clear Workspace')}</button>` : null}>
+      <p class="ws-lead">${bot
+        ? tr('What {name} works on in this chat: GitHub repositories, or a server. One or the other, never both.', { name: bot })
+        : tr('What the bots work on in this chat: GitHub repositories, or a server. One or the other, never both.')}</p>
+      <${Segmented} value=${tab} onChange=${setTab} options=${[{ value: 'github', label: 'GitHub' }, { value: 'server', label: tr('Server') }]} />
       ${tab === 'github' ? html`<${GitHubPane} ws=${ws} save=${save} />` : html`<${ServerPane} ws=${ws} save=${save} />`}
     <//>`;
 }
@@ -60,9 +62,9 @@ function GitHubPane({ ws, save }) {
     return html`
       <div class="ws-empty">
         <span class="ws-empty-icon"><${Icon.github} size="28" /></span>
-        <b>Connect GitHub</b>
-        <p>Connect your GitHub account, then pick the repositories this chat works on.</p>
-        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'plugins' })}>Connect GitHub</button>
+        <b>${tr('Connect GitHub')}</b>
+        <p>${tr('Connect your GitHub account, then pick the repositories this chat works on.')}</p>
+        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'plugins' })}>${tr('Connect GitHub')}</button>
       </div>`;
   }
 
@@ -78,14 +80,14 @@ function GitHubPane({ ws, save }) {
   const rows = [...missing, ...matches.filter((r) => chosen.includes(r.repo)), ...matches.filter((r) => !chosen.includes(r.repo))];
 
   return html`
-    ${ws?.kind === 'server' && html`<p class="ws-note">This chat works on ${ws.name} now. Picking a repository switches it to GitHub.</p>`}
-    <div class="ws-head"><${Icon.github} size="15" /> ${gh.account}${chosen.length > 0 && html`<span class="ws-count">${chosen.length} picked</span>`}</div>
+    ${ws?.kind === 'server' && html`<p class="ws-note">${tr('This chat works on {name} now. Picking a repository switches it to GitHub.', { name: ws.name })}</p>`}
+    <div class="ws-head"><${Icon.github} size="15" /> ${gh.account}${chosen.length > 0 && html`<span class="ws-count">${tr('{n} picked', { n: chosen.length })}</span>`}</div>
     ${list.length > 6 && html`
       <div class="search-bar ws-search"><${Icon.search} />
-        <input placeholder="Search repositories" value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} autocapitalize="off" autocorrect="off" />
+        <input placeholder=${tr('Search repositories')} value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} autocapitalize="off" autocorrect="off" />
       </div>`}
     ${repos.loading && !repos.data && html`<div class="ws-empty"><span class="spinner"></span></div>`}
-    ${repos.error && html`<p class="ws-note">Couldn't load your repositories. <button class="ws-link" onClick=${repos.reload}>Try again</button></p>`}
+    ${repos.error && html`<p class="ws-note">${tr("Couldn't load your repositories.")} <button class="ws-link" onClick=${repos.reload}>${tr('Try again')}</button></p>`}
     ${rows.length > 0 && html`
       <div class="ws-list">
         ${rows.map((r) => {
@@ -98,11 +100,11 @@ function GitHubPane({ ws, save }) {
                 <span class="ws-title">${name}${r.private && html`<${Icon.lock} size="13" class="ws-lock" />`}</span>
                 <span class="ws-sub">${owner}${r.description ? ` · ${r.description}` : ''}</span>
               </span>
-              ${r.updated && html`<span class="ws-when">${formatShort(Date.parse(r.updated))}</span>`}
+              ${r.updated && html`<span class="ws-when">${shortTime(Date.parse(r.updated))}</span>`}
             </button>`;
         })}
       </div>`}
-    ${!repos.loading && !repos.error && !rows.length && html`<p class="ws-note">${q ? `No repositories match “${query}”.` : `No repositories on ${gh.account} yet.`}</p>`}`;
+    ${!repos.loading && !repos.error && !rows.length && html`<p class="ws-note">${q ? tr('No repositories match “{query}”.', { query }) : tr('No repositories on {account} yet.', { account: gh.account })}</p>`}`;
 }
 
 function ServerPane({ ws, save }) {
@@ -132,13 +134,13 @@ function ServerPane({ ws, save }) {
     }
     const conn = computerConnection(d);
     if (!conn) {
-      ui.toast(`${d.name} is off. Start Holly Computer on it, then pick it here.`);
+      ui.toast(tr('{name} is off. Start Holly Computer on it, then pick it here.', { name: d.name }));
       return;
     }
     if (!(await ui.confirm({
-      title: `Connect to ${d.name}?`,
-      message: `Your bots run on ${d.name} from now on, in every chat, and this chat works on it.`,
-      confirmText: 'Connect',
+      title: tr('Connect to {name}?', { name: d.name }),
+      message: tr('Your bots run on {name} from now on, in every chat, and this chat works on it.', { name: d.name }),
+      confirmText: tr('Connect'),
     }))) return;
     setBusy(d.id);
     try {
@@ -151,7 +153,7 @@ function ServerPane({ ws, save }) {
       location.reload();
     } catch (err) {
       setBusy(null);
-      ui.toast(`Couldn't reach ${d.name}. ${err?.message || ''}`.trim(), { error: true });
+      ui.toast(tr("Couldn't reach {name}. {error}", { name: d.name, error: err?.message || '' }).trim(), { error: true });
     }
   };
 
@@ -160,14 +162,14 @@ function ServerPane({ ws, save }) {
     return html`
       <div class="ws-empty">
         <span class="ws-empty-icon"><${Icon.server} size="28" /></span>
-        <b>No servers yet</b>
-        <p>Run Holly Computer on a computer or server and link it to your account. Then pick it here.</p>
-        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>Set Up Holly Computer</button>
+        <b>${tr('No servers yet')}</b>
+        <p>${tr('Run Holly Computer on a computer or server and link it to your account. Then pick it here.')}</p>
+        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>${tr('Set Up Holly Computer')}</button>
       </div>`;
   }
 
   return html`
-    ${ws?.kind === 'github' && html`<p class="ws-note">This chat works on GitHub now. Picking a server switches it.</p>`}
+    ${ws?.kind === 'github' && html`<p class="ws-note">${tr('This chat works on GitHub now. Picking a server switches it.')}</p>`}
     <div class="ws-list">
       ${list.map((d) => {
         const on = picked(d);
@@ -177,23 +179,23 @@ function ServerPane({ ws, save }) {
             <span class="ws-icon"><${Icon.server} size="18" /></span>
             <span class="ws-text">
               <span class="ws-title">${d.name}</span>
-              <span class="ws-sub">${serverStatus(d, isHere(d))}${d.server ? " · your plan's server" : ''}</span>
+              <span class="ws-sub">${serverStatus(d, isHere(d))}${d.server ? ` · ${tr("your plan's server")}` : ''}</span>
             </span>
             ${busy === d.id && html`<span class="spinner"></span>`}
           </button>`;
       })}
     </div>
     ${current && isHere(current) && html`<${AppsPane} ws=${ws} save=${save} />`}
-    ${current && !isHere(current) && html`<p class="ws-note">This app isn't connected to ${current.name}, so its bots can't work there yet. Tap it to connect.</p>`}`;
+    ${current && !isHere(current) && html`<p class="ws-note">${tr("This app isn't connected to {name}, so its bots can't work there yet. Tap it to connect.", { name: current.name })}</p>`}`;
 }
 
 function serverStatus(d, here) {
-  if (here) return 'Connected';
+  if (here) return tr('Connected');
   const state = computerState(d);
-  if (state === 'running') return computerConnection(d) ? 'On' : "On, but this app can't reach it";
-  if (state === 'hidden') return "On, but this app can't reach it";
-  if (state === 'old') return 'Needs the latest Holly Computer';
-  return d.seenAt ? `Off · seen ${formatShort(d.seenAt)}` : 'Off';
+  if (state === 'running') return computerConnection(d) ? tr('On') : tr("On, but this app can't reach it");
+  if (state === 'hidden') return tr("On, but this app can't reach it");
+  if (state === 'old') return tr('Needs the latest Holly Computer');
+  return d.seenAt ? tr('Off · seen {when}', { when: shortTime(d.seenAt) }) : tr('Off');
 }
 
 /** The apps on the server this app is connected to (computer/src/apps.mjs). */
@@ -218,11 +220,11 @@ function AppsPane({ ws, save }) {
   const old = /Unknown endpoint/.test(apps.error?.message || '');
 
   return html`
-    <div class="group-label ws-apps-label">Apps on ${ws.name}</div>
-    <p class="ws-lead small">Pick apps to keep the bot to them, or none for the whole server.</p>
+    <div class="group-label ws-apps-label">${tr('Apps on {name}', { name: ws.name })}</div>
+    <p class="ws-lead small">${tr('Pick apps to keep the bot to them, or none for the whole server.')}</p>
     ${apps.loading && !apps.data && html`<div class="ws-empty"><span class="spinner"></span></div>`}
-    ${apps.error && html`<p class="ws-note">${old ? 'Restart Holly Computer on it to update it, and its apps show up here.' : "Couldn't look for its apps."}
-      ${!old && html` <button class="ws-link" onClick=${apps.reload}>Try again</button>`}</p>`}
+    ${apps.error && html`<p class="ws-note">${old ? tr('Restart Holly Computer on it to update it, and its apps show up here.') : tr("Couldn't look for its apps.")}
+      ${!old && html` <button class="ws-link" onClick=${apps.reload}>${tr('Try again')}</button>`}</p>`}
     ${rows.length > 0 && html`
       <div class="ws-list">
         ${rows.map((a) => {
@@ -238,5 +240,5 @@ function AppsPane({ ws, save }) {
             </button>`;
         })}
       </div>`}
-    ${!apps.loading && !apps.error && !rows.length && html`<p class="ws-note">No apps found in its usual folders. The bot can still work on the whole server.</p>`}`;
+    ${!apps.loading && !apps.error && !rows.length && html`<p class="ws-note">${tr('No apps found in its usual folders. The bot can still work on the whole server.')}</p>`}`;
 }

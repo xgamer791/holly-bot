@@ -21,6 +21,7 @@ import { makeLinkCode } from './account/device-link.js';
 import { deviceData, forgetDeviceData, moveDeviceDataInto } from './account/device-data.js';
 import { APP_VERSION } from './core/constants.js';
 import { deviceTimeZone } from './core/routines.js';
+import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 
 // Boot. Holly Bot needs an account (Sign in with Apple or Google) with an
 // active subscription: until it has one, the subscription page stands in for
@@ -53,6 +54,8 @@ const unreachable = new Set();
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
   if (handOverToSite(link)) return;
+  // The language this device last used, until the account says (mount).
+  await setLanguage(deviceChoice());
   if (!signInWorksHere()) return bootWithoutAccount(link);
   if (link) holdConnection(link); // for whoever signs in
   const unfinished = await account.finishSignIn();
@@ -147,7 +150,7 @@ function showSubscribe(status, back) {
 
 function welcomeText(status) {
   const plan = status.plans?.find((p) => p.id === status.subscription?.plan);
-  return plan ? `Welcome to Holly Bot ${plan.name}.` : 'Welcome to Holly Bot.';
+  return plan ? tr('Welcome to Holly Bot {plan}.', { plan: plan.name }) : tr('Welcome to Holly Bot.');
 }
 
 /** Back from Stripe: ?checkout=done or ?checkout=cancelled (Checkout), or
@@ -206,13 +209,13 @@ let paymentBannerShown = false;
 function paymentBanner() {
   if (paymentBannerShown) return;
   paymentBannerShown = true;
-  const button = banner("Your payment didn't go through · Update it", async () => {
+  const button = banner(tr("Your payment didn't go through · Update it"), async () => {
     button.disabled = true;
     try {
       location.assign(await account.authed('action', 'billing:portal', { returnTo: `${location.origin}${location.pathname}` }));
     } catch (err) {
       console.warn('billing', err);
-      button.textContent = "Couldn't open billing · Tap to try again";
+      button.textContent = tr("Couldn't open billing · Tap to try again");
       button.disabled = false;
     }
   }, 'warn');
@@ -345,7 +348,7 @@ function connectTo(device) {
 
 /** The note in the bot list for a computer that's on, which this app isn't using. */
 function connectNotice(device) {
-  return { key: `${addressOf(device)}:on`, offer: device.id, text: `${device.name} is on. Connect so your bots can use it.`, action: { label: 'Connect', onClick: () => connectTo(device) } };
+  return { key: `${addressOf(device)}:on`, offer: device.id, text: tr('{name} is on. Connect so your bots can use it.', { name: device.name }), action: { label: tr('Connect'), onClick: () => connectTo(device) } };
 }
 
 /** Changes the note in the bot list (src/ui/home.js), when there's something new to say. */
@@ -437,7 +440,7 @@ function watchUpdates() {
       const latest = /APP_VERSION = '(\d+\.\d+\.\d+)'/.exec(res.ok ? await res.text() : '')?.[1];
       if (latest && newerVersion(latest, APP_VERSION)) {
         offered = true;
-        banner('New version of Holly Bot · Tap to update', () => location.reload());
+        banner(tr('New version of Holly Bot · Tap to update'), () => location.reload());
       }
     } catch { /* offline: next time */ } finally {
       checking = false;
@@ -448,7 +451,7 @@ function watchUpdates() {
 }
 
 /** How to set up, update or start Holly Computer (the README). */
-const howToComputer = { label: 'How', onClick: () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener') };
+const howToComputer = () => ({ label: tr('How'), onClick: () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener') });
 
 /** A word for the bots running here although the account has a computer,
  * when there's something to do about it (a computer that's off needs none),
@@ -457,14 +460,14 @@ const howToComputer = { label: 'How', onClick: () => window.open('https://github
 function noticeAbout(list, devices) {
   const find = (state) => list.find((c) => c.state === state);
   let pc = find('unreachable');
-  if (pc) return { text: `Can't reach ${pc.name}, so your bots run in this app for now.`, action: { label: 'Retry', onClick: () => location.reload() } };
+  if (pc) return { text: tr("Can't reach {name}, so your bots run in this app for now.", { name: pc.name }), action: { label: tr('Retry'), onClick: () => location.reload() } };
   pc = find('running');
   const device = pc && devices.find((d) => d.id === pc.id);
   if (device) return connectNotice(device);
   pc = find('old');
-  if (pc) return { key: `${pc.id}:old`, text: `Update Holly Computer on ${pc.name} so your bots can use it.`, action: howToComputer };
+  if (pc) return { key: `${pc.id}:old`, text: tr('Update Holly Computer on {name} so your bots can use it.', { name: pc.name }), action: howToComputer() };
   pc = find('hidden');
-  if (pc) return { key: `${pc.id}:hidden`, text: `Start Holly Computer on ${pc.name} with --tunnel so your bots can use it.`, action: howToComputer };
+  if (pc) return { key: `${pc.id}:hidden`, text: tr('Start Holly Computer on {name} with --tunnel so your bots can use it.', { name: pc.name }), action: howToComputer() };
   return null;
 }
 
@@ -491,9 +494,9 @@ async function newAddress(app) {
 }
 
 function loadError(err) {
-  if (/could not find public function/i.test(err?.message || '')) return "Holly Bot's server is being updated. Try again in a minute.";
+  if (/could not find public function/i.test(err?.message || '')) return tr("Holly Bot's server is being updated. Try again in a minute.");
   const message = friendlyError(err);
-  return /signing in/.test(message) ? "Holly Bot's server had a problem loading your account. Please try again." : message;
+  return message === tr('Something went wrong signing in. Please try again.') ? tr("Holly Bot's server had a problem loading your account. Please try again.") : message;
 }
 
 /** Signs out before the app opens, leaving nothing of the account here. A
@@ -517,8 +520,7 @@ async function bootWithoutAccount(link) {
     db = await DB.open();
   } catch (err) {
     root.innerHTML = `<div style="padding:40px 24px;color:#ddd;font:16px -apple-system,system-ui,sans-serif;line-height:1.5">
-      <h2>Holly Bot can't start</h2><p>This browser blocked local storage (IndexedDB), which Holly Bot needs here.
-      Private browsing modes often do this — open the page in a normal window.</p><p style="color:#888">${String(err?.message || err).replace(/</g, '&lt;')}</p></div>`;
+      <h2>${tr("Holly Bot can't start")}</h2><p>${tr('This browser blocked local storage (IndexedDB), which Holly Bot needs here. Private browsing modes often do this — open the page in a normal window.')}</p><p style="color:#888">${String(err?.message || err).replace(/</g, '&lt;')}</p></div>`;
     return;
   }
   return bootLocal(db);
@@ -593,12 +595,12 @@ function computerAccountStep(app, conn) {
   if (!signInWorksHere() || !account.signedIn) return false;
   const link = app.server?.account;
   if (!link) {
-    app.computerNotice = { key: `${app.server?.name || conn.name || conn.url}:no-account`, text: 'Update Holly Computer to keep its bots in your account.', action: howToComputer };
+    app.computerNotice = { key: `${app.server?.name || conn.name || conn.url}:no-account`, text: tr('Update Holly Computer to keep its bots in your account.'), action: howToComputer() };
     return false;
   }
   if (link.linked && link.userId === account.userId) return false;
   app.close();
-  const name = app.server?.name || conn.name || 'your computer';
+  const name = app.server?.name || conn.name || tr('your computer');
   const disconnect = () => {
     saveConnection(null);
     location.reload();
@@ -665,7 +667,7 @@ function watchOtherDevices(app, db) {
       if (document.visibilityState !== 'visible') return;
       if (!busyHere(app) && Date.now() - lastInput > 120_000) location.reload();
     };
-    banner('Changed on another device · Tap to refresh', () => location.reload());
+    banner(tr('Changed on another device · Tap to refresh'), () => location.reload());
     setInterval(reloadIfQuiet, 5000);
   };
   if (db.stale) db.onStale();
@@ -695,19 +697,19 @@ async function finishConnecting() {
   const claim = url.searchParams.get('connect');
   const failed = url.searchParams.get('connect_error');
   if (!claim && !failed) return null;
-  const label = SERVICES[url.searchParams.get('service')] || 'That service';
+  const label = SERVICES[url.searchParams.get('service')] || tr('That service');
   for (const name of ['connect', 'connect_error', 'service']) url.searchParams.delete(name);
   history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
   const page = 'plugins';
-  if (failed === 'cancelled') return { page, text: `${label} wasn't connected.` };
-  if (failed === 'permissions') return { page, error: true, text: `${label} wasn't connected: bots need every permission it asked for. Connect again and leave them all ticked.` };
-  if (failed) return { page, error: true, text: `Connecting ${label} didn't work. Try again.` };
+  if (failed === 'cancelled') return { page, text: tr("{service} wasn't connected.", { service: label }) };
+  if (failed === 'permissions') return { page, error: true, text: tr("{service} wasn't connected: bots need every permission it asked for. Connect again and leave them all ticked.", { service: label }) };
+  if (failed) return { page, error: true, text: tr("Connecting {service} didn't work. Try again.", { service: label }) };
   try {
     const done = await account.authed('mutation', 'connectors:claim', { claim });
-    if (done.error) return { page, error: true, text: done.error };
-    return { page, text: `${SERVICES[done.service] || 'It'} is connected: ${done.account}` };
+    if (done.error) return { page, error: true, text: tr(done.error) };
+    return { page, text: SERVICES[done.service] ? tr('{service} is connected: {account}', { service: SERVICES[done.service], account: done.account }) : tr('It is connected: {account}', { account: done.account }) };
   } catch (err) {
-    return { page, error: true, text: typeof err?.data === 'string' ? err.data : "Couldn't finish connecting. Try again." };
+    return { page, error: true, text: typeof err?.data === 'string' ? tr(err.data) : tr("Couldn't finish connecting. Try again.") };
   }
 }
 
@@ -729,9 +731,10 @@ function banner(text, onClick, tone = '') {
   return button;
 }
 
-/** Opens the app on `app`: first the Chief Coordinator's page when the account
- * doesn't have one yet (wantsChief). */
-function mount(app, { chiefDone = false } = {}) {
+/** Opens the app on `app`, in the account's language: first the Chief
+ * Coordinator's page when the account doesn't have one yet (wantsChief). */
+async function mount(app, { chiefDone = false } = {}) {
+  await setLanguage(app.settings?.language || 'system');
   if (!chiefDone && wantsChief(app)) {
     showChief(app);
     return;
@@ -743,7 +746,7 @@ function mount(app, { chiefDone = false } = {}) {
   render(html`<${Root} app=${app} />`, root);
   document.getElementById('boot')?.remove();
   registerServiceWorker();
-  keepTimeZone(app);
+  keepDeviceSettings(app);
   if (signInWorksHere() && account.signedIn) {
     if (billing?.pastDue) paymentBanner();
     watchSubscription();
@@ -753,15 +756,20 @@ function mount(app, { chiefDone = false } = {}) {
   if (signInWorksHere()) watchUpdates();
 }
 
-/** The time zone is found, not set: the one this device is in. Bots running
- * here use it as it is; this keeps it in the settings for bots on a
- * computer (src/core/app.js timeZone()), whose own clock may be set to
- * another zone, as a server's often is. Written only when it changed, as the
- * app opens, while what it holds of the settings is fresh. */
-function keepTimeZone(app) {
+/** What bots need to know of this device, kept in the settings as the app
+ * opens (only when it changed, while what the app holds of the settings is
+ * fresh). The time zone is found, not set: the one this device is in. Bots
+ * running here use it as it is, and bots on a computer go by it
+ * (src/core/app.js timeZone()), whose own clock may be set to another zone,
+ * as a server's often is. And the language the app is shown in, which bots
+ * write in (settings.uiLanguage, src/core/prompts.js). */
+function keepDeviceSettings(app) {
+  const patch = {};
   const tz = deviceTimeZone();
-  if (!tz || app.settings?.timeZone === tz) return;
-  Promise.resolve(app.saveSettings({ timeZone: tz })).catch((err) => console.warn('time zone', err));
+  if (tz && app.settings?.timeZone !== tz) patch.timeZone = tz;
+  if (app.settings?.uiLanguage !== language()) patch.uiLanguage = language();
+  if (!Object.keys(patch).length) return;
+  Promise.resolve(app.saveSettings(patch)).catch((err) => console.warn('settings', err));
 }
 
 const CHIEF_LATER = 'holly.chiefLater';

@@ -2,6 +2,7 @@ import { Emitter, uid } from '../core/util.js';
 import { ComputerClient } from '../core/computer.js';
 import { ProviderHub } from '../core/providers/index.js';
 import { DEFAULT_SETTINGS } from '../core/app.js';
+import { tr } from '../ui/i18n.js';
 
 // Remote control: the same interface as the local App, but every bot, chat,
 // memory and file lives on your Holly Computer. Live updates arrive by long
@@ -121,10 +122,10 @@ export class RemoteApp {
         res = await fetch(this.url(`/api/rpc-result/${pending}`), { headers: this.headers(false) });
       }
     } catch (err) {
-      throw new Error(`Can't reach your Holly Computer (${err.message}). Is it running?`);
+      throw new Error(tr("Can't reach your Holly Computer ({error}). Is it running?", { error: err.message }));
     }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Holly Computer error ${res.status}`);
+    if (!res.ok) throw new Error(data.error || tr('Holly Computer error {status}', { status: res.status }));
     return data.result;
   }
 
@@ -148,7 +149,7 @@ export class RemoteApp {
         this.runtime.runs = before;
         this.emit('runs');
       }
-      throw new Error(`Couldn't stop: ${err.message}`);
+      throw new Error(tr("Couldn't stop: {error}", { error: err.message }));
     }
   }
 
@@ -159,12 +160,12 @@ export class RemoteApp {
     try {
       res = await fetch(this.url('/api/state'), { headers: this.headers(false), signal: ctrl.signal });
     } catch (err) {
-      throw new Error(err.name === 'AbortError' ? 'Timed out reaching your Holly Computer.' : `Can't reach your Holly Computer: ${err.message}`);
+      throw new Error(err.name === 'AbortError' ? tr('Timed out reaching your Holly Computer.') : tr("Can't reach your Holly Computer: {error}", { error: err.message }));
     } finally {
       clearTimeout(t);
     }
-    if (res.status === 401) throw new Error('This pairing link is no longer valid. Open the latest link printed by Holly Computer.');
-    if (!res.ok) throw new Error(`Holly Computer error ${res.status}`);
+    if (res.status === 401) throw new Error(tr('This pairing link is no longer valid. Open the latest link printed by Holly Computer.'));
+    if (!res.ok) throw new Error(tr('Holly Computer error {status}', { status: res.status }));
     this.applyState(await res.json());
     this.reachable = true;
     this.startEvents();
@@ -373,7 +374,7 @@ export class RemoteApp {
     } else if (topic === 'activity') {
       if (data) this.activity.unshift(data);
     } else if (topic === 'notify') {
-      this.emit('notify', { agent: this.getAgent(data?.agentId), text: data?.text, threadId: data?.threadId });
+      this.emit('notify', { agent: this.getAgent(data?.agentId), text: data?.text, threadId: data?.threadId, say: data?.say || null });
       return;
     }
     this.emit(topic, data);

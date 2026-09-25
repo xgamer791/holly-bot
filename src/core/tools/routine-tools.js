@@ -1,4 +1,5 @@
 import { describeSchedule, normalizeSchedule } from '../routines.js';
+import { phrase } from '../i18n.js';
 
 // Routines: scheduled prompts a bot runs on its own (while the app is open, or
 // on the next launch if a run was missed).
@@ -7,7 +8,7 @@ export const routineTools = [
   {
     name: 'schedule_routine',
     group: 'routines',
-    label: (a) => `Scheduled “${a.title}”`,
+    label: (a) => phrase('Scheduled “{title}”', { title: a.title }),
     description: 'Create a routine: a task you will run automatically on a schedule (reminders, daily briefings, recurring checks). '
       + 'Schedule kinds: once (at an ISO datetime), interval (every N minutes, min 15), daily (at HH:MM local time), weekly (days + HH:MM). '
       + 'The prompt is what you will be told to do each time, so make it self-contained.',
@@ -34,14 +35,14 @@ export const routineTools = [
       const r = await ctx.app.routines.create({ agentId: ctx.agent.id, title: args.title, prompt: args.prompt, schedule });
       return {
         content: `Routine ${r.id} created: ${describeSchedule(r.schedule)}; next run ${new Date(r.nextRunAt).toLocaleString()}. Runs happen while Holly is open (missed runs catch up on next launch).`,
-        display: { kind: 'routine', routineId: r.id, title: r.title, schedule: describeSchedule(r.schedule), nextRunAt: r.nextRunAt },
+        display: { kind: 'routine', routineId: r.id, title: r.title, schedule: describeSchedule(r.schedule), plan: r.schedule, nextRunAt: r.nextRunAt },
       };
     },
   },
   {
     name: 'list_routines',
     group: 'routines',
-    label: () => 'Checked routines',
+    label: () => phrase('Checked routines'),
     description: 'List your routines with schedules and next run times.',
     parameters: { type: 'object', properties: {} },
     async run(_args, ctx) {
@@ -55,7 +56,7 @@ export const routineTools = [
   {
     name: 'update_routine',
     group: 'routines',
-    label: (a) => (a.delete ? 'Deleted a routine' : 'Updated a routine'),
+    label: (a) => (a.delete ? phrase('Deleted a routine') : phrase('Updated a routine')),
     description: 'Pause, resume, edit or delete one of your routines.',
     parameters: {
       type: 'object',

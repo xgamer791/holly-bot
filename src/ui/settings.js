@@ -4,16 +4,20 @@ import { Sheet, Group, Row, Field, Toggle, downloadBlob } from './components.js'
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
 import { AI_MODELS } from '../core/providers/index.js';
-import { formatShort, initials } from '../core/util.js';
+import { initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
+import { resolveLanguage } from '../core/i18n.js';
 import { voices } from './speech.js';
 import { MODEL_NAMES } from './bot-profile.js';
 import {
   RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
 import { account, signInWorksHere, SITE } from '../account/account.js';
+import {
+  LANGUAGES, dateText, language, listText, mark, number, setLanguage, shortTime, tr, trn, trx,
+} from './i18n.js';
 
-const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
+const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
 
 /** The Holly Bot account, re-rendering when it changes and refreshing who is
@@ -29,27 +33,41 @@ function useAccount() {
   return { signedIn: here && account.signedIn, user: account.user };
 }
 
-/** Where this app keeps bots, chats and keys, for the wording around Settings. */
+/** Where this app keeps bots, chats and keys: 'computer', 'account' or
+ * 'browser', for the wording around Settings. */
 function home(app) {
-  if (app.remote) return { in: 'on your computer', from: 'from your computer' };
-  if (app.db?.cloud) return { in: 'in your account', from: 'from your account' };
-  return { in: 'in this browser', from: 'from this browser' };
+  if (app.remote) return 'computer';
+  if (app.db?.cloud) return 'account';
+  return 'browser';
 }
 
-/** Who is signed in, and under it how much of the month's AI credits is left
- * (Usage). Where there are no accounts (Holly Computer's Wi-Fi links, browser
- * automation) only Usage shows. */
+/** The first letter small, for text that goes mid-sentence. */
+const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+/** Who is signed in, and under it the usage bar: how much of the month's AI
+ * credits is left, as on the Usage page it opens. Where there are no
+ * accounts (Holly Computer's Wi-Fi links, browser automation) only Usage
+ * shows. */
 function AccountGroup({ acct, go }) {
   const { credits } = useCredits();
-  const usage = html`<${Row} title="Usage" value=${credits ? `${creditsShare(credits)}% left` : '—'} onClick=${() => go('usage')} />`;
+  const pct = credits ? creditsShare(credits) : null;
+  const usage = html`<button class="row usage-row" onClick=${() => go('usage')}>
+    <div class="label">
+      <div class="usage-head"><span class="t">${tr('Usage')}</span><span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span></div>
+      ${pct != null && html`<div class="credits-bar usage-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+        <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
+      </div>`}
+    </div>
+    <${Icon.chevron} class="chev" />
+  </button>`;
   if (!acct.signedIn) return html`<${Group}>${usage}<//>`;
   const user = acct.user || {};
-  const via = (user.providers || []).map((p) => SIGN_IN_WITH[p] || p).join(' and ');
-  const detail = [user.name && user.email, via && `Signed in with ${via}`].filter(Boolean).join(' · ');
+  const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
+  const detail = [user.name && user.email, via && tr('Signed in with {via}', { via })].filter(Boolean).join(' · ');
   return html`<${Group}>
     <div class="row">
       <span class="initials">${initials(user.name || user.email)}</span>
-      <div class="label"><div class="t">${user.name || user.email || 'Holly Bot account'}</div><div class="s">${detail || 'Signed in'}</div></div>
+      <div class="label"><div class="t">${user.name || user.email || tr('Holly Bot account')}</div><div class="s">${detail || tr('Signed in')}</div></div>
     </div>
     ${usage}
   <//>`;
@@ -63,20 +81,20 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
   const go = (page, extra = {}) => setStack([...stack, { page, ...extra }]);
   const back = () => setStack(stack.slice(0, -1));
   const titles = {
-    usage: 'Usage', keys: 'Usage', plugins: 'Plugins',
-    computer: 'Bot Computer', appearance: 'Appearance', language: 'Language', haptics: 'Haptics', data: 'Data & Backup',
-    memory: 'Memory & Context', help: 'Help Center', privacy: 'Privacy Policy', terms: 'Terms of Service', voice: 'Voice',
+    usage: mark('Usage'), keys: mark('Usage'), plugins: mark('Plugins'),
+    computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), haptics: mark('Haptics'), data: mark('Data & Backup'),
+    memory: mark('Memory & Context'), help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'), voice: mark('Voice'),
   };
   const left = top
-    ? html`<button class="circle-btn" aria-label="Back" onClick=${back}><${Icon.back} /></button>`
-    : html`<button class="circle-btn" aria-label="Close" onClick=${onClose}><${Icon.x} /></button>`;
+    ? html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`
+    : html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
     appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, data: DataPage, memory: MemorySettingsPage,
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
   const Page = (top && pages[top.page]) || MainPage;
-  return html`<${Sheet} title=${top ? titles[top.page] : ''} left=${left} onClose=${onClose}>
+  return html`<${Sheet} title=${top ? tr(titles[top.page]) : ''} left=${left} onClose=${onClose}>
     <${Page} go=${go} back=${back} onClose=${onClose} ...${top || {}} />
   <//>`;
 }
@@ -87,57 +105,58 @@ function MainPage({ go, onClose }) {
   const acct = useAccount();
   const s = app.settings;
   const set = (patch) => app.saveSettings(patch);
+  const lang = s.language || 'system';
   return html`
     <${AccountGroup} acct=${acct} go=${go} />
     <${Group}>
-      <${Row} title="Plugins" sub="Gmail, Outlook, GitHub, tools and skills" onClick=${() => go('plugins')} />
+      <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, tools and skills')} onClick=${() => go('plugins')} />
     <//>
-    <div class="group-label">Bot</div>
+    <div class="group-label">${tr('Bot')}</div>
     <${Group}>
-      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories." toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
-      <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : app.awaitingServer ? 'Setting up…' : app.linkedComputers?.length ? 'Not connected' : 'Set up'} onClick=${() => go('computer')} />
-      <${Row} title="Memory & Context" onClick=${() => go('memory')} />
-      <${Row} title="Routines" onClick=${() => ui.openSheet('routines', {})} />
+      <${Row} title=${tr('Auto-review')} sub=${tr('Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories.')} toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
+      <${Row} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
+      <${Row} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
+      <${Row} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
     <//>
     <${Group}>
-      <${Row} title="Notifications" toggle=${!!s.notifications} onToggle=${async (v) => {
+      <${Row} title=${tr('Notifications')} toggle=${!!s.notifications} onToggle=${async (v) => {
         if (v && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
           const p = await Notification.requestPermission().catch(() => 'denied');
           if (p !== 'granted') {
-            ui.toast('Notifications are blocked for this site. On iPhone, add Holly Bot to your Home Screen first.', { error: true });
+            ui.toast(tr('Notifications are blocked for this site. On iPhone, add Holly Bot to your Home Screen first.'), { error: true });
             return;
           }
         }
         set({ notifications: v });
       }} />
-      <${Row} title="Appearance" value=${APPEARANCE[s.appearance] || APPEARANCE.system} onClick=${() => go('appearance')} />
-      <${Row} title="Language" value=${s.language === 'en' ? 'English' : 'System'} onClick=${() => go('language')} />
-      <${Row} title="Haptics" value=${s.haptics ? 'On' : 'Off'} onClick=${() => go('haptics')} />
-      <${Row} title="Voice" value=${s.voice?.name ? s.voice.name.split(' ')[0] : 'Default'} onClick=${() => go('voice')} />
+      <${Row} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
+      <${Row} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
+      <${Row} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
+      <${Row} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
     <//>
     <${Group}>
-      <${Row} title="Data & Backup" onClick=${() => go('data')} />
+      <${Row} title=${tr('Data & Backup')} onClick=${() => go('data')} />
     <//>
     <${Group}>
-      <${Row} title="Help Center" onClick=${() => go('help')} />
-      <${Row} title="Privacy Policy" onClick=${() => go('privacy')} />
-      <${Row} title="Terms of Service" onClick=${() => go('terms')} />
+      <${Row} title=${tr('Help Center')} onClick=${() => go('help')} />
+      <${Row} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
+      <${Row} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
     <//>
     <${Group}>
-      <${Row} title="Send Feedback" onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')} />
+      <${Row} title=${tr('Send Feedback')} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')} />
     <//>
     <${Group}>
       ${acct.signedIn ? html`
-        <${Row} title="Sign Out" sub=${app.remote ? 'Your bots stay on your computer.' : 'Your bots, chats, memories and keys stay in your account.'} danger onClick=${() => signOut(app, ui)} />`
-      : html`<${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
-        if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
+        <${Row} title=${tr('Sign Out')} sub=${app.remote ? tr('Your bots stay on your computer.') : tr('Your bots, chats, memories and keys stay in your account.')} danger onClick=${() => signOut(app, ui)} />`
+      : html`<${Row} title=${tr('Sign Out')} sub=${tr('Removes your API keys from this device. Bots and memories stay.')} danger onClick=${async () => {
+        if (!(await ui.confirm({ title: tr('Sign out?'), message: tr('Your API keys will be removed. Your bots, chats and memories are kept.'), confirmText: tr('Sign Out'), danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
         const services = {};
         for (const [id, p] of Object.entries(s.services || {})) services[id] = { ...p, apiKey: '' };
         await set({ providers, services, computer: { url: s.computer?.url || '', token: '' } });
         app.computer.connected = false;
-        ui.toast('Signed out — keys removed');
+        ui.toast(tr('Signed out — keys removed'));
         onClose();
       }} />`}
     <//>
@@ -153,14 +172,14 @@ function MainPage({ go, onClose }) {
  * forgotten here (signing in again finds one linked to the account; one that
  * isn't needs its link opened again). */
 async function signOut(app, ui) {
-  const name = app.server?.name || 'your computer';
+  const name = app.server?.name || tr('your computer');
   const message = app.remote && app.server?.account?.linked
-    ? `You'll be back at the welcome screen. Your bots stay in your account and ${name} keeps running them. Sign in again and this device connects to it by itself.`
+    ? tr("You'll be back at the welcome screen. Your bots stay in your account and {name} keeps running them. Sign in again and this device connects to it by itself.", { name })
     : app.remote
-      ? "You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer."
-      : "You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.";
-  if (!(await ui.confirm({ title: 'Sign out?', message, confirmText: 'Sign Out', danger: true }))) return;
-  ui.toast('Signing out…');
+      ? tr("You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer.")
+      : tr("You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.");
+  if (!(await ui.confirm({ title: tr('Sign out?'), message, confirmText: tr('Sign Out'), danger: true }))) return;
+  ui.toast(tr('Signing out…'));
   if (!app.remote) {
     app.stopScheduler();
     app.runtime.stopAll();
@@ -185,7 +204,7 @@ function creditsShare(c) {
 }
 
 /** Millionths of a dollar as credits (1 credit per cent), for showing. */
-const asCredits = (micros) => Math.floor(Math.max(0, micros) / 10_000).toLocaleString();
+const asCredits = (micros) => number(Math.floor(Math.max(0, micros) / 10_000));
 
 /**
  * Settings → Usage: this month's AI credits as a bar that drops as bots use
@@ -199,22 +218,22 @@ function UsagePage() {
     return () => clearInterval(t);
   }, []);
   if (!account.signedIn || !signInWorksHere()) {
-    return html`<p class="hint" style="font-size:14.5px;margin:4px">Your AI credits come with your Holly Bot plan. Sign in to Holly Bot at ${SITE.replace(/^https:\/\//, '')} to see them.</p>`;
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">${tr('Your AI credits come with your Holly Bot plan. Sign in to Holly Bot at {site} to see them.', { site: SITE.replace(/^https:\/\//, '') })}</p>`;
   }
   if (!credits) {
-    return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? 'Loading…' : 'Your AI credits come with your Holly Bot plan.'}</p>`;
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? tr('Loading…') : tr('Your AI credits come with your Holly Bot plan.')}</p>`;
   }
   const pct = creditsShare(credits);
-  const refill = new Date(credits.refillsAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  const refill = dateText(credits.refillsAt, { month: 'long', day: 'numeric' });
   return html`
-    <div class="credits-card" role="meter" aria-label="AI credits left this month" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
-      <div class="credits-head"><b>AI credits</b><span>${pct}% left</span></div>
+    <div class="credits-card" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+      <div class="credits-head"><b>${tr('AI credits')}</b><span>${tr('{pct}% left', { pct })}</span></div>
       <div class="credits-bar"><span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
-      <div class="credits-sub">${asCredits(credits.balance)} of ${asCredits(credits.allowance)} left · Refills ${refill}</div>
+      <div class="credits-sub">${tr('{left} of {total} left · Refills {date}', { left: asCredits(credits.balance), total: asCredits(credits.allowance), date: refill })}</div>
     </div>
-    ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">Holly Bot's AI isn't switched on yet, so your bots aren't using these credits.</p>`}
-    <p class="hint" style="font-size:14px;margin:4px">Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.</p>
-    <p class="hint" style="font-size:14px;margin:10px 4px 4px">Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).</p>`;
+    ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">${tr("Holly Bot's AI isn't switched on yet, so your bots aren't using these credits.")}</p>`}
+    <p class="hint" style="font-size:14px;margin:4px">${tr("Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.")}</p>
+    <p class="hint" style="font-size:14px;margin:10px 4px 4px">${tr("Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).")}</p>`;
 }
 
 function PluginsPage() {
@@ -234,43 +253,43 @@ function PluginsPage() {
   return html`
     <${ConnectedAccounts} />
 
-    <div class="group-label">MCP servers</div>
+    <div class="group-label">${tr('MCP servers')}</div>
     <div class="group">
       ${servers.map((srv) => {
         const st = state.find((x) => x.key === `direct:${srv.id}`);
         return html`<div class="row" key=${srv.id}>
           <${Icon.plug} size="20" />
-          <div class="label"><div class="t">${srv.name}</div><div class="s">${st?.status === 'ok' ? `${st.tools.length} tools` : st?.status === 'error' ? `Error: ${st.error}` : srv.enabled === false ? 'Off' : 'Connecting…'}</div></div>
+          <div class="label"><div class="t">${srv.name}</div><div class="s">${st?.status === 'ok' ? trn(st.tools.length, '{n} tool', '{n} tools') : st?.status === 'error' ? tr('Error: {error}', { error: st.error }) : srv.enabled === false ? tr('Off') : tr('Connecting…')}</div></div>
           <${Toggle} small on=${srv.enabled !== false} onChange=${(v) => saveServers(servers.map((x) => (x.id === srv.id ? { ...x, enabled: v } : x)))} label=${srv.name} />
-          <button class="icon-btn" aria-label="Remove" onClick=${() => saveServers(servers.filter((x) => x.id !== srv.id))}><${Icon.trash} /></button>
+          <button class="icon-btn" aria-label=${tr('Remove')} onClick=${() => saveServers(servers.filter((x) => x.id !== srv.id))}><${Icon.trash} /></button>
         </div>`;
       })}
       ${state.filter((p) => p.via === 'computer').map((p) => html`<div class="row" key=${p.key}><${Icon.monitor} size="20" />
-        <div class="label"><div class="t">${p.name}</div><div class="s">${p.status === 'ok' ? `${p.tools.length} tools · on Bot Computer` : p.error || p.status}</div></div></div>`)}
-      <button class="row" onClick=${() => setAdding(!adding)}><${Icon.plus} size="20" /><div class="label"><div class="t">Add MCP server</div></div></button>
+        <div class="label"><div class="t">${p.name}</div><div class="s">${p.status === 'ok' ? trn(p.tools.length, '{n} tool · on Bot Computer', '{n} tools · on Bot Computer') : p.error || p.status}</div></div></div>`)}
+      <button class="row" onClick=${() => setAdding(!adding)}><${Icon.plus} size="20" /><div class="label"><div class="t">${tr('Add MCP server')}</div></div></button>
     </div>
-    <div class="group-note">Remote MCP servers (Streamable HTTP) are called straight from your browser and must allow CORS. Local servers (stdio, e.g. Gmail, filesystem, GitHub) run on your Bot Computer via <span class="kbd">~/.holly/mcp.json</span>.</div>
+    <div class="group-note">${trx('Remote MCP servers (Streamable HTTP) are called straight from your browser and must allow CORS. Local servers (stdio, e.g. Gmail, filesystem, GitHub) run on your Bot Computer via {file}.', { file: html`<span class="kbd">~/.holly/mcp.json</span>` })}</div>
     ${adding && html`<${AddServer} onCancel=${() => setAdding(false)} onSave=${async (srv) => {
       await saveServers([...servers, srv]);
       setAdding(false);
-      ui.toast(`Added ${srv.name}`);
+      ui.toast(tr('Added {name}', { name: srv.name }));
     }} />`}
 
-    <div class="group-label">Search & reading</div>
+    <div class="group-label">${tr('Search & reading')}</div>
     <div class="group">
-      ${[['tavily', 'Tavily', 'Web search API'], ['exa', 'Exa', 'Neural web search'], ['jina', 'Jina', 'Reader & search (optional key)'], ['brave', 'Brave Search', 'Used through your Bot Computer']].map(([id, label, sub]) => html`
+      ${[['tavily', 'Tavily', tr('Web search API')], ['exa', 'Exa', tr('Neural web search')], ['jina', 'Jina', tr('Reader & search (optional key)')], ['brave', 'Brave Search', tr('Used through your Bot Computer')]].map(([id, label, sub]) => html`
         <div class="row" key=${id}><div class="label"><div class="t">${label}</div><div class="s">${sub}</div></div>
-          <input type="password" autocomplete="off" placeholder="API key" value=${services[id]?.apiKey || ''} onChange=${(e) => setService(id, e.currentTarget.value.trim())} /></div>`)}
+          <input type="password" autocomplete="off" placeholder=${tr('API key')} value=${services[id]?.apiKey || ''} onChange=${(e) => setService(id, e.currentTarget.value.trim())} /></div>`)}
     </div>
-    <div class="group-note">Grok, Claude, OpenAI and OpenRouter search the web on their own. These keys give web search to other providers and bots.</div>
+    <div class="group-note">${tr('Grok, Claude, OpenAI and OpenRouter search the web on their own. These keys give web search to other providers and bots.')}</div>
 
-    <div class="group-label">Skills</div>
+    <div class="group-label">${tr('Skills')}</div>
     <div class="group">
       ${(s.skills || []).map((k) => html`<button class="row" key=${k.id} onClick=${() => setEditingSkill(k)}>
         <${Icon.sparkle} size="20" /><div class="label"><div class="t">${k.name}</div><div class="s">${k.description}</div></div>
         <${Toggle} small on=${k.enabled !== false} onChange=${(v) => app.saveSettings({ skills: s.skills.map((x) => (x.id === k.id ? { ...x, enabled: v } : x)) })} label=${k.name} />
       </button>`)}
-      <button class="row" onClick=${() => setEditingSkill({})}><${Icon.plus} size="20" /><div class="label"><div class="t">New skill</div><div class="s">Reusable instructions any bot can load</div></div></button>
+      <button class="row" onClick=${() => setEditingSkill({})}><${Icon.plus} size="20" /><div class="label"><div class="t">${tr('New skill')}</div><div class="s">${tr('Reusable instructions any bot can load')}</div></div></button>
     </div>
     ${editingSkill && html`<${SkillEditor} skill=${editingSkill} onCancel=${() => setEditingSkill(null)} onSave=${async (k) => {
       const list = s.skills || [];
@@ -288,12 +307,12 @@ function AddServer({ onSave, onCancel }) {
   const [url, setUrl] = useState('');
   const [auth, setAuth] = useState('');
   return html`<div class="mem">
-    <${Field} label="Name"><input class="input" placeholder="e.g. Linear" value=${name} onInput=${(e) => setName(e.currentTarget.value)} /><//>
-    <${Field} label="Server URL"><input class="input mono" placeholder="https://mcp.example.com/mcp" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
-    <${Field} label="Authorization header (optional)"><input class="input mono" placeholder="Bearer …" value=${auth} autocapitalize="off" onInput=${(e) => setAuth(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Name')}><input class="input" placeholder=${tr('e.g. Linear')} value=${name} onInput=${(e) => setName(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Server URL')}><input class="input mono" placeholder="https://mcp.example.com/mcp" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Authorization header (optional)')}><input class="input mono" placeholder="Bearer …" value=${auth} autocapitalize="off" onInput=${(e) => setAuth(e.currentTarget.value)} /><//>
     <div class="btn-row" style="justify-content:flex-end">
-      <button class="btn small" onClick=${onCancel}>Cancel</button>
-      <button class="btn small primary" disabled=${!name.trim() || !/^https?:\/\//.test(url.trim())} onClick=${() => onSave({ id: `mcp_${Date.now().toString(36)}`, name: name.trim(), url: url.trim(), headers: auth.trim() ? { Authorization: auth.trim() } : {}, enabled: true })}>Add</button>
+      <button class="btn small" onClick=${onCancel}>${tr('Cancel')}</button>
+      <button class="btn small primary" disabled=${!name.trim() || !/^https?:\/\//.test(url.trim())} onClick=${() => onSave({ id: `mcp_${Date.now().toString(36)}`, name: name.trim(), url: url.trim(), headers: auth.trim() ? { Authorization: auth.trim() } : {}, enabled: true })}>${tr('Add')}</button>
     </div>
   </div>`;
 }
@@ -303,26 +322,27 @@ function SkillEditor({ skill, onSave, onCancel, onDelete }) {
   const [description, setDescription] = useState(skill.description || '');
   const [instructions, setInstructions] = useState(skill.instructions || '');
   return html`<div class="mem">
-    <${Field} label="Name"><input class="input" placeholder="e.g. Weekly SEO report" value=${name} onInput=${(e) => setName(e.currentTarget.value)} /><//>
-    <${Field} label="When to use it"><input class="input" placeholder="Short description bots see" value=${description} onInput=${(e) => setDescription(e.currentTarget.value)} /><//>
-    <${Field} label="Instructions"><textarea class="textarea" style="min-height:160px" placeholder="Step-by-step instructions, templates, checklists…" value=${instructions} onInput=${(e) => setInstructions(e.currentTarget.value)}></textarea><//>
+    <${Field} label=${tr('Name')}><input class="input" placeholder=${tr('e.g. Weekly SEO report')} value=${name} onInput=${(e) => setName(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('When to use it')}><input class="input" placeholder=${tr('Short description bots see')} value=${description} onInput=${(e) => setDescription(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Instructions')}><textarea class="textarea" style="min-height:160px" placeholder=${tr('Step-by-step instructions, templates, checklists…')} value=${instructions} onInput=${(e) => setInstructions(e.currentTarget.value)}></textarea><//>
     <div class="btn-row" style="justify-content:flex-end">
-      ${onDelete && html`<button class="btn small danger" onClick=${onDelete}>Delete</button>`}
-      <button class="btn small" onClick=${onCancel}>Cancel</button>
-      <button class="btn small primary" disabled=${!name.trim() || !instructions.trim()} onClick=${() => onSave({ ...skill, name: name.trim(), description: description.trim(), instructions })}>Save</button>
+      ${onDelete && html`<button class="btn small danger" onClick=${onDelete}>${tr('Delete')}</button>`}
+      <button class="btn small" onClick=${onCancel}>${tr('Cancel')}</button>
+      <button class="btn small primary" disabled=${!name.trim() || !instructions.trim()} onClick=${() => onSave({ ...skill, name: name.trim(), description: description.trim(), instructions })}>${tr('Save')}</button>
     </div>
   </div>`;
 }
 
 const CONNECTORS = [
-  { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: 'Bots read, send and delete your email' },
-  { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: 'Bots read, send and delete your email' },
-  { id: 'github', label: 'GitHub', icon: Icon.code, does: 'Bots create, edit and delete your repositories' },
+  { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: mark('Bots read, send and delete your email') },
+  { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: mark('Bots read, send and delete your email') },
+  { id: 'github', label: 'GitHub', icon: Icon.code, does: mark('Bots create, edit and delete your repositories') },
 ];
 
-/** The server's words from a failed call (a ConvexError's data), or `fallback`. */
+/** The server's words from a failed call (a ConvexError's data, in the app's
+ * language when the dictionary has them), or `fallback`. */
 function serverSays(err, fallback) {
-  return typeof err?.data === 'string' ? err.data : fallback;
+  return typeof err?.data === 'string' ? tr(err.data) : fallback;
 }
 
 /**
@@ -339,8 +359,8 @@ function ConnectedAccounts() {
   const { data: list, error: listError, reload } = useAsync(() => (signedIn ? account.authed('query', 'connectors:list') : Promise.resolve([])), [signedIn]);
   const [busy, setBusy] = useState('');
   if (!signedIn) {
-    return html`<div class="group-label">Connected accounts</div>
-      <div class="group-note" style="margin-top:0">Connect Gmail, Outlook and GitHub for your bots in Holly Bot at ${SITE.replace(/^https:\/\//, '')}, signed in to your account.</div>`;
+    return html`<div class="group-label">${tr('Connected accounts')}</div>
+      <div class="group-note" style="margin-top:0">${tr('Connect Gmail, Outlook and GitHub for your bots in Holly Bot at {site}, signed in to your account.', { site: SITE.replace(/^https:\/\//, '') })}</div>`;
   }
   const changed = () => {
     reload();
@@ -353,74 +373,77 @@ function ConnectedAccounts() {
       location.assign(await account.authed('action', 'connectors:start', { service: c.id, returnTo }));
     } catch (err) {
       setBusy('');
-      ui.toast(serverSays(err, `Couldn't start connecting ${c.label}. Check your connection and try again.`), { error: true });
+      ui.toast(serverSays(err, tr("Couldn't start connecting {service}. Check your connection and try again.", { service: c.label })), { error: true });
     }
   };
   const useToken = async () => {
     const token = await ui.prompt({
-      title: 'Connect GitHub with a token',
-      message: 'Make a token on GitHub (Settings → Developer settings → Personal access tokens). A fine-grained token needs Administration, Contents and Metadata set to Read and write for the repositories bots may use; a classic token needs the repo and delete_repo scopes. Paste it here.',
+      title: tr('Connect GitHub with a token'),
+      message: tr('Make a token on GitHub (Settings → Developer settings → Personal access tokens). A fine-grained token needs Administration, Contents and Metadata set to Read and write for the repositories bots may use; a classic token needs the repo and delete_repo scopes. Paste it here.'),
       placeholder: 'github_pat_…',
-      confirmText: 'Connect',
+      confirmText: tr('Connect'),
       type: 'password',
     });
     if (!token?.trim()) return;
     setBusy('github');
     try {
       const done = await account.authed('action', 'connectors:connectToken', { token: token.trim() });
-      ui.toast(`GitHub connected: ${done.account}`);
+      ui.toast(tr('GitHub connected: {account}', { account: done.account }));
       changed();
     } catch (err) {
-      ui.toast(serverSays(err, "Couldn't connect GitHub. Try again."), { error: true });
+      ui.toast(serverSays(err, tr("Couldn't connect GitHub. Try again.")), { error: true });
     } finally {
       setBusy('');
     }
   };
   const disconnect = async (c, conn) => {
-    if (!(await ui.confirm({ title: `Disconnect ${c.label}?`, message: `Your bots stop using ${conn.account}${c.id === 'github' && conn.via === 'token' ? '. To cancel the token itself, delete it on GitHub' : ', and Holly Bot gives up its access'}.`, confirmText: 'Disconnect', danger: true }))) return;
+    const message = c.id === 'github' && conn.via === 'token'
+      ? tr('Your bots stop using {account}. To cancel the token itself, delete it on GitHub.', { account: conn.account })
+      : tr('Your bots stop using {account}, and Holly Bot gives up its access.', { account: conn.account });
+    if (!(await ui.confirm({ title: tr('Disconnect {service}?', { service: c.label }), message, confirmText: tr('Disconnect'), danger: true }))) return;
     setBusy(c.id);
     try {
       await account.authed('action', 'connectors:disconnect', { service: c.id });
       changed();
     } catch (err) {
-      ui.toast(serverSays(err, `Couldn't disconnect ${c.label}. Try again.`), { error: true });
+      ui.toast(serverSays(err, tr("Couldn't disconnect {service}. Try again.", { service: c.label })), { error: true });
     } finally {
       setBusy('');
     }
   };
   return html`
-    <div class="group-label">Connected accounts</div>
+    <div class="group-label">${tr('Connected accounts')}</div>
     <${Group}>
       ${CONNECTORS.map((c) => {
         const conn = (list || []).find((x) => x.service === c.id);
         const oauth = !!ready?.[c.id];
         const can = oauth || (c.id === 'github' && !!ready?.githubToken);
         const icon = html`<${c.icon} size="20" />`;
-        if (busy === c.id) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="…" />`;
+        if (busy === c.id) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value="…" />`;
         if (conn) {
-          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${`${conn.account} · ${c.does.replace(/^Bots /, 'bots ')}`} value="Disconnect" onClick=${() => disconnect(c, conn)} />
-            ${conn.outdated && oauth && html`<${Row} key=${`${c.id}-again`} title=${`Connect ${c.label} again`} sub="It was connected before bots could delete email. Connecting again lets them." onClick=${() => connect(c)} />`}`;
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr('{account} · {does}', { account: conn.account, does: lowerFirst(tr(c.does)) })} value=${tr('Disconnect')} onClick=${() => disconnect(c, conn)} />
+            ${conn.outdated && oauth && html`<${Row} key=${`${c.id}-again`} title=${tr('Connect {service} again', { service: c.label })} sub=${tr('It was connected before bots could delete email. Connecting again lets them.')} onClick=${() => connect(c)} />`}`;
         }
         if ((!ready && readyError) || (!list && listError)) {
-          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub="Couldn't reach Holly Bot's server" value="Retry" onClick=${() => { reloadReady(); reload(); }} />`;
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Couldn't reach Holly Bot's server")} value=${tr('Retry')} onClick=${() => { reloadReady(); reload(); }} />`;
         }
-        if (!ready || !list) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="…" />`;
-        if (!can) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub="Not set up on Holly Bot's server yet" />`;
-        return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${c.does} value="Connect" onClick=${() => (oauth ? connect(c) : useToken())} />`;
+        if (!ready || !list) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value="…" />`;
+        if (!can) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Not set up on Holly Bot's server yet")} />`;
+        return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value=${tr('Connect')} onClick=${() => (oauth ? connect(c) : useToken())} />`;
       })}
       ${ready?.github && ready?.githubToken && !(list || []).some((x) => x.service === 'github') && busy !== 'github'
-        && html`<${Row} title="Connect GitHub with a token instead" sub="A personal access token you made on GitHub" onClick=${useToken} />`}
+        && html`<${Row} title=${tr('Connect GitHub with a token instead')} sub=${tr('A personal access token you made on GitHub')} onClick=${useToken} />`}
     <//>
-    <div class="group-note">Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.</div>`;
+    <div class="group-note">${tr('Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.')}</div>`;
 }
 
 /** What a computer linked to the account is doing (computerState), in words. */
 function computerStatus(device) {
   const state = computerState(device);
-  if (state === 'running') return 'Running';
-  if (state === 'hidden') return "Running without --tunnel, so this app can't reach it";
-  if (state === 'old') return 'Needs the latest Holly Computer (below) before this app can use it';
-  return device.seenAt ? `Not running · last seen ${formatShort(device.seenAt)}` : 'Not running';
+  if (state === 'running') return tr('Running');
+  if (state === 'hidden') return tr("Running without --tunnel, so this app can't reach it");
+  if (state === 'old') return tr('Needs the latest Holly Computer (below) before this app can use it');
+  return device.seenAt ? tr('Not running · last seen {when}', { when: shortTime(device.seenAt) }) : tr('Not running');
 }
 
 /**
@@ -446,35 +469,36 @@ function LinkedComputers() {
       location.reload();
     } catch (err) {
       setBusy(null);
-      ui.toast(`Couldn't reach ${device.name}. ${err.message}`, { error: true });
+      ui.toast(tr("Couldn't reach {name}. {error}", { name: device.name, error: err.message }), { error: true });
     }
   };
   const unlink = async (device) => {
-    if (!(await ui.confirm({ title: `Unlink ${device.name}?`, message: `${device.name} stops running your bots and routines. They stay in your account.`, confirmText: 'Unlink', danger: true }))) return;
+    if (!(await ui.confirm({ title: tr('Unlink {name}?', { name: device.name }), message: tr('{name} stops running your bots and routines. They stay in your account.', { name: device.name }), confirmText: tr('Unlink'), danger: true }))) return;
     try {
       await account.authed('mutation', 'devices:unlink', { id: device.id });
       reload();
-    } catch {
-      ui.toast("Couldn't unlink it. Check your connection and try again.", { error: true });
+    } catch (err) {
+      ui.toast(serverSays(err, tr("Couldn't unlink it. Check your connection and try again.")), { error: true });
     }
   };
   const running = devices.filter((device) => computerConnection(device));
   return html`
-    <div class="group-label">Linked to your account</div>
+    <div class="group-label">${tr('Linked to your account')}</div>
     <${Group}>
       ${devices.map((device) => (device.server
-        ? html`<${Row} key=${device.id} title=${device.name} sub=${`${computerStatus(device)} · your plan's own computer, kept linked by Holly Bot`} />`
+        ? html`<${Row} key=${device.id} title=${device.name} sub=${tr("{status} · your plan's own computer, kept linked by Holly Bot", { status: computerStatus(device) })} />`
         : html`<${Row} key=${device.id} title=${device.name}
-          sub=${`${computerStatus(device)} · linked ${new Date(device.linkedAt).toLocaleDateString()}`} value="Unlink" onClick=${() => unlink(device)} />`))}
+          sub=${tr('{status} · linked {date}', { status: computerStatus(device), date: dateText(device.linkedAt) })} value=${tr('Unlink')} onClick=${() => unlink(device)} />`))}
     <//>
     ${running.map((device) => html`<button key=${device.id} class="btn primary block" style="margin-bottom:10px" disabled=${!!busy} onClick=${() => connect(device)}>
-      ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> Connect to ${device.name}`}
+      ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> ${tr('Connect to {name}', { name: device.name })}`}
     </button>`)}
-    <div class="group-note">While Holly Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.</div>`;
+    <div class="group-note">${tr('While Holly Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.')}</div>`;
 }
 
 /** Whether the computer this app controls is the one that comes with the
- * plan, which stays linked to the account: Holly Computer says so
+ * plan, which stays linked to the account and connected (no Unlink or
+ * Disconnect for it): Holly Computer says so
  * (computer/src/home.mjs), and so does the account's list of computers
  * (convex/devices.ts). Null until that's known. */
 function usePlanServer(app) {
@@ -500,27 +524,27 @@ function ComputerPage() {
   if (app.remote) {
     const info = app.computer.info || {};
     const caps = info.capabilities || {};
-    const name = info.hostname || app.server?.name || 'your computer';
+    const name = info.hostname || app.server?.name || tr('your computer');
     return html`
       <div class="welcome" style="padding-bottom:6px">
-        <p><b>Your bots live on ${info.hostname || app.server?.name || 'your computer'}</b> and keep working when your phone is locked. This app is the remote control.</p>
+        <p>${trx('**Your bots live on {name}** and keep working when your phone is locked. This app is the remote control.', { name })}</p>
       </div>
-      <div style="margin:0 0 12px"><span class=${`status-pill ${app.reachable ? 'ok' : 'bad'}`}><span class="d"></span>${app.reachable ? 'Connected' : 'Reconnecting…'}</span></div>
+      <div style="margin:0 0 12px"><span class=${`status-pill ${app.reachable ? 'ok' : 'bad'}`}><span class="d"></span>${app.reachable ? tr('Connected') : tr('Reconnecting…')}</span></div>
       <${Group}>
-        <${Row} title="Computer" value=${info.hostname || '—'} />
-        <${Row} title="System" value=${info.os || info.platform || '—'} />
-        <${Row} title="Workspace" value=${info.workspace || '—'} />
-        <${Row} title="Screen & mouse" value=${caps.desktop ? 'Yes' : caps.screenshot ? 'View only' : 'No'} />
-        <${Row} title="Chrome browser" value=${caps.browser ? 'Yes' : 'Not found'} />
+        <${Row} title=${tr('Computer')} value=${info.hostname || '—'} />
+        <${Row} title=${tr('System')} value=${info.os || info.platform || '—'} />
+        <${Row} title=${tr('Workspace')} value=${info.workspace || '—'} />
+        <${Row} title=${tr('Screen & mouse')} value=${caps.desktop ? tr('Yes') : caps.screenshot ? tr('View only') : tr('No')} />
+        <${Row} title=${tr('Chrome browser')} value=${caps.browser ? tr('Yes') : tr('Not found')} />
       <//>
       ${info.notes?.length > 0 && html`<div class="group-note">${info.notes.join(' ')}</div>`}
       ${app.server?.account?.linked && html`
-        <div class="group-label">Your account</div>
-        <${Group}><${Row} title="Kept in your account" sub=${`Its bots, chats, memories and keys are kept in your Holly Bot account, and ${name} runs them. Holly Bot on any device signed in to your account connects to it by itself.`} /><//>`}
-      <div class="group-note"><b>Keep ${name}'s link private, like a password.</b> Anyone who has it can control ${name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</div>
-      <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> Open the computer screen</button>
+        <div class="group-label">${tr('Your account')}</div>
+        <${Group}><${Row} title=${tr('Kept in your account')} sub=${tr('Its bots, chats, memories and keys are kept in your Holly Bot account, and {name} runs them. Holly Bot on any device signed in to your account connects to it by itself.', { name })} /><//>`}
+      <div class="group-note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.", { name })}</div>
+      <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> ${tr('Open the computer screen')}</button>
       ${app.server?.account?.linked && planServer === false && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
-        if (!(await ui.confirm({ title: `Unlink ${name}?`, message: `Your bots stay in your account, and this device switches to them. ${name} stops running them until you link it again.`, confirmText: 'Unlink', danger: true }))) return;
+        if (!(await ui.confirm({ title: tr('Unlink {name}?', { name }), message: tr('Your bots stay in your account, and this device switches to them. {name} stops running them until you link it again.', { name }), confirmText: tr('Unlink'), danger: true }))) return;
         try {
           await app.rpc('account.unlink');
         } catch (err) {
@@ -529,15 +553,17 @@ function ComputerPage() {
         }
         saveConnection(null);
         location.reload();
-      }}>Unlink from My Account</button>`}
-      <button class="btn block danger" style="margin-top:10px" onClick=${async () => {
+      }}>${tr('Unlink from My Account')}</button>`}
+      ${planServer === false && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         // A computer linked to the account would be found again as the app
         // reopens, so this device is set to run the bots itself instead.
         const linked = app.server?.account?.linked && account.signedIn && signInWorksHere();
         const message = linked
-          ? `Your bots stay in your account and ${name} keeps running them. This device will run them itself, without ${name}, until you connect again here.`
-          : `Your bots stay on the computer. This app will switch to the bots ${account.signedIn && signInWorksHere() ? 'in your account' : 'that live in this browser'}.`;
-        if (!(await ui.confirm({ title: 'Disconnect from your computer?', message, confirmText: 'Disconnect', danger: true }))) return;
+          ? tr('Your bots stay in your account and {name} keeps running them. This device will run them itself, without {name}, until you connect again here.', { name })
+          : account.signedIn && signInWorksHere()
+            ? tr('Your bots stay on the computer. This app will switch to the bots in your account.')
+            : tr('Your bots stay on the computer. This app will switch to the bots that live in this browser.');
+        if (!(await ui.confirm({ title: tr('Disconnect from your computer?'), message, confirmText: tr('Disconnect'), danger: true }))) return;
         if (linked) {
           runHere();
           // Nor does it ask to connect again until the computer restarts.
@@ -548,7 +574,7 @@ function ComputerPage() {
           saveConnection(null);
         }
         location.reload();
-      }}>Disconnect this device</button>`;
+      }}>${tr('Disconnect this device')}</button>`}`;
   }
 
   const connect = async () => {
@@ -561,7 +587,7 @@ function ComputerPage() {
       // Linked to the account, a computer runs the account's own bots, so
       // there's nothing to copy (it offers the link when this app reconnects).
       if (!app.db?.cloud && app.listAgents().length && !remote.agents.size
-        && await ui.confirm({ title: 'Copy your bots to the computer?', message: `Copy the bots, chats and memories ${home(app).from} to your computer so they can keep working there.`, confirmText: 'Copy them', cancelText: 'Start fresh' })) {
+        && await ui.confirm({ title: tr('Copy your bots to the computer?'), message: tr('Copy the bots, chats and memories from this browser to your computer so they can keep working there.'), confirmText: tr('Copy them'), cancelText: tr('Start fresh') })) {
         const data = await app.exportData({ includeKeys: true });
         await remote.rpc('data.import', data);
       }
@@ -574,63 +600,91 @@ function ComputerPage() {
     }
   };
 
+  const kbd = (text) => html`<span class="kbd">${text}</span>`;
   return html`
     ${app.db?.cloud && html`<${LinkedComputers} />`}
     <div class="welcome" style="padding-bottom:4px">
       ${app.db?.cloud
-        ? html`<p><b>Run your bots on your computer.</b> Link Holly Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.</p>`
-        : html`<p><b>Put your bots on your computer.</b> Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.</p>`}
+        ? html`<p>${trx('**Run your bots on your computer.** Link Holly Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.')}</p>`
+        : html`<p>${trx('**Put your bots on your computer.** Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
-      <p style="margin-top:0">1. Install <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 22 or newer</a> on the computer.</p>
-      <p>2. Download <a href=${scriptUrl} download>holly-computer.mjs</a> and run it. Or paste this into a terminal:</p>
+      <p style="margin-top:0">${trx('1. Install {node} on the computer.', { node: html`<a href="https://nodejs.org" target="_blank" rel="noopener">${tr('Node.js 22 or newer')}</a>` })}</p>
+      <p>${trx('2. Download {file} and run it. Or paste this into a terminal:', { file: html`<a href=${scriptUrl} download>holly-computer.mjs</a>` })}</p>
       ${[
-        ['Mac or Linux (Terminal)', `curl -fsSLO ${scriptUrl} && node holly-computer.mjs`],
-        ['Windows (PowerShell)', `iwr ${scriptUrl} -OutFile holly-computer.mjs; node holly-computer.mjs`],
+        [tr('Mac or Linux (Terminal)'), `curl -fsSLO ${scriptUrl} && node holly-computer.mjs`],
+        [tr('Windows (PowerShell)'), `iwr ${scriptUrl} -OutFile holly-computer.mjs; node holly-computer.mjs`],
       ].map(([label, cmd]) => html`
         <div key=${label} style="margin:8px 0 12px">
           <div style="font-size:13px;color:var(--muted);margin-bottom:4px">${label}</div>
-          <button class="code-block copyable" title="Copy" onClick=${async () => {
+          <button class="code-block copyable" title=${tr('Copy')} onClick=${async () => {
             try {
               await navigator.clipboard.writeText(cmd);
-              ui.toast('Copied');
+              ui.toast(tr('Copied'));
             } catch {
-              ui.toast('Couldn’t copy — select the text instead', { error: true });
+              ui.toast(tr('Couldn’t copy — select the text instead'), { error: true });
             }
           }}>${cmd}</button>
         </div>`)}
-      <p>3. ${app.db?.cloud ? "Sign in on the page it opens on the computer, with the account you use here. Holly Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it." : 'Open the page it opens on the computer. That\'s it.'}</p>
-      <p><b>Keep that link private, like a password.</b> Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.</p>
-      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px"><span class="kbd">--tunnel</span> reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts${app.db?.cloud ? ", and once it's linked to your account the app finds the new one by itself" : ''}. On the same Wi-Fi you can use <span class="kbd">--lan</span> instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.</p>
+      <p>${app.db?.cloud ? tr("3. Sign in on the page it opens on the computer, with the account you use here. Holly Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it.") : tr("3. Open the page it opens on the computer. That's it.")}</p>
+      <p>${trx('**Keep that link private, like a password.** Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.')}</p>
+      <p style="margin-bottom:0;color:var(--muted);font-size:13.5px">${app.db?.cloud
+        ? trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts, and once it's linked to your account the app finds the new one by itself. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })
+        : trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })}</p>
     </div>
-    <div class="group-label">Or connect manually</div>
-    <${Field} label="Computer URL"><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
-    <${Field} label="Pairing token"><input class="input mono" type="password" autocomplete="off" value=${token} onInput=${(e) => setToken(e.currentTarget.value)} /><//>
-    <button class="btn primary block" disabled=${busy || !url.trim() || !token.trim()} onClick=${connect}>${busy ? html`<span class="spinner"></span>` : 'Connect'}</button>`;
+    <div class="group-label">${tr('Or connect manually')}</div>
+    <${Field} label=${tr('Computer URL')}><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Pairing token')}><input class="input mono" type="password" autocomplete="off" value=${token} onInput=${(e) => setToken(e.currentTarget.value)} /><//>
+    <button class="btn primary block" disabled=${busy || !url.trim() || !token.trim()} onClick=${connect}>${busy ? html`<span class="spinner"></span>` : tr('Connect')}</button>`;
 }
 
 function AppearancePage() {
   const app = useApp();
   return html`<div class="group">${Object.entries(APPEARANCE).map(([k, label]) => html`
     <button class="row" key=${k} onClick=${() => app.saveSettings({ appearance: k })}>
-      <div class="label"><div class="t">${label}</div></div>
+      <div class="label"><div class="t">${tr(label)}</div></div>
       ${(app.settings.appearance || 'system') === k && html`<span class="ok-check"><${Icon.check} /></span>`}
     </button>`)}</div>`;
 }
 
+/**
+ * Settings → Language: English, Spanish and Chinese at the top, each in its
+ * own words (and in the app's, under it), then System, which follows the
+ * device's own language. The app changes as soon as one is picked; the bots
+ * write in it too (settings.uiLanguage, src/core/prompts.js).
+ */
 function LanguagePage() {
   const app = useApp();
-  return html`<div class="group">${[['system', 'System'], ['en', 'English']].map(([k, label]) => html`
-    <button class="row" key=${k} onClick=${() => app.saveSettings({ language: k })}>
-      <div class="label"><div class="t">${label}</div></div>
-      ${(app.settings.language || 'system') === k && html`<span class="ok-check"><${Icon.check} /></span>`}
-    </button>`)}</div>
-    <div class="group-note">The app is in English. Your bots reply in whatever language you write to them.</div>`;
+  const ui = useUi();
+  const choice = app.settings.language || 'system';
+  const check = html`<span class="ok-check"><${Icon.check} /></span>`;
+  const pick = async (next) => {
+    const code = await setLanguage(next);
+    if (code !== resolveLanguage(next)) {
+      ui.toast(tr("Couldn't load that language. Check your connection and try again."), { error: true });
+      return;
+    }
+    await app.saveSettings({ language: next, uiLanguage: code });
+  };
+  const device = LANGUAGES.find((l) => l.code === resolveLanguage('system'));
+  return html`
+    <div class="group">${LANGUAGES.map((l) => html`
+      <button class="row" key=${l.code} onClick=${() => pick(l.code)}>
+        <div class="label"><div class="t" lang=${l.code}>${l.name}</div>${tr(l.english) !== l.name && html`<div class="s">${tr(l.english)}</div>`}</div>
+        ${choice === l.code && check}
+      </button>`)}</div>
+    <div class="group">
+      <button class="row" onClick=${() => pick('system')}>
+        <div class="label"><div class="t">${tr('System')}</div><div class="s">${tr("This device's language: {language}", { language: device.name })}</div></div>
+        ${choice === 'system' && check}
+      </button>
+    </div>
+    <div class="group-note">${tr('Your bots write to you in this language too, and reply in whatever language you write to them.')}</div>`;
 }
 
 function HapticsPage() {
   const app = useApp();
-  return html`<${Group}><${Row} title="Haptics" sub="Light vibration on taps (Android and some browsers)" toggle=${!!app.settings.haptics} onToggle=${(v) => app.saveSettings({ haptics: v })} /><//>`;
+  return html`<${Group}><${Row} title=${tr('Haptics')} sub=${tr('Light vibration on taps (Android and some browsers)')} toggle=${!!app.settings.haptics} onToggle=${(v) => app.saveSettings({ haptics: v })} /><//>`;
 }
 
 function VoicePage() {
@@ -644,13 +698,13 @@ function VoicePage() {
   }, []);
   const cur = app.settings.voice || {};
   return html`
-    <${Field} label="Read-aloud voice">
+    <${Field} label=${tr('Read-aloud voice')}>
       <select class="select" value=${cur.name || ''} onChange=${(e) => app.saveSettings({ voice: { ...cur, name: e.currentTarget.value } })}>
-        <option value="">Default</option>
+        <option value="">${tr('Default')}</option>
         ${list.map((v) => html`<option value=${v.name}>${v.name} (${v.lang})</option>`)}
       </select>
     <//>
-    <${Field} label=${`Speed ${cur.rate || 1.05}×`}><input type="range" min="0.7" max="1.6" step="0.05" value=${cur.rate || 1.05} onInput=${(e) => app.saveSettings({ voice: { ...cur, rate: +e.currentTarget.value } })} /><//>`;
+    <${Field} label=${tr('Speed {rate}×', { rate: cur.rate || 1.05 })}><input type="range" min="0.7" max="1.6" step="0.05" value=${cur.rate || 1.05} onInput=${(e) => app.saveSettings({ voice: { ...cur, rate: +e.currentTarget.value } })} /><//>`;
 }
 
 function MemorySettingsPage() {
@@ -659,33 +713,33 @@ function MemorySettingsPage() {
   const s = app.settings;
   const mem = s.memory || {};
   const set = (patch) => app.saveSettings({ memory: { ...mem, ...patch } });
-  const embedOptions = [['auto', 'Automatic'], ['off', 'Off (local matching)']];
-  const memModels = [['same', 'Same as each bot'], ...AI_MODELS.map((m) => [`deepseek:${m}`, MODEL_NAMES[m] || m])];
+  const embedOptions = [['auto', tr('Automatic')], ['off', tr('Off (local matching)')]];
+  const memModels = [['same', tr('Same as each bot')], ...AI_MODELS.map((m) => [`deepseek:${m}`, MODEL_NAMES[m] || m])];
   const first = app.listAgents()[0];
   return html`
     <${Group}>
-      <${Row} title="Learn automatically" sub="After each reply, save durable facts to the bot's long-term memory" toggle=${mem.auto !== false} onToggle=${(v) => set({ auto: v })} />
-      <div class="row"><div class="label"><div class="t">Memory model</div><div class="s">Extraction, summaries, reflection, group routing</div></div>
+      <${Row} title=${tr('Learn automatically')} sub=${tr("After each reply, save durable facts to the bot's long-term memory")} toggle=${mem.auto !== false} onToggle=${(v) => set({ auto: v })} />
+      <div class="row"><div class="label"><div class="t">${tr('Memory model')}</div><div class="s">${tr('Extraction, summaries, reflection, group routing')}</div></div>
         <select value=${s.defaults?.memoryModel || 'same'} onChange=${(e) => app.saveSettings({ defaults: { ...s.defaults, memoryModel: e.currentTarget.value } })}>
           ${memModels.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
         </select></div>
-      <div class="row"><div class="label"><div class="t">Semantic search</div><div class="s">Embeddings for smarter recall</div></div>
+      <div class="row"><div class="label"><div class="t">${tr('Semantic search')}</div><div class="s">${tr('Embeddings for smarter recall')}</div></div>
         <select value=${mem.embeddings || 'auto'} onChange=${(e) => set({ embeddings: e.currentTarget.value })}>
           ${embedOptions.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
         </select></div>
-      <div class="row"><div class="label"><div class="t">History kept verbatim</div><div class="s">Auto keeps up to ~400k tokens of raw chat with DeepSeek Flash (1M window); only older turns get summarized</div></div>
+      <div class="row"><div class="label"><div class="t">${tr('History kept verbatim')}</div><div class="s">${tr('Auto keeps up to ~400k tokens of raw chat with DeepSeek Flash (1M window); only older turns get summarized')}</div></div>
         <select value=${String(mem.contextBudget || 'auto')} onChange=${(e) => set({ contextBudget: e.currentTarget.value === 'auto' ? 'auto' : +e.currentTarget.value })}>
-          <option value="auto">Auto (half the model's window)</option>
-          ${[32000, 64000, 128000, 256000, 400000].map((n) => html`<option value=${n}>${n / 1000}k tokens</option>`)}
+          <option value="auto">${tr("Auto (half the model's window)")}</option>
+          ${[32000, 64000, 128000, 256000, 400000].map((n) => html`<option value=${n}>${tr('{n}k tokens', { n: n / 1000 })}</option>`)}
         </select></div>
     <//>
-    <div class="group-note">DeepSeek V4.1 Flash for memory work saves credits; "Same as each bot" gives the best quality.</div>
+    <div class="group-note">${tr('DeepSeek V4.1 Flash for memory work saves credits; "Same as each bot" gives the best quality.')}</div>
     <${Group}>
-      <${Row} title="Team memory" sub="Shared notes all bots can read" onClick=${() => (first ? ui.openSheet('memory', { agentId: first.id, tab: 'team' }) : ui.toast('Create a bot first'))} />
-      <${Row} title="Re-index memories" sub="Compute embeddings for all bots now" onClick=${async () => {
+      <${Row} title=${tr('Team memory')} sub=${tr('Shared notes all bots can read')} onClick=${() => (first ? ui.openSheet('memory', { agentId: first.id, tab: 'team' }) : ui.toast(tr('Create a bot first')))} />
+      <${Row} title=${tr('Re-index memories')} sub=${tr('Compute embeddings for all bots now')} onClick=${async () => {
         let n = 0;
         for (const a of app.listAgents()) n += await app.memory.reindex(a.id).catch(() => 0);
-        ui.toast(n ? `Indexed ${n} memories` : 'Nothing to index (needs an OpenAI, Google or Mistral key)');
+        ui.toast(n ? trn(n, 'Indexed {n} memory', 'Indexed {n} memories') : tr('Nothing to index (needs an OpenAI, Google or Mistral key)'));
       }} />
     <//>`;
 }
@@ -705,33 +759,46 @@ function DataPage() {
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
-      if (!(await ui.confirm({ title: 'Replace everything?', message: `Importing replaces all bots, chats, memories and settings ${home(app).in} with the backup.`, confirmText: 'Import', danger: true }))) return;
+      const message = {
+        computer: mark('Importing replaces all bots, chats, memories and settings on your computer with the backup.'),
+        account: mark('Importing replaces all bots, chats, memories and settings in your account with the backup.'),
+        browser: mark('Importing replaces all bots, chats, memories and settings in this browser with the backup.'),
+      }[home(app)];
+      if (!(await ui.confirm({ title: tr('Replace everything?'), message: tr(message), confirmText: tr('Import'), danger: true }))) return;
       try {
         await app.importData(JSON.parse(await file.text()));
-        ui.toast('Backup restored');
+        ui.toast(tr('Backup restored'));
         ui.navigate('#/');
       } catch (err) {
-        ui.toast(`Import failed: ${err.message}`, { error: true });
+        ui.toast(tr('Import failed: {error}', { error: err.message }), { error: true });
       }
     };
     input.click();
   };
+  const erase = {
+    computer: mark('Deletes all bots, chats, memories, files, routines and keys from your computer. Your account stays.'),
+    account: mark('Deletes all bots, chats, memories, files, routines and keys from your account. Your account stays.'),
+    browser: mark('Deletes all bots, chats, memories, files, routines and keys from this browser. Your account stays.'),
+  }[home(app)];
   return html`
     <${Group}>
-      <${Row} title="Include API keys in export" toggle=${withKeys} onToggle=${setWithKeys} />
-      <${Row} title="Export backup" sub="All bots, chats, memories, files, routines and settings" onClick=${exportNow} />
-      <${Row} title="Import backup" onClick=${importNow} />
+      <${Row} title=${tr('Include API keys in export')} toggle=${withKeys} onToggle=${setWithKeys} />
+      <${Row} title=${tr('Export backup')} sub=${tr('All bots, chats, memories, files, routines and settings')} onClick=${exportNow} />
+      <${Row} title=${tr('Import backup')} onClick=${importNow} />
     <//>
     <div class="group-note">${app.db?.cloud
-      ? 'Everything is kept in your account, on every device you sign in on. A backup is a copy of your own.'
-      : 'Use a backup to move Holly Bot to another device or browser.'} Treat exports that include keys like passwords.</div>
+      ? tr('Everything is kept in your account, on every device you sign in on. A backup is a copy of your own. Treat exports that include keys like passwords.')
+      : tr('Use a backup to move Holly Bot to another device or browser. Treat exports that include keys like passwords.')}</div>
     <${Group}>
-      <${Row} title="Pause all routines" onClick=${async () => ui.toast(`Paused ${await app.routines.setAllEnabled(false)} routines`)} />
-      <${Row} title="Erase all data" danger onClick=${async () => {
-        if (await ui.confirm({ title: 'Erase everything?', message: `Deletes all bots, chats, memories, files, routines and keys ${home(app).from}. Your account stays.`, confirmText: 'Erase', danger: true })) {
+      <${Row} title=${tr('Pause all routines')} onClick=${async () => {
+        const n = await app.routines.setAllEnabled(false);
+        ui.toast(trn(n, 'Paused {n} routine', 'Paused {n} routines'));
+      }} />
+      <${Row} title=${tr('Erase all data')} danger onClick=${async () => {
+        if (await ui.confirm({ title: tr('Erase everything?'), message: tr(erase), confirmText: tr('Erase'), danger: true })) {
           await app.resetAll();
           ui.navigate('#/');
-          ui.toast('All data erased');
+          ui.toast(tr('All data erased'));
         }
       }} />
     <//>`;
@@ -739,29 +806,29 @@ function DataPage() {
 
 function HelpPage() {
   return html`<div class="bubble plain-bot" style="max-width:100%;line-height:1.5">
-    <h3>Getting started</h3>
-    <p>1. Tap <b>+ → New Bot</b>, name it and pick a look.<br />2. Chat. Your bot learns about you and remembers across conversations.</p>
-    <h3>AI credits</h3>
-    <p>Your bots think with Holly Bot's AI, DeepSeek, and your plan comes with <b>AI credits</b> for it every month. Settings → <b>Usage</b> shows what's left and when they refill. When they run out, your bots pause until the refill.</p>
-    <h3>Multiple bots</h3>
-    <p>Every bot has its own name, personality, model, memory, files and routines. Bots can <b>message each other</b> (“Ask Nova to review this”), <b>delegate</b> longer tasks, and share a <b>team memory</b>. Start a <b>group chat</b> with + → New Group Chat and @mention bots.</p>
-    <h3>Memory</h3>
-    <p>Tap a bot's name → Memories to see, edit, pin or delete what it knows. Core memory is always in view; long-term memories are recalled when relevant; older chat is summarized automatically.</p>
-    <h3>Tools</h3>
-    <p>Web search, a Python/JavaScript sandbox, files, routines and plugins (MCP). Connect a <b>Bot Computer</b> for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.</p>
-    <h3>Email and GitHub</h3>
-    <p>Connect <b>Gmail</b>, <b>Outlook</b> or <b>GitHub</b> in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.</p>
-    <h3>Your subscription</h3>
-    <p>You change your plan, update your card, see invoices or cancel on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.</p>
-    <p>Every plan comes with <b>your own computer</b>, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and Settings → <b>Bot Computer</b> shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.</p>
-    <h3>Install as an app</h3>
-    <p>iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.</p>
-    <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">Full guide on GitHub ↗</a></p>
+    <h3>${tr('Getting started')}</h3>
+    <p>${trx('1. Tap **+ → New Bot**, name it and pick a look.')}<br />${tr('2. Chat. Your bot learns about you and remembers across conversations.')}</p>
+    <h3>${tr('AI credits')}</h3>
+    <p>${trx("Your bots think with Holly Bot's AI, DeepSeek, and your plan comes with **AI credits** for it every month. Settings → **Usage** shows what's left and when they refill. When they run out, your bots pause until the refill.")}</p>
+    <h3>${tr('Multiple bots')}</h3>
+    <p>${trx('Every bot has its own name, personality, model, memory, files and routines. Bots can **message each other** (“Ask Nova to review this”), **delegate** longer tasks, and share a **team memory**. Start a **group chat** with + → New Group Chat and @mention bots.')}</p>
+    <h3>${tr('Memory')}</h3>
+    <p>${tr("Tap a bot's name → Memories to see, edit, pin or delete what it knows. Core memory is always in view; long-term memories are recalled when relevant; older chat is summarized automatically.")}</p>
+    <h3>${tr('Tools')}</h3>
+    <p>${trx('Web search, a Python/JavaScript sandbox, files, routines and plugins (MCP). Connect a **Bot Computer** for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.')}</p>
+    <h3>${tr('Email and GitHub')}</h3>
+    <p>${trx("Connect **Gmail**, **Outlook** or **GitHub** in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.")}</p>
+    <h3>${tr('Your subscription')}</h3>
+    <p>${tr("You change your plan, update your card, see invoices or cancel on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.")}</p>
+    <p>${trx("Every plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and Settings → **Bot Computer** shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.")}</p>
+    <h3>${tr('Install as an app')}</h3>
+    <p>${tr('iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.')}</p>
+    <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">${tr('Full guide on GitHub ↗')}</a></p>
   </div>`;
 }
 
 /** privacy.html or terms.html (the same pages the sign-in screens link to),
- * shown inside Settings. */
+ * shown inside Settings. They're in English whatever the app's language. */
 function LegalPage({ file, title }) {
   const [body, setBody] = useState(null);
   useEffect(() => {
@@ -772,16 +839,17 @@ function LegalPage({ file, title }) {
   }, [file]);
   if (body === null) return html`<div style="display:flex;justify-content:center;padding:40px"><span class="spinner"></span></div>`;
   return html`
+    ${body && language() !== 'en' && html`<p class="hint" style="margin:4px 4px 10px">${tr('This page is in English.')}</p>`}
     ${body
-      ? html`<div class="bubble plain-bot legal-body" style="max-width:100%;line-height:1.5" dangerouslySetInnerHTML=${{ __html: body }}></div>`
-      : html`<p class="hint">The ${title} couldn't be loaded here.</p>`}
-    <p style="text-align:center"><a href=${file} target="_blank" rel="noopener">Open in the browser ↗</a></p>`;
+      ? html`<div class="bubble plain-bot legal-body" lang="en" style="max-width:100%;line-height:1.5" dangerouslySetInnerHTML=${{ __html: body }}></div>`
+      : html`<p class="hint">${tr("The {title} couldn't be loaded here.", { title })}</p>`}
+    <p style="text-align:center"><a href=${file} target="_blank" rel="noopener">${tr('Open in the browser ↗')}</a></p>`;
 }
 
 function PrivacyPage() {
-  return html`<${LegalPage} file="privacy.html" title="Privacy Policy" />`;
+  return html`<${LegalPage} file="privacy.html" title=${tr('Privacy Policy')} />`;
 }
 
 function TermsPage() {
-  return html`<${LegalPage} file="terms.html" title="Terms of Service" />`;
+  return html`<${LegalPage} file="terms.html" title=${tr('Terms of Service')} />`;
 }

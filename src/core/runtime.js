@@ -7,6 +7,7 @@ import { MAX_TOOL_STEPS } from './constants.js';
 import { CONTENT_NOTE } from './safety.js';
 import { contextWindow, supportsVision } from './providers/index.js';
 import { extractJson } from './util.js';
+import { phrase, spoken } from './i18n.js';
 
 // The agent runtime: builds each bot's context, streams model output, runs
 // tools, pauses for approvals / questions, lets bots talk to each other, and
@@ -595,10 +596,10 @@ export class Runtime {
     const call = step.toolCalls.find((c) => !c.result && (c.pending || c.approval?.status === 'pending'));
     const agent = app.getAgent(waitingMsg.authorId);
     const preview = call?.pending?.kind === 'question'
-      ? { kind: 'waiting', text: `Waiting for you: ${call.pending.question}` }
-      : { kind: 'permission', text: `Permission required: ${call?.approval?.summary || call?.name}` };
+      ? { kind: 'waiting', ...said(phrase('Waiting for you: {question}', { question: call.pending.question })) }
+      : { kind: 'permission', ...said(phrase('Permission required: {action}', { action: call?.approval?.say || call?.approval?.summary || call?.name })) };
     await app.updateThread(threadId, { status: 'waiting', preview: { ...preview, authorId: agent?.id, at: now() }, unread: !app.isViewing(threadId) || app.hidden() });
-    app.notify(agent, preview.text, threadId);
+    app.notify(agent, preview.text, threadId, preview.say);
     return { status: 'waiting', text: finalText(waitingMsg), messageId: waitingMsg.id };
   }
 
@@ -607,9 +608,11 @@ export class Runtime {
     const text = finalText(msg);
     const files = msg.steps.flatMap((s) => (s.toolCalls || []).filter((c) => c.display?.kind === 'file'));
     let preview;
-    if (msg.status === 'error') preview = { kind: 'error', text: `Error: ${truncate(msg.error || '', 80)}` };
-    else if (files.length && !text) preview = { kind: 'file', text: `Sent ${files.length} ${fileNoun(files)}` };
-    else preview = { kind: 'normal', text: truncate(text.replace(/\s+/g, ' '), 140) || (msg.status === 'stopped' ? 'Stopped' : '') };
+    const reply = truncate(text.replace(/\s+/g, ' '), 140);
+    if (msg.status === 'error') preview = { kind: 'error', ...said(phrase('Error: {error}', { error: truncate(msg.error || '', 80) })) };
+    else if (files.length && !text) preview = { kind: 'file', ...said(phrase('Sent {n} {things}', { n: files.length, things: fileNoun(files) })) };
+    else if (!reply && msg.status === 'stopped') preview = { kind: 'normal', ...said(phrase('Stopped')) };
+    else preview = { kind: 'normal', text: reply };
     const thread = app.getThread(threadId);
     const viewing = app.isViewing(threadId) && !app.hidden();
     await app.updateThread(threadId, {
@@ -617,7 +620,7 @@ export class Runtime {
       preview: { ...preview, authorId: agent.id, at: now() },
       unread: thread?.kind === 'agents' ? false : (viewing ? false : true),
     });
-    if (thread?.kind !== 'agents' && !viewing && msg.status === 'done' && (text || files.length)) app.notify(agent, preview.text, threadId);
+    if (thread?.kind !== 'agents' && !viewing && msg.status === 'done' && (text || files.length)) app.notify(agent, preview.text, threadId, preview.say);
   }
 
   onStreamEvent(msg, step, e) {
@@ -700,14 +703,18 @@ export class Runtime {
         call.result = { content: `Invalid arguments: ${invalid}.`, isError: true };
         return null;
       }
-      call.label = safeLabel(tool, args);
+      // The English, and the phrase the app shows translated (`say`).
+      const label = spoken(safeLabel(tool, args), tool.name);
+      call.label = label.text;
+      if (label.say) call.say = label.say;
+      else delete call.say;
       const risk = typeof tool.risk === 'function' ? tool.risk(args) : tool.risk || 'low';
       const turnApproved = tool.approvalScope === 'turn' && (msg.turn?.approved || []).includes(tool.name);
       // `alwaysAsk`: can't be undone (deleting a repository, or email for good), so it asks whatever Auto-review and Always allow say.
       const alwaysAsk = typeof tool.alwaysAsk === 'function' ? !!tool.alwaysAsk(args) : !!tool.alwaysAsk;
       const needsReview = alwaysAsk || (risk === 'high' && app.settings.askFirst === true && !agent.alwaysAllow?.[tool.name] && !turnApproved);
       if (needsReview && call.approval?.status !== 'approved') {
-        let summary = tool.approval ? tool.approval(args, { app, agent }) : call.label;
+        let summary = tool.approval ? tool.approval(args, { app, agent }) : call.say || call.label;
         // `preview`: what the call would do, looked up first (which emails a
         // delete reaches), to ask with. The approved call does exactly that
         // (`prepared`); with nothing to do, it finishes without asking.
@@ -730,7 +737,8 @@ export class Runtime {
           if (seen?.summary) summary = seen.summary;
         }
         call.status = 'waiting';
-        call.approval = { status: 'pending', summary, requestedAt: now() };
+        const asked = spoken(summary, call.label);
+        call.approval = { status: 'pending', summary: asked.text, ...(asked.say ? { say: asked.say } : {}), requestedAt: now() };
         return 'paused';
       }
       if (signal.aborted) throw abortError(signal);
@@ -768,7 +776,7 @@ export class Runtime {
         call.result.content = `${call.result.content}\n\n${desc ? `What the image shows (described by a vision model):\n${desc}` : '[This model cannot see images and no vision model is configured.]'}`;
       }
       if (tool.group !== 'memory' && tool.name !== 'ask_user') {
-        app.logActivity(agent.id, { type: 'tool', title: call.label, detail: truncate(String(call.result.content || ''), 300), isError: !!res?.isError, threadId: thread.id });
+        app.logActivity(agent.id, { type: 'tool', title: call.say || call.label, detail: truncate(String(call.result.content || ''), 300), isError: !!res?.isError, threadId: thread.id });
       }
       return null;
     };
@@ -1094,7 +1102,7 @@ export class Runtime {
           }
         } catch (err) {
           console.warn('memory extraction failed', err);
-          app.logActivity(agentId, { type: 'memory', title: 'Memory update failed', detail: errorMessage(err), isError: true });
+          app.logActivity(agentId, { type: 'memory', title: phrase('Memory update failed'), detail: errorMessage(err), isError: true });
         }
       }
     }
@@ -1234,6 +1242,7 @@ function mergeCitations(a = [], b = []) {
   return out;
 }
 
+/** A tool's label for a call: plain text, or a phrase (src/core/i18n.js). */
 function safeLabel(tool, args) {
   try {
     return typeof tool.label === 'function' ? tool.label(args) : tool.label || tool.name;
@@ -1242,15 +1251,26 @@ function safeLabel(tool, args) {
   }
 }
 
+/** A preview's English, and the phrase to show it translated. */
+function said(p) {
+  const { text, say } = spoken(p);
+  return { text, say };
+}
+
 function fileNoun(files) {
   const exts = new Set(files.map((f) => (f.display?.name || '').split('.').pop().toLowerCase()));
-  if (exts.size === 1) {
-    const e = [...exts][0];
-    const names = { md: 'Markdown file', csv: 'CSV file', pdf: 'PDF', png: 'image', jpg: 'image', json: 'JSON file', html: 'HTML file', txt: 'text file', py: 'Python file' };
-    const n = names[e] || 'file';
-    return files.length > 1 ? `${n}s` : n;
+  const many = files.length > 1;
+  switch (exts.size === 1 ? [...exts][0] : '') {
+    case 'md': return many ? phrase('Markdown files') : phrase('Markdown file');
+    case 'csv': return many ? phrase('CSV files') : phrase('CSV file');
+    case 'pdf': return many ? phrase('PDFs') : phrase('PDF');
+    case 'png': case 'jpg': return many ? phrase('images') : phrase('image');
+    case 'json': return many ? phrase('JSON files') : phrase('JSON file');
+    case 'html': return many ? phrase('HTML files') : phrase('HTML file');
+    case 'txt': return many ? phrase('text files') : phrase('text file');
+    case 'py': return many ? phrase('Python files') : phrase('Python file');
+    default: return many ? phrase('files') : phrase('file');
   }
-  return files.length > 1 ? 'files' : 'file';
 }
 
 /** @-mentions of group members, in order of appearance. */

@@ -1,5 +1,6 @@
 import { DB, SCHEMA } from '../core/db.js';
 import { deviceConnection, forgetDeviceConnection, savedConnection, saveConnection } from '../remote/remote-app.js';
+import { tr } from '../ui/i18n.js';
 
 // Before Holly Bot had accounts it kept everything in this browser (IndexedDB
 // 'holly'), where anyone who signed in on the device could see it. Now it lives
@@ -66,7 +67,7 @@ export async function moveDeviceDataInto(cloud) {
     local.close();
   }
   await cloud.drain(5 * 60_000).catch(() => {});
-  if (cloud.pending.length) throw new Error("Your bots couldn't all be saved to your account yet. Check your connection and try again.");
+  if (cloud.pending.length) throw new Error(tr("Your bots couldn't all be saved to your account yet. Check your connection and try again."));
   const computer = deviceConnection();
   if (computer && !savedConnection()) saveConnection(computer);
   await forgetDeviceData();

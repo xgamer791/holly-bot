@@ -5,6 +5,7 @@ import { Icon } from './icons.js';
 import { listen, speak, stopSpeaking, sttSupported } from './speech.js';
 import { finalText } from '../core/runtime.js';
 import { truncate } from '../core/util.js';
+import { tr } from './i18n.js';
 
 /** Hands-free conversation: listen → send → read the reply aloud → listen again. */
 export function VoiceMode({ thread, agent, onClose }) {
@@ -19,7 +20,7 @@ export function VoiceMode({ thread, agent, onClose }) {
   const startListening = () => {
     if (!open.current) return;
     if (!sttSupported()) {
-      ui.toast('Voice input is not supported in this browser (try Safari or Chrome).', { error: true });
+      ui.toast(tr('Voice input is not supported in this browser (try Safari or Chrome).'), { error: true });
       setPhase('idle');
       return;
     }
@@ -65,7 +66,7 @@ export function VoiceMode({ thread, agent, onClose }) {
       }
       if (last?.status === 'waiting') {
         setPhase('idle');
-        await speak('I need your input on screen.', app);
+        await speak(tr('I need your input on screen.'), app);
         return;
       }
       if (answer) {
@@ -102,12 +103,12 @@ export function VoiceMode({ thread, agent, onClose }) {
     else if (phase === 'thinking') Promise.resolve(app.runtime.stop(thread.id)).catch((err) => ui.toast(err.message, { error: true }));
   };
 
-  const status = { idle: 'Tap to talk', listening: 'Listening…', thinking: `${agent?.name || 'Bot'} is thinking…`, speaking: 'Speaking — tap to interrupt' }[phase];
+  const status = { idle: tr('Tap to talk'), listening: tr('Listening…'), thinking: tr('{name} is thinking…', { name: agent?.name || tr('Bot') }), speaking: tr('Speaking — tap to interrupt') }[phase];
   return html`
-    <div class="voice" role="dialog" aria-label="Voice mode">
+    <div class="voice" role="dialog" aria-label=${tr('Voice mode')}>
       <div class="top">
-        <span class="status-pill"><span class="d" style="background:var(--green)"></span>Voice</span>
-        <button class="circle-btn" aria-label="Close voice mode" onClick=${onClose}><${Icon.x} /></button>
+        <span class="status-pill"><span class="d" style="background:var(--green)"></span>${tr('Voice')}</span>
+        <button class="circle-btn" aria-label=${tr('Close voice mode')} onClick=${onClose}><${Icon.x} /></button>
       </div>
       <div class="center">
         <${Avatar} shape=${agent?.shape} color=${agent?.color} size=${Math.min(200, innerWidth * 0.46)} live working=${phase === 'thinking'} anim=${thinkingOf(agent)}
@@ -117,7 +118,7 @@ export function VoiceMode({ thread, agent, onClose }) {
         ${reply && phase !== 'listening' && html`<div class="reply">${truncate(reply, 600)}</div>`}
       </div>
       <div class="controls">
-        <button class="end" aria-label="End" onClick=${onClose}><${Icon.x} /></button>
+        <button class="end" aria-label=${tr('End')} onClick=${onClose}><${Icon.x} /></button>
         <button class=${`big ${phase === 'listening' ? 'listening' : ''}`} aria-label=${status} onClick=${mainAction}>
           ${phase === 'thinking' ? html`<${Icon.stop} />` : phase === 'speaking' ? html`<${Icon.wave} />` : html`<${Icon.mic} />`}
         </button>

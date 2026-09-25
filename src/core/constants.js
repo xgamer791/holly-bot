@@ -1,26 +1,29 @@
 // Constants shared by core logic and UI (kept free of UI imports so core runs in Node tests).
 
+import { mark } from './i18n.js';
+
 export const APP_NAME = 'Holly Bot';
-export const APP_VERSION = '1.25.5';
+export const APP_VERSION = '1.26.0';
 
 export const SHAPE_KEYS_CORE = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
 export const COLOR_KEYS_CORE = ['white', 'brown', 'red', 'vermilion', 'orange', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'];
 /** Each bot's own little animation while it thinks or works. */
 export const THINKING_KEYS = ['ponder', 'hop', 'jelly', 'orbit', 'scan', 'sparkle', 'float', 'nod', 'twirl'];
 
-/** Tool groups a bot can switch on/off in its settings. */
+/** Tool groups a bot can switch on/off in its settings (their words are
+ * shown translated: src/core/i18n.js mark). */
 export const TOOL_GROUPS = {
-  web: { label: 'Web search & browsing', description: 'Search the web and read pages', default: true },
-  code: { label: 'Code sandbox', description: 'Run Python and JavaScript in your browser', default: true },
-  files: { label: 'Files', description: 'Its own drive to create, read and send files', default: true },
-  memory: { label: 'Memory tools', description: 'Save, recall, update and forget memories', default: true },
-  agents: { label: 'Talk to other bots', description: 'Message bots, delegate tasks, create bots', default: true },
-  routines: { label: 'Routines', description: 'Schedule recurring or one-time tasks', default: true },
-  images: { label: 'Image generation', description: 'Create images with your provider', default: true },
-  computer: { label: 'Bot Computer', description: 'Shell, files and browser on your connected computer', default: true },
-  email: { label: 'Email', description: 'Read, send and delete email in your Gmail or Outlook', default: true },
-  github: { label: 'GitHub', description: 'Create, edit and delete your repositories', default: true },
-  plugins: { label: 'Plugins (MCP)', description: 'Tools from your connected MCP servers', default: true },
+  web: { label: mark('Web search & browsing'), description: mark('Search the web and read pages'), default: true },
+  code: { label: mark('Code sandbox'), description: mark('Run Python and JavaScript in your browser'), default: true },
+  files: { label: mark('Files'), description: mark('Its own drive to create, read and send files'), default: true },
+  memory: { label: mark('Memory tools'), description: mark('Save, recall, update and forget memories'), default: true },
+  agents: { label: mark('Talk to other bots'), description: mark('Message bots, delegate tasks, create bots'), default: true },
+  routines: { label: mark('Routines'), description: mark('Schedule recurring or one-time tasks'), default: true },
+  images: { label: mark('Image generation'), description: mark('Create images with your provider'), default: true },
+  computer: { label: mark('Bot Computer'), description: mark('Shell, files and browser on your connected computer'), default: true },
+  email: { label: mark('Email'), description: mark('Read, send and delete email in your Gmail or Outlook'), default: true },
+  github: { label: mark('GitHub'), description: mark('Create, edit and delete your repositories'), default: true },
+  plugins: { label: mark('Plugins (MCP)'), description: mark('Tools from your connected MCP servers'), default: true },
 };
 
 export const FOCUS_OPTIONS = ['Coding & projects', 'Email & calendar', 'Research & writing', 'Shopping & errands', 'Something else'];

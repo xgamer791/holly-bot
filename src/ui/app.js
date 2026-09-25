@@ -14,6 +14,7 @@ import { Dialog, Toasts } from './components.js';
 import { Icon } from './icons.js';
 import { Avatar, avatarSvgString } from './avatar.js';
 import { threadTitle } from './home.js';
+import { phraseOr, tr } from './i18n.js';
 
 const SHEETS = {
   createBot: CreateBotSheet,
@@ -91,7 +92,7 @@ export function Root({ app }) {
     },
     async openFile(fileId) {
       const f = await app.files.getById(fileId);
-      if (!f) return this.toast('File not found', { error: true });
+      if (!f) return this.toast(tr('File not found'), { error: true });
       this.openSheet('computer', { agentId: f.agentId, fileId });
     },
     regenerate(msg) {
@@ -101,20 +102,20 @@ export function Root({ app }) {
   }), []);
 
   // Notifications when a bot finishes or needs you while you're elsewhere.
-  useEffect(() => app.on('notify', ({ agent, text, threadId }) => {
+  useEffect(() => app.on('notify', ({ agent, text, threadId, say }) => {
     if (!app.settings.notifications || typeof Notification === 'undefined' || Notification.permission !== 'granted') {
       if (!app.isViewing(threadId) && document.visibilityState === 'visible' && agent) {
-        ui.toast(`${agent.name}: ${text}`, { action: { label: 'Open', onClick: () => ui.navigate(`#/chat/${threadId}`) } });
+        ui.toast(`${agent.name}: ${phraseOr(say, text)}`, { action: { label: tr('Open'), onClick: () => ui.navigate(`#/chat/${threadId}`) } });
       }
       return;
     }
     if (document.visibilityState === 'visible' && app.isViewing(threadId)) return;
     if (document.visibilityState === 'visible') {
-      ui.toast(`${agent?.name || 'Bot'}: ${text}`, { action: { label: 'Open', onClick: () => ui.navigate(`#/chat/${threadId}`) } });
+      ui.toast(`${agent?.name || tr('Bot')}: ${phraseOr(say, text)}`, { action: { label: tr('Open'), onClick: () => ui.navigate(`#/chat/${threadId}`) } });
       return;
     }
     const icon = `data:image/svg+xml,${encodeURIComponent(avatarSvgString(agent || {}))}`;
-    const opts = { body: text, icon, tag: threadId, data: { threadId } };
+    const opts = { body: phraseOr(say, text), icon, tag: threadId, data: { threadId } };
     navigator.serviceWorker?.ready.then((reg) => reg.showNotification(agent?.name || 'Holly Bot', opts)).catch(() => {
       try {
         new Notification(agent?.name || 'Holly Bot', opts);
@@ -147,10 +148,10 @@ export function Root({ app }) {
     if (asking.current) return offer.later();
     haptic(app);
     const yes = await ui.confirm({
-      title: `Connect to ${offer.name}?`,
-      message: `${offer.name} is on. Connect, and your bots run there, using its apps, files, browser, screen, mouse and keyboard.`,
-      confirmText: 'Connect',
-      cancelText: 'Not now',
+      title: tr('Connect to {name}?', { name: offer.name }),
+      message: tr('{name} is on. Connect, and your bots run there, using its apps, files, browser, screen, mouse and keyboard.', { name: offer.name }),
+      confirmText: tr('Connect'),
+      cancelText: tr('Not now'),
     });
     if (yes) offer.accept();
     else offer.decline();
@@ -189,9 +190,9 @@ export function Root({ app }) {
           <${HomeScreen} activeThreadId=${route.threadId} />
           ${inChat
             ? html`<${ChatScreen} key=${route.threadId} threadId=${route.threadId} wide=${wide} />`
-            : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="blue" size=${84} live /><p>Pick a bot or create a new one.</p></div></div>`}
+            : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="blue" size=${84} live /><p>${tr('Pick a bot or create a new one.')}</p></div></div>`}
         </div>
-        <button class="edge-handle" aria-label="Open activity" onClick=${() => setDrawer(true)}>
+        <button class="edge-handle" aria-label=${tr('Open activity')} onClick=${() => setDrawer(true)}>
           <${Icon.handle} />
           ${waitingCount > 0 && html`<span class="badge">${waitingCount}</span>`}
         </button>

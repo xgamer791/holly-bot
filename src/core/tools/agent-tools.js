@@ -1,5 +1,6 @@
 import { truncate } from '../util.js';
 import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE } from '../constants.js';
+import { phrase } from '../i18n.js';
 
 // Tools for talking to the user (question cards, files) and to other bots.
 
@@ -31,7 +32,10 @@ export const interactionTools = [
   {
     name: 'send_file',
     group: 'core',
-    label: (a) => `Sent ${a.path?.split('/').pop() || 'a file'}`,
+    label: (a) => {
+      const file = a.path?.split('/').pop();
+      return file ? phrase('Sent {file}', { file }) : phrase('Sent a file');
+    },
     description: 'Send one of your files (from your files/computer drive) to the user as an attachment card they can open, preview or download.',
     parameters: {
       type: 'object',
@@ -53,7 +57,7 @@ export const agentTools = [
   {
     name: 'list_agents',
     group: 'agents',
-    label: () => 'Checked the team',
+    label: () => phrase('Checked the team'),
     description: 'List the other bots you can talk to, with their roles and whether they are busy.',
     parameters: { type: 'object', properties: {} },
     async run(_args, ctx) {
@@ -73,7 +77,7 @@ export const agentTools = [
   {
     name: 'message_agent',
     group: 'agents',
-    label: (a) => `Messaged ${a.agent}`,
+    label: (a) => phrase('Messaged {bot}', { bot: a.agent }),
     description: 'Send a message to another bot and wait for its reply. It answers with its own memory, tools and personality, and only sees what you send, so include the needed context. '
       + 'Use for questions, opinions, reviews and quick tasks. For long work use delegate_task instead.',
     parameters: {
@@ -104,7 +108,7 @@ export const agentTools = [
   {
     name: 'delegate_task',
     group: 'agents',
-    label: (a) => `Delegated to ${a.agent}`,
+    label: (a) => phrase('Delegated to {bot}', { bot: a.agent }),
     description: 'Hand off a longer task to another bot. It works in the background with its own tools; when it finishes, the result is delivered back into this chat and you will continue from there. Returns immediately.',
     parameters: {
       type: 'object',
@@ -129,7 +133,7 @@ export const agentTools = [
     name: 'create_agent',
     group: 'agents',
     risk: 'high',
-    label: (a) => `Create bot “${a.name}”`,
+    label: (a) => phrase('Create bot “{name}”', { name: a.name }),
     description: 'Create a new bot (a teammate with its own name, look, personality and memory). Only do this when the user asks for a new bot, or agrees to one you suggested.',
     parameters: {
       type: 'object',

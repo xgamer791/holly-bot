@@ -1,6 +1,7 @@
 import { html, useEffect, useMemo, useRef } from '../../vendor/preact.js';
 import { marked, DOMPurify } from '../../vendor/markdown.js';
 import { copyText } from './components.js';
+import { tr } from './i18n.js';
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -51,7 +52,7 @@ export function Markdown({ text, streaming = false, className = '' }) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'copy-code';
-      const show = (done) => { b.innerHTML = `${done ? CHECK_ICON : COPY_ICON}<span>${done ? 'Copied' : 'Copy'}</span>`; };
+      const show = (done) => { b.innerHTML = `${done ? CHECK_ICON : COPY_ICON}<span>${done ? tr('Copied') : tr('Copy')}</span>`; };
       show(false);
       b.onclick = (e) => {
         e.stopPropagation(); // an agent card opens and closes on a tap

@@ -6,8 +6,8 @@ import { MessageView } from './message.js';
 import { Composer } from './composer.js';
 import { VoiceMode } from './voice.js';
 import { ComputerButton } from './computer-button.js';
-import { formatDayTime } from '../core/util.js';
 import { threadTitle } from './home.js';
+import { dayTime, listText, tr } from './i18n.js';
 
 const GAP = 60 * 60 * 1000;
 
@@ -42,7 +42,7 @@ export function ChatScreen({ threadId, wide }) {
 
   if (!thread) {
     return html`<div class="pane-chat"><div class="chat-topbar"><button class="circle-btn" onClick=${() => ui.navigate('#/')}><${Icon.back} /></button></div>
-      <div class="empty-home"><p>This chat no longer exists.</p></div></div>`;
+      <div class="empty-home"><p>${tr('This chat no longer exists.')}</p></div></div>`;
   }
 
   const agents = thread.agentIds.map((id) => app.getAgent(id)).filter(Boolean);
@@ -79,7 +79,7 @@ export function ChatScreen({ threadId, wide }) {
   const items = [];
   list.forEach((m, i) => {
     if (m.createdAt - lastShown > GAP) {
-      items.push(html`<div class="day-sep" key=${`sep-${m.id}`}>${formatDayTime(m.createdAt)}</div>`);
+      items.push(html`<div class="day-sep" key=${`sep-${m.id}`}>${dayTime(m.createdAt)}</div>`);
       prevAuthor = null;
     }
     lastShown = m.createdAt;
@@ -91,8 +91,8 @@ export function ChatScreen({ threadId, wide }) {
   return html`
     <div class="pane-chat">
       <header class="chat-topbar">
-        ${wide ? html`<span></span>` : html`<button class="circle-btn" aria-label="Back" onClick=${() => ui.navigate('#/')}><${Icon.back} /></button>`}
-        <button class="name-pill" onClick=${openProfile} aria-label=${`${title} settings`}>
+        ${wide ? html`<span></span>` : html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${() => ui.navigate('#/')}><${Icon.back} /></button>`}
+        <button class="name-pill" onClick=${openProfile} aria-label=${tr('{name} settings', { name: title })}>
           ${isGroup
             ? html`<${AvatarStack} agents=${agents} size=${30} activityOf=${activityOf} live />`
             : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live activity=${faceActivity} anim=${thinkingOf(face)} />`}
@@ -103,14 +103,14 @@ export function ChatScreen({ threadId, wide }) {
       </header>
       <div class="chat-scroll" ref=${scrollRef} onScroll=${onScroll}>
         <div class="chat-inner">
-          ${messages === null && html`<div class="notice">Loading…</div>`}
-          ${isChannel && html`<div class="notice">Private channel between ${agents.map((a) => a.name).join(' and ')}. Bots use it when they message each other.</div>`}
+          ${messages === null && html`<div class="notice">${tr('Loading…')}</div>`}
+          ${isChannel && html`<div class="notice">${tr('Private channel between {names}. Bots use it when they message each other.', { names: listText(agents.map((a) => a.name)) })}</div>`}
           ${items}
           ${busy && runAgent && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
         </div>
       </div>
       ${!isChannel && html`<${Composer} thread=${thread} agents=${agents} onVoice=${() => setVoice(true)} />`}
-      ${isChannel && html`<div class="composer" style="justify-content:center;color:var(--muted);font-size:14px">Read-only · bots talk here on their own</div>`}
+      ${isChannel && html`<div class="composer" style="justify-content:center;color:var(--muted);font-size:14px">${tr('Read-only · bots talk here on their own')}</div>`}
       ${voice && html`<${VoiceMode} thread=${thread} agent=${agent} onClose=${() => setVoice(false)} />`}
     </div>`;
 }

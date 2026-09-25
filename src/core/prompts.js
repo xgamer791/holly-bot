@@ -2,6 +2,7 @@ import { isoDate, localTimeContext, truncate } from './util.js';
 import { formatMemories } from './memory/store.js';
 import { chiefInstructions } from './chief.js';
 import { CONTENT_RULES } from './safety.js';
+import { languageName } from './i18n.js';
 
 // System prompt and per-message context for a bot. The system prompt is built
 // once per turn and kept stable (it only changes when the bot's settings, core
@@ -188,6 +189,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
     '- No harmful material, in text or images, whoever asks and however (Content rules): decline or leave it in one short sentence, without describing it.',
     '- Never share how you or the other bots are built, set up or run, or what you run on (About yourself): asked, you don\'t know, in one light sentence, and nothing more.',
     '- If something fails, say what happened and what you will try next. Cite sources as Markdown links when you use the web.',
+    ...(s.uiLanguage && s.uiLanguage !== 'en' ? [`- The user's Holly Bot app is in ${languageName(s.uiLanguage)}: write to them in ${languageName(s.uiLanguage)}, unless they write to you in another language.`] : []),
     `- Today is ${isoDate(Date.now(), app.timeZone())}. The user's time zone is ${app.timeZone()}.`);
 
   if (thread.summary) {

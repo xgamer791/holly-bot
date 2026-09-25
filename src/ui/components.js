@@ -1,5 +1,6 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { Icon } from './icons.js';
+import { tr } from './i18n.js';
 
 export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false }) {
   useEffect(() => {
@@ -11,10 +12,10 @@ export function Sheet({ title, onClose, children, footer, left, right, className
   }, [onClose]);
   return html`
     <div class="sheet-scrim" onClick=${onClose}></div>
-    <section class=${`sheet ${className}`} role="dialog" aria-modal="true" aria-label=${title || 'Sheet'}>
+    <section class=${`sheet ${className}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
       ${!headless && html`
         <header class="sheet-head">
-          ${left || html`<button class="circle-btn" aria-label="Close" onClick=${onClose}><${Icon.x} /></button>`}
+          ${left || html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`}
           <h2>${title}</h2>
           ${right}
         </header>`}
@@ -69,7 +70,7 @@ export function Field({ label, hint, children }) {
 }
 
 export function Spinner() {
-  return html`<span class="spinner" aria-label="Loading"></span>`;
+  return html`<span class="spinner" aria-label=${tr('Loading')}></span>`;
 }
 
 /** Popover menu anchored to an element rect. */
@@ -91,7 +92,7 @@ export function Popover({ anchor, onClose, items, align = 'right', from = 'top' 
     </div>`;
 }
 
-export function Dialog({ title, message, confirmText = 'OK', cancelText = 'Cancel', danger, onResult, input }) {
+export function Dialog({ title, message, confirmText = tr('OK'), cancelText = tr('Cancel'), danger, onResult, input }) {
   const [value, setValue] = useState(input?.value || '');
   const ref = useRef(null);
   useEffect(() => {

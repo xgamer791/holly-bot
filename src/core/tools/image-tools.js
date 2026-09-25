@@ -1,5 +1,6 @@
 import { truncate } from '../util.js';
 import { bannedInImagePrompt, checkImage } from '../safety.js';
+import { phrase } from '../i18n.js';
 
 // Image generation through whichever connected provider supports it. Nothing
 // harmful gets made or shown (src/core/safety.js): the prompt is checked
@@ -10,7 +11,7 @@ export const imageTools = [
     name: 'generate_image',
     group: 'images',
     available: (app) => !!app.providers.imageProvider(),
-    label: (a) => `Generated “${truncate(a.prompt || '', 40)}”`,
+    label: (a) => phrase('Generated “{prompt}”', { prompt: truncate(a.prompt || '', 40) }),
     description: 'Create an image from a detailed text prompt. The image is shown to the user and saved to your drive (images/).',
     parameters: {
       type: 'object',

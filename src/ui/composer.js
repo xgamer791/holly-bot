@@ -5,6 +5,7 @@ import { Popover } from './components.js';
 import { Avatar } from './avatar.js';
 import { listen, sttSupported } from './speech.js';
 import { formatBytes } from '../core/util.js';
+import { tr } from './i18n.js';
 
 const MAX_IMAGE_EDGE = 1600;
 
@@ -105,7 +106,7 @@ export function Composer({ thread, agents, onVoice }) {
           setAtts((a) => [...a, { type: 'file', fileId: f.id, name: file.name, mime: f.mime, size: f.size }]);
         }
       } catch (err) {
-        ui.toast(`Couldn't attach ${file.name}: ${err.message}`, { error: true });
+        ui.toast(tr("Couldn't attach {file}: {error}", { file: file.name, error: err.message }), { error: true });
       }
     }
   };
@@ -117,7 +118,7 @@ export function Composer({ thread, agents, onVoice }) {
       return;
     }
     if (!sttSupported()) {
-      ui.toast('Dictation is not supported in this browser. Try the keyboard mic.', { error: true });
+      ui.toast(tr('Dictation is not supported in this browser. Try the keyboard mic.'), { error: true });
       return;
     }
     const base = text ? `${text.trimEnd()} ` : '';
@@ -165,7 +166,7 @@ export function Composer({ thread, agents, onVoice }) {
     const on = !webOn;
     try {
       await Promise.all(agents.map((a) => app.updateAgent(a.id, { tools: { ...(a.tools || {}), web: on } })));
-      ui.toast(on ? 'Web search on' : 'Web search off');
+      ui.toast(on ? tr('Web search on') : tr('Web search off'));
     } catch (err) {
       ui.toast(err.message, { error: true });
     }
@@ -175,16 +176,16 @@ export function Composer({ thread, agents, onVoice }) {
   const ws = (app.getThread(thread.id) || thread).workspace || null;
 
   const hasContent = text.trim() || atts.length;
-  const placeholder = 'Ask anything…';
-  const label = isGroup ? `Message ${thread.title || 'the group'}` : `Ask ${primary?.name || 'your bot'}`;
-  const hint = isGroup && thread.mode === 'mention' ? 'Ask anything — @mention who should reply' : null;
+  const placeholder = tr('Ask anything…');
+  const label = isGroup ? tr('Message {name}', { name: thread.title || tr('the group') }) : tr('Ask {name}', { name: primary?.name || tr('your bot') });
+  const hint = isGroup && thread.mode === 'mention' ? tr('Ask anything — @mention who should reply') : null;
   const mentionOptions = mention != null ? agents.filter((a) => a.name.toLowerCase().replace(/\s+/g, '').startsWith(mention)) : [];
 
   return html`
     ${atts.length > 0 && html`<div class="pending-atts">
       ${atts.map((a, i) => html`<div class="pending-att" key=${i}>
         ${a.type === 'image' ? html`<img src=${a.preview || `data:${a.mime};base64,${a.data}`} alt=${a.name} />` : html`<div class="file"><${Icon.file} size="18" /><span>${a.name}<br /><small>${formatBytes(a.size)}</small></span></div>`}
-        <button class="rm" aria-label="Remove" onClick=${() => setAtts(atts.filter((_, j) => j !== i))}><${Icon.x} /></button>
+        <button class="rm" aria-label=${tr('Remove')} onClick=${() => setAtts(atts.filter((_, j) => j !== i))}><${Icon.x} /></button>
       </div>`)}
     </div>`}
     <div class="composer">
@@ -201,30 +202,30 @@ export function Composer({ thread, agents, onVoice }) {
             }
           }}></textarea>
         <div class="pbar-row">
-          <button ref=${plusRef} class="pbar-btn" aria-label="Add attachment" onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
+          <button ref=${plusRef} class="pbar-btn" aria-label=${tr('Add attachment')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
           <div class="pbar-seg">
-            <button class=${`pbar-seg-btn ${webOn ? 'on' : ''}`} aria-pressed=${webOn} aria-label=${webOn ? 'Web search on' : 'Web search off'} onClick=${toggleWeb}><${Icon.search} /></button>
+            <button class=${`pbar-seg-btn ${webOn ? 'on' : ''}`} aria-pressed=${webOn} aria-label=${webOn ? tr('Web search on') : tr('Web search off')} onClick=${toggleWeb}><${Icon.search} /></button>
             <button class="pbar-seg-btn" disabled aria-hidden="true" tabindex="-1"><${Icon.botScreen} /></button>
           </div>
-          <button class=${`pbar-pill ${ws ? 'set' : ''}`} aria-label=${ws ? `Workspace: ${workspaceLabel(ws)}` : 'Workspace'} onClick=${() => ui.openSheet('workspace', { threadId: thread.id })}>
+          <button class=${`pbar-pill ${ws ? 'set' : ''}`} aria-label=${ws ? tr('Workspace: {name}', { name: workspaceLabel(ws) }) : tr('Workspace')} onClick=${() => ui.openSheet('workspace', { threadId: thread.id })}>
             ${ws?.kind === 'github' && html`<${Icon.github} size="15" />`}
             ${ws?.kind === 'server' && html`<${Icon.server} size="15" />`}
             <span>${workspaceLabel(ws)}</span>
           </button>
           <span class="pbar-gap"></span>
-          <button class=${`pbar-btn ${dictating ? 'recording' : ''}`} aria-label=${dictating ? 'Stop dictation' : 'Dictate'} onClick=${toggleDictation}><${Icon.mic} /></button>
+          <button class=${`pbar-btn ${dictating ? 'recording' : ''}`} aria-label=${dictating ? tr('Stop dictation') : tr('Dictate')} onClick=${toggleDictation}><${Icon.mic} /></button>
           ${hasContent
-            ? html`<button class="pbar-go" aria-label="Send" onClick=${send}><${Icon.up} /></button>`
+            ? html`<button class="pbar-go" aria-label=${tr('Send')} onClick=${send}><${Icon.up} /></button>`
             : busy
-              ? html`<button class="pbar-go stop" aria-label="Stop" onClick=${stop}><span></span></button>`
-              : html`<button class="pbar-go" aria-label="Voice mode" onClick=${onVoice}><${Icon.wave} /></button>`}
+              ? html`<button class="pbar-go stop" aria-label=${tr('Stop')} onClick=${stop}><span></span></button>`
+              : html`<button class="pbar-go" aria-label=${tr('Voice mode')} onClick=${onVoice}><${Icon.wave} /></button>`}
         </div>
       </div>
     </div>
     ${menu && html`<${Popover} anchor=${menu} from="bottom" onClose=${() => setMenu(null)} items=${[
-      { label: 'Attach Image', icon: Icon.image, onClick: () => imgInput.current.click() },
-      { label: 'Take Photo', icon: Icon.camera, onClick: () => camInput.current.click() },
-      { label: 'Choose File', icon: Icon.folder, onClick: () => fileInput.current.click() },
+      { label: tr('Attach Image'), icon: Icon.image, onClick: () => imgInput.current.click() },
+      { label: tr('Take Photo'), icon: Icon.camera, onClick: () => camInput.current.click() },
+      { label: tr('Choose File'), icon: Icon.folder, onClick: () => fileInput.current.click() },
     ]} />`}
     <input ref=${imgInput} type="file" accept="image/*" multiple hidden onChange=${(e) => { onFiles([...e.currentTarget.files], 'image'); e.currentTarget.value = ''; }} />
     <input ref=${camInput} type="file" accept="image/*" capture="environment" hidden onChange=${(e) => { onFiles([...e.currentTarget.files], 'image'); e.currentTarget.value = ''; }} />
@@ -240,9 +241,9 @@ export function workspaceLabel(ws) {
   }
   if (ws?.kind === 'server') {
     const apps = ws.apps || [];
-    return apps.length ? `${apps[0].name}${apps.length > 1 ? ` +${apps.length - 1}` : ''}` : ws.name || 'Server';
+    return apps.length ? `${apps[0].name}${apps.length > 1 ? ` +${apps.length - 1}` : ''}` : ws.name || tr('Server');
   }
-  return 'Workspace';
+  return tr('Workspace');
 }
 
 async function imageToPartSafe(file) {

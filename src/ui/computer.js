@@ -3,8 +3,15 @@ import { useApp, useUi, useAsync, useTopics } from './hooks.js';
 import { Sheet, Tabs, downloadBlob, Group, Row } from './components.js';
 import { Icon, fileIcon } from './icons.js';
 import { Markdown } from './markdown.js';
-import { formatBytes, formatShort, truncate } from '../core/util.js';
+import { formatBytes, truncate } from '../core/util.js';
 import { fileToBlob, isTextPath } from '../core/files.js';
+import { dateTimeText, mark, phraseOr, shortTime, tr, trn, trx } from './i18n.js';
+
+/** The capabilities the computer's About tab lists, by name. */
+const CAPABILITIES = {
+  shell: mark('Shell'), files: mark('Files'), fetch: mark('Fetch'), search: mark('Search'),
+  screenshot: mark('Screenshot'), browser: mark('Browser'), mcp: 'MCP',
+};
 
 export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: initialTab }) {
   const app = useApp();
@@ -18,16 +25,16 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
   const [openFile, setOpenFile] = useState(initialFile || null);
   const busy = app.runtime.activeRuns().length;
   const tabs = [
-    ...(canScreen ? [{ value: 'screen', label: 'Screen' }] : []),
-    ...(agent ? [{ value: 'files', label: 'Files' }, { value: 'activity', label: 'Activity' }] : []),
-    ...(connected ? [{ value: 'terminal', label: 'Terminal' }] : []),
-    { value: 'about', label: connected ? app.computer.info?.hostname || 'Computer' : 'Set up' },
+    ...(canScreen ? [{ value: 'screen', label: tr('Screen') }] : []),
+    ...(agent ? [{ value: 'files', label: tr('Files') }, { value: 'activity', label: tr('Activity') }] : []),
+    ...(connected ? [{ value: 'terminal', label: tr('Terminal') }] : []),
+    { value: 'about', label: connected ? app.computer.info?.hostname || tr('Computer') : tr('Set up') },
   ];
   return html`
-    <${Sheet} title=${agent ? `${agent.name}'s computer` : 'Computer'} onClose=${onClose}
+    <${Sheet} title=${agent ? tr("{name}'s computer", { name: agent.name }) : tr('Computer')} onClose=${onClose}
       footer=${tab === 'screen' && caps.memory ? html`<${RamMeter} />` : null}
-      right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast('Stopped all bots'), (err) => ui.toast(err.message, { error: true }))}>Stop all</button>`
-        : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? 'Online' : 'Browser only'}</span>`}>
+      right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast(tr('Stopped all bots')), (err) => ui.toast(err.message, { error: true }))}>${tr('Stop all')}</button>`
+        : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? tr('Online') : tr('Browser only')}</span>`}>
       <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
       ${tab === 'screen' && html`<${Screen} agentId=${agent?.id} />`}
       ${tab === 'files' && agent && (openFile
@@ -49,20 +56,20 @@ function FileList({ agentId, onOpen }) {
     for (const f of list) {
       await app.files.write(agentId, `uploads/${f.name}`, f, { mime: f.type, source: 'user' });
     }
-    ui.toast(`Uploaded ${list.length} file${list.length === 1 ? '' : 's'}`);
+    ui.toast(trn(list.length, 'Uploaded {n} file', 'Uploaded {n} files'));
   };
   return html`
     <div class="btn-row" style="margin:6px 0 10px">
-      <button class="btn small" onClick=${() => input.current.click()}><${Icon.upload} size="16" /> Upload</button>
-      <span class="hint" style="align-self:center">${files.length} file${files.length === 1 ? '' : 's'} · ${formatBytes(files.reduce((s, f) => s + (f.size || 0), 0))}</span>
+      <button class="btn small" onClick=${() => input.current.click()}><${Icon.upload} size="16" /> ${tr('Upload')}</button>
+      <span class="hint" style="align-self:center">${trn(files.length, '{n} file', '{n} files')} · ${formatBytes(files.reduce((s, f) => s + (f.size || 0), 0))}</span>
     </div>
     <input ref=${input} type="file" multiple hidden onChange=${(e) => { upload([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
-    ${!files.length && html`<div class="empty-home" style="padding:40px 10px"><p>No files yet. Your bot creates files here when it writes reports, code, charts or images — and you can upload files for it to use.</p></div>`}
+    ${!files.length && html`<div class="empty-home" style="padding:40px 10px"><p>${tr('No files yet. Your bot creates files here when it writes reports, code, charts or images — and you can upload files for it to use.')}</p></div>`}
     ${files.map((f) => {
       const Ic = fileIcon(f.mime, f.path);
       return html`<button class="file-row" key=${f.id} onClick=${() => onOpen(f.id)}>
         <span class="fi"><${Ic} /></span>
-        <span class="n"><div>${f.path}</div><div>${formatBytes(f.size)} · ${formatShort(f.updatedAt)}${f.source === 'user' ? ' · uploaded' : ''}</div></span>
+        <span class="n"><div>${f.path}</div><div>${formatBytes(f.size)} · ${shortTime(f.updatedAt)}${f.source === 'user' ? ` · ${tr('uploaded')}` : ''}</div></span>
         <${Icon.chevron} size="16" />
       </button>`;
     })}`;
@@ -87,43 +94,43 @@ export function FilePreview({ fileId, onBack }) {
     })();
     return () => u && URL.revokeObjectURL(u);
   }, [file]);
-  if (loading) return html`<div class="notice">Loading…</div>`;
-  if (!file) return html`<div class="notice">File not found.</div>`;
+  if (loading) return html`<div class="notice">${tr('Loading…')}</div>`;
+  if (!file) return html`<div class="notice">${tr('File not found.')}</div>`;
   const isImage = file.mime?.startsWith('image/') && file.mime !== 'image/svg+xml';
   const isHtml = /html/.test(file.mime) || /\.html?$/i.test(file.path);
   const isMd = /markdown/.test(file.mime) || /\.md$/i.test(file.path);
   const isPdf = file.mime === 'application/pdf';
   return html`
     <div style="display:flex;align-items:center;gap:10px;margin:6px 0 12px">
-      ${onBack && html`<button class="circle-btn" aria-label="Back to files" onClick=${onBack}><${Icon.back} /></button>`}
+      ${onBack && html`<button class="circle-btn" aria-label=${tr('Back to files')} onClick=${onBack}><${Icon.back} /></button>`}
       <div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${file.path}</div>
-        <div class="hint">${file.mime} · ${formatBytes(file.size)} · ${new Date(file.updatedAt).toLocaleString()}</div></div>
+        <div class="hint">${file.mime} · ${formatBytes(file.size)} · ${dateTimeText(file.updatedAt)}</div></div>
     </div>
     <div class="btn-row" style="margin-bottom:12px">
-      <button class="btn small" onClick=${async () => downloadBlob(await fileToBlob(file), file.path.split('/').pop())}><${Icon.download} size="16" /> Download</button>
-      ${(isHtml || isPdf) && url && html`<a class="btn small" href=${url} target="_blank" rel="noopener">Open</a>`}
+      <button class="btn small" onClick=${async () => downloadBlob(await fileToBlob(file), file.path.split('/').pop())}><${Icon.download} size="16" /> ${tr('Download')}</button>
+      ${(isHtml || isPdf) && url && html`<a class="btn small" href=${url} target="_blank" rel="noopener">${tr('Open')}</a>`}
       <button class="btn small danger" onClick=${async () => {
-        if (await ui.confirm({ title: `Delete ${file.path}?`, confirmText: 'Delete', danger: true })) {
+        if (await ui.confirm({ title: tr('Delete {name}?', { name: file.path }), confirmText: tr('Delete'), danger: true })) {
           await app.files.remove(file.agentId, file.path);
           onBack?.();
         }
-      }}><${Icon.trash} size="16" /> Delete</button>
+      }}><${Icon.trash} size="16" /> ${tr('Delete')}</button>
     </div>
     ${isImage && url && html`<img src=${url} alt=${file.path} style="max-width:100%;border-radius:14px" />`}
     ${isHtml && text != null && html`<iframe class="preview-frame" sandbox="allow-scripts allow-forms allow-modals" srcdoc=${text} title=${file.path}></iframe>`}
     ${isPdf && url && html`<iframe class="preview-frame" src=${url} title=${file.path}></iframe>`}
     ${isMd && text != null && html`<div class="bubble plain-bot" style="max-width:100%"><${Markdown} text=${text} /></div>`}
     ${!isImage && !isHtml && !isMd && !isPdf && text != null && html`<div class="preview-text">${truncate(text, 200000)}</div>`}
-    ${!isImage && !isHtml && !isPdf && text == null && html`<div class="notice">No preview for this file type.</div>`}`;
+    ${!isImage && !isHtml && !isPdf && text == null && html`<div class="notice">${tr('No preview for this file type.')}</div>`}`;
 }
 
 function ActivityLog({ agentId }) {
   const app = useApp();
   const { data: rows = [] } = useAsync(() => app.loadActivity(agentId, 150), [agentId], ['activity']);
-  if (!rows.length) return html`<div class="empty-home" style="padding:40px 10px"><p>Nothing yet. Tool use, commands, file changes and browsing show up here.</p></div>`;
+  if (!rows.length) return html`<div class="empty-home" style="padding:40px 10px"><p>${tr('Nothing yet. Tool use, commands, file changes and browsing show up here.')}</p></div>`;
   return html`${rows.map((r) => html`<div class="act-item" key=${r.id}>
-    <div class="when">${formatShort(r.createdAt)}</div>
-    <div class="what"><div style=${r.isError ? 'color:var(--red)' : ''}>${r.title}</div>${r.detail && html`<div class="d">${r.detail}</div>`}</div>
+    <div class="when">${shortTime(r.createdAt)}</div>
+    <div class="what"><div style=${r.isError ? 'color:var(--red)' : ''}>${phraseOr(r.say, r.title)}</div>${r.detail && html`<div class="d">${r.detail}</div>`}</div>
   </div>`)}`;
 }
 
@@ -157,13 +164,13 @@ function Terminal() {
   };
   const info = app.computer.info || {};
   return html`
-    <div class="hint" style="margin:4px 4px 8px">Commands you type here run on ${info.hostname || 'your computer'} (${info.shell || 'shell'}) in ${info.workspace || info.cwd || 'the workspace'}.</div>
+    <div class="hint" style="margin:4px 4px 8px">${tr('Commands you type here run on {computer} ({shell}) in {folder}.', { computer: info.hostname || tr('your computer'), shell: info.shell || tr('shell'), folder: info.workspace || info.cwd || tr('the workspace') })}</div>
     <div class="terminal" ref=${ref} style="min-height:240px;max-height:48vh">${log.map((e, i) => (e.t === 'cmd'
       ? html`<span key=${i} class="cmd">\n$ ${e.v}\n</span>`
       : html`<span key=${i} class=${e.t === 'stderr' ? 'err' : e.t === 'exit' ? 'cmd' : ''}>${e.v}${e.t === 'exit' ? '\n' : ''}</span>`))}</div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <input class="input mono" placeholder="Type a command" value=${cmd} onInput=${(e) => setCmd(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && run()} autocapitalize="off" autocorrect="off" spellcheck="false" />
-      ${running ? html`<button class="btn" onClick=${() => running.abort()}>Stop</button>` : html`<button class="btn primary" onClick=${run}>Run</button>`}
+      <input class="input mono" placeholder=${tr('Type a command')} value=${cmd} onInput=${(e) => setCmd(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && run()} autocapitalize="off" autocorrect="off" spellcheck="false" />
+      ${running ? html`<button class="btn" onClick=${() => running.abort()}>${tr('Stop')}</button>` : html`<button class="btn primary" onClick=${run}>${tr('Run')}</button>`}
     </div>`;
 }
 
@@ -263,36 +270,36 @@ function Screen({ agentId }) {
 
   return html`
     ${caps.browser && caps.screenshot && html`<div class="segmented" style="margin-bottom:10px">
-      <button class=${mode === 'desktop' ? 'on' : ''} onClick=${() => setMode('desktop')}>Desktop</button>
-      <button class=${mode === 'browser' ? 'on' : ''} onClick=${() => setMode('browser')}>Bot browser</button></div>`}
+      <button class=${mode === 'desktop' ? 'on' : ''} onClick=${() => setMode('desktop')}>${tr('Desktop')}</button>
+      <button class=${mode === 'browser' ? 'on' : ''} onClick=${() => setMode('browser')}>${tr('Bot browser')}</button></div>`}
     ${mode === 'browser' && html`<div style="display:flex;gap:8px;margin-bottom:10px">
-      <input class="input" name="url" type="url" inputmode="url" placeholder="Website or search" value=${url} onInput=${(e) => setUrl(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && url && act('goto', { url })} autocapitalize="off" autocorrect="off" />
-      <button class="btn" onClick=${() => act('goto', { url })}>Go</button></div>`}
+      <input class="input" name="url" type="url" inputmode="url" placeholder=${tr('Website or search')} value=${url} onInput=${(e) => setUrl(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && url && act('goto', { url })} autocapitalize="off" autocorrect="off" />
+      <button class="btn" onClick=${() => act('goto', { url })}>${tr('Go')}</button></div>`}
     <div style="position:relative">
-      ${shot?.data ? html`<img class="screen-img" alt="Computer screen — tap to click" src=${`data:${shot.mime};base64,${shot.data}`} onClick=${onTap} />`
-        : html`<div class="notice" style="padding:60px 0">${busy ? 'Connecting to the screen…' : mode === 'browser' && closed ? 'The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.' : 'No picture yet.'}</div>`}
+      ${shot?.data ? html`<img class="screen-img" alt=${tr('Computer screen — tap to click')} src=${`data:${shot.mime};base64,${shot.data}`} onClick=${onTap} />`
+        : html`<div class="notice" style="padding:60px 0">${busy ? tr('Connecting to the screen…') : mode === 'browser' && closed ? tr('The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.') : tr('No picture yet.')}</div>`}
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
-    <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${own
-      ? (mode === 'browser' ? 'Sign in to sites here and every bot is signed in: the browser\'s logins are shared.' : 'This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.')
-      : (mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.')}</div>
+    <div class="hint" style="margin:8px 4px">${tr('Tap the picture to click there.')} ${own
+      ? (mode === 'browser' ? tr('Sign in to sites here and every bot is signed in: the browser\'s logins are shared.') : tr('This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.'))
+      : (mode === 'browser' ? tr('Sign in to sites here for your bots — logins stay in the bot browser.') : tr('This is the live screen of your computer.'))}</div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <input class="input" placeholder="Type text…" value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />
-      <button class="btn" onClick=${typeNow}>Type</button>
+      <input class="input" placeholder=${tr('Type text…')} value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />
+      <button class="btn" onClick=${typeNow}>${tr('Type')}</button>
     </div>
     <div class="btn-row" style="margin-top:8px">
       ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => press(k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
-      <button class="btn small" onClick=${() => scroll('up')}>↑ Scroll</button>
-      <button class="btn small" onClick=${() => scroll('down')}>↓ Scroll</button>
-      ${mode === 'browser' && html`<button class="btn small" onClick=${() => act('back')}>Back</button>`}
+      <button class="btn small" onClick=${() => scroll('up')}>↑ ${tr('Scroll')}</button>
+      <button class="btn small" onClick=${() => scroll('down')}>↓ ${tr('Scroll')}</button>
+      ${mode === 'browser' && html`<button class="btn small" onClick=${() => act('back')}>${tr('Back')}</button>`}
     </div>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <input class="input mono" placeholder=${app.computer.info?.platform === 'darwin' ? 'Shortcut, e.g. cmd+space' : 'Shortcut, e.g. ctrl+l, win'} value=${keys} onInput=${(e) => setKeys(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && keys && (press(keys), setKeys(''))} autocapitalize="off" />
-      <button class="btn" disabled=${!keys} onClick=${() => { press(keys); setKeys(''); }}>Press</button>
+      <input class="input mono" placeholder=${tr('Shortcut, e.g. {keys}', { keys: app.computer.info?.platform === 'darwin' ? 'cmd+space' : 'ctrl+l, win' })} value=${keys} onInput=${(e) => setKeys(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && keys && (press(keys), setKeys(''))} autocapitalize="off" />
+      <button class="btn" disabled=${!keys} onClick=${() => { press(keys); setKeys(''); }}>${tr('Press')}</button>
     </div>
     <div class="btn-row" style="margin-top:12px">
-      <button class="btn small" onClick=${() => setLive(!live)}>${live ? '❚❚ Pause live view' : '▶ Live view'}</button>
-      <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> Refresh</button>
+      <button class="btn small" onClick=${() => setLive(!live)}>${live ? `❚❚ ${tr('Pause live view')}` : `▶ ${tr('Live view')}`}</button>
+      <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> ${tr('Refresh')}</button>
     </div>`;
 }
 
@@ -332,13 +339,14 @@ function RamMeter() {
   const known = mem?.total > 0;
   const share = known ? Math.min(1, Math.max(0, mem.used / mem.total)) : 0;
   const pct = Math.round(share * 100);
-  const text = known ? `${ramSize(mem.used)} of ${ramSize(mem.total)}` : '';
+  const sizes = known ? { used: ramSize(mem.used), total: ramSize(mem.total) } : null;
+  const text = known ? tr('{used} of {total}', sizes) : '';
   return html`
-    <div class="ram-meter" role="meter" aria-label="Memory in use" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
-      aria-valuetext=${known ? `${text} in use` : 'Reading'}>
-      <div class="ram-meter-head"><b>RAM</b><span>${known ? `${text} · ${pct}%` : '…'}</span></div>
+    <div class="ram-meter" role="meter" aria-label=${tr('Memory in use')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
+      aria-valuetext=${known ? tr('{used} of {total} in use', sizes) : tr('Reading')}>
+      <div class="ram-meter-head"><b>${tr('RAM')}</b><span>${known ? `${text} · ${pct}%` : '…'}</span></div>
       <div class="ram-meter-bar"><span class=${share >= 0.9 ? 'high' : share >= 0.75 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
-      ${mem?.swapUsed > 0 && html`<div class="ram-meter-note">Swap: ${ramSize(mem.swapUsed)} of ${ramSize(mem.swapTotal)} in use</div>`}
+      ${mem?.swapUsed > 0 && html`<div class="ram-meter-note">${tr('Swap: {used} of {total} in use', { used: ramSize(mem.swapUsed), total: ramSize(mem.swapTotal) })}</div>`}
     </div>`;
 }
 
@@ -348,23 +356,23 @@ function ComputerAbout({ onSetup }) {
   if (!app.computer.connected) {
     return html`
       <div class="welcome">
-        <p>Right now this bot works entirely in your browser: its own drive, a Python/JavaScript sandbox, web search and memory.</p>
-        <p>Connect a <b>Bot Computer</b> — your own PC, Mac, Linux box or server running the small <span class="kbd">holly-computer</span> companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.</p>
+        <p>${tr('Right now this bot works entirely in your browser: its own drive, a Python/JavaScript sandbox, web search and memory.')}</p>
+        <p>${trx('Connect a **Bot Computer** — your own PC, Mac, Linux box or server running the small {program} companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.', { program: html`<span class="kbd">holly-computer</span>` })}</p>
         ${app.computer.error && html`<p style="color:var(--red)">${app.computer.error}</p>`}
-        <button class="btn primary" onClick=${onSetup}>Set up Bot Computer</button>
+        <button class="btn primary" onClick=${onSetup}>${tr('Set up Bot Computer')}</button>
       </div>`;
   }
   const caps = info?.capabilities || {};
   return html`
     <${Group}>
-      <${Row} title="Computer" value=${info?.hostname || '—'} />
-      <${Row} title="System" value=${`${info?.os || info?.platform || ''} ${info?.arch || ''}`} />
-      <${Row} title="Shell" value=${info?.shell || '—'} />
-      <${Row} title="Workspace" value=${info?.workspace || info?.cwd || '—'} />
-      <${Row} title="Time zone" value=${info?.tz || '—'} />
+      <${Row} title=${tr('Computer')} value=${info?.hostname || '—'} />
+      <${Row} title=${tr('System')} value=${`${info?.os || info?.platform || ''} ${info?.arch || ''}`} />
+      <${Row} title=${tr('Shell')} value=${info?.shell || '—'} />
+      <${Row} title=${tr('Workspace')} value=${info?.workspace || info?.cwd || '—'} />
+      <${Row} title=${tr('Time zone')} value=${info?.tz || '—'} />
     <//>
-    <${Group} label="Capabilities">
-      ${['shell', 'files', 'fetch', 'search', 'screenshot', 'browser', 'mcp'].map((k) => html`<${Row} key=${k} title=${k} value=${caps[k] ? 'Yes' : 'No'} />`)}
+    <${Group} label=${tr('Capabilities')}>
+      ${['shell', 'files', 'fetch', 'search', 'screenshot', 'browser', 'mcp'].map((k) => html`<${Row} key=${k} title=${tr(CAPABILITIES[k])} value=${caps[k] ? tr('Yes') : tr('No')} />`)}
     <//>
-    <button class="btn block" onClick=${onSetup}>Connection settings</button>`;
+    <button class="btn block" onClick=${onSetup}>${tr('Connection settings')}</button>`;
 }

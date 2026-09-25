@@ -442,7 +442,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
       case 'tasks': return [...app.tasks.values()];
       case 'computer': return app.computer.info;
       case 'plugins': return app.plugins.list().map((p) => ({ ...p, tools: (p.tools || []).map((t) => ({ name: t.name, description: t.description })) }));
-      case 'notify': return { agentId: payload?.agent?.id || payload?.agentId, text: payload?.text, threadId: payload?.threadId };
+      case 'notify': return { agentId: payload?.agent?.id || payload?.agentId, text: payload?.text, threadId: payload?.threadId, ...(payload?.say ? { say: payload.say } : {}) };
       default:
         if (topic.startsWith('messages:')) return payload?.id && !payload.deleted ? sanitizeMessage(payload) : payload ?? null;
         if (topic.startsWith('thread:')) return app.getThread(topic.slice(7));

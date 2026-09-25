@@ -1,5 +1,6 @@
 import { formatBytes, truncateMiddle } from '../util.js';
 import { isTextPath } from '../files.js';
+import { phrase } from '../i18n.js';
 
 // A bot's own drive: create, read, list and delete files.
 
@@ -7,7 +8,7 @@ export const fileTools = [
   {
     name: 'list_files',
     group: 'files',
-    label: () => 'Listed files',
+    label: () => phrase('Listed files'),
     description: 'List the files in your drive (optionally under a folder).',
     parameters: { type: 'object', properties: { folder: { type: 'string' } } },
     async run(args, ctx) {
@@ -19,7 +20,7 @@ export const fileTools = [
   {
     name: 'read_file',
     group: 'files',
-    label: (a) => `Read ${a.path}`,
+    label: (a) => phrase('Read {path}', { path: a.path }),
     description: 'Read a text file from your drive. Long files are truncated in the middle; use offset/length to page.',
     parameters: {
       type: 'object',
@@ -51,7 +52,7 @@ export const fileTools = [
   {
     name: 'write_file',
     group: 'files',
-    label: (a) => `Wrote ${a.path}`,
+    label: (a) => phrase('Wrote {path}', { path: a.path }),
     description: 'Create or overwrite a text file in your drive (notes, reports, code, CSV, HTML…). Set append=true to add to the end instead.',
     parameters: {
       type: 'object',
@@ -75,7 +76,7 @@ export const fileTools = [
   {
     name: 'delete_file',
     group: 'files',
-    label: (a) => `Deleted ${a.path}`,
+    label: (a) => phrase('Deleted {path}', { path: a.path }),
     description: 'Delete a file from your drive.',
     parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
     async run(args, ctx) {
