@@ -76,17 +76,19 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
   }
 
   const lastStep = msg.steps[msg.steps.length - 1];
-  // Thoughts aren't shown: while the bot thinks (before its first words, or
-  // between tasks) its face does, below what it has done so far.
-  const doing = (lastStep?.toolCalls || []).some((c) => !c.result) || (lastStep?.serverTools || []).some((st) => st.status === 'running');
-  const thinkingNow = streaming && !lastStep?.text && !doing;
+  // A bot's steps (thoughts, commands, the screen, the browser, searches)
+  // aren't listed in the chat. While it's busy, its face shows it below what
+  // it has said so far: thinking, or working on a task.
+  const working = (lastStep?.toolCalls || []).some((c) => !c.result) || (lastStep?.serverTools || []).some((st) => st.status === 'running');
+  const writing = !!lastStep?.text && !lastStep.toolCalls?.length;
+  const busyNow = streaming && !writing;
 
   return html`
     <div class="msg bot">
       ${showAuthor && agent && html`<div class="author"><${Avatar} shape=${agent.shape} color=${agent.color} size=${20} /> ${agent.name}</div>`}
       <div class="steps">
         ${msg.steps.map((step, i) => html`<${StepView} key=${step.id || i} step=${step} msg=${msg} streaming=${streaming && step === lastStep} />`)}
-        ${thinkingNow && html`<${Typing} agent=${agent} />`}
+        ${busyNow && html`<${Typing} agent=${agent} activity=${working ? 'working' : 'thinking'} />`}
         ${citations.length > 0 && html`<${Sources} items=${citations} />`}
         ${msg.status === 'error' && html`<${ErrorCard} msg=${msg} />`}
         ${msg.status === 'stopped' && !text && html`<div class="notice" style="align-self:flex-start">Stopped.</div>`}
@@ -114,23 +116,9 @@ function memorySummary(ops) {
 
 function StepView({ step, msg, streaming }) {
   return html`
-    ${(step.serverTools || []).map((st) => html`<${ServerToolView} key=${st.id} st=${st} />`)}
     ${step.text && html`<div class="bubble"><${Markdown} text=${step.text} streaming=${streaming} /></div>`}
     ${(step.toolCalls || []).map((c) => html`<${ToolCallView} key=${c.id} call=${c} msg=${msg} />`)}
     ${(step.notices || []).map((n, i) => html`<div key=${i} class="notice" style="align-self:flex-start;text-align:left">${n}</div>`)}`;
-}
-
-function ServerToolView({ st }) {
-  const [open, setOpen] = useState(false);
-  const name = st.name === 'x_search' ? 'Searched X' : st.name === 'web_fetch' ? 'Read' : st.name === 'code_interpreter' || st.name === 'code_execution' ? 'Ran code' : 'Searched the web';
-  const q = st.input?.query || st.input?.url || '';
-  const running = st.status === 'running';
-  return html`
-    <button class=${`activity ${running ? 'running' : ''} ${st.status === 'error' ? 'error' : ''}`} onClick=${() => setOpen(!open)}>
-      <span class="ic">${running ? html`<span class="spinner"></span>` : html`<${Icon.globe} />`}</span>
-      <span class="lbl">${name}${q ? ` for “${truncate(q, 60)}”` : ''}${st.sources?.length ? ` · ${st.sources.length} results` : ''}</span>
-    </button>
-    ${open && st.sources?.length > 0 && html`<${Sources} items=${st.sources} />`}`;
 }
 
 export function ToolCallView({ call, msg }) {
@@ -151,71 +139,14 @@ export function ToolCallView({ call, msg }) {
       <div class="q" style="margin:4px 0 0">Next run ${d.nextRunAt ? new Date(d.nextRunAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '—'}</div></div>`;
   }
   if (d?.kind === 'delegation') return html`<${DelegationCard} d=${d} />`;
-  return html`<${ActivityLine} call=${call} />`;
+  // Charts its code drew show; the step itself doesn't.
+  if (d?.kind === 'code') return html`<${Charts} call=${call} />`;
+  return null;
 }
 
-function iconFor(name) {
-  if (/^(recall|remember|forget|update_memory|core_memory|search_history)$/.test(name)) return Icon.brain;
-  if (/web_search|fetch_url/.test(name)) return Icon.globe;
-  if (/run_python|run_javascript/.test(name)) return Icon.code;
-  if (/shell|computer_files/.test(name)) return Icon.terminal;
-  if (/browser|screenshot/.test(name)) return Icon.monitor;
-  if (/file/.test(name)) return Icon.file;
-  if (/agent|delegate/.test(name)) return Icon.chat;
-  if (/routine/.test(name)) return Icon.clock;
-  if (/image/.test(name)) return Icon.image;
-  if (/^mcp_/.test(name)) return Icon.plug;
-  if (/skill/.test(name)) return Icon.sparkle;
-  return Icon.bot;
-}
-
-function ActivityLine({ call }) {
+function Charts({ call }) {
   const app = useApp();
-  const ui = useUi();
-  const [open, setOpen] = useState(false);
-  const Ic = iconFor(call.name);
-  const running = call.status === 'running' || call.status === 'preparing';
-  const error = call.status === 'error' || call.result?.isError;
-  const d = call.display || {};
-  const label = call.label || prettyName(call.name);
-  const images = call.result?.images || [];
-  // Charts from code show in the chat; screenshots only when the row is opened.
-  const showImages = d.kind === 'code' || (open && (d.kind === 'screenshot' || d.kind === 'browser'));
-  const decided = call.approval && call.approval.status !== 'pending' ? (call.approval.status === 'denied' ? ' · denied' : ' · approved') : '';
-  return html`
-    <button class=${`activity ${running ? 'running' : ''} ${error ? 'error' : ''}`} onClick=${() => setOpen(!open)} aria-expanded=${open}>
-      <span class="ic">${running ? html`<span class="spinner"></span>` : html`<${Ic} />`}</span>
-      <span class="lbl">${label}${decided}${running && call.progress ? ` — ${call.progress}` : ''}</span>
-    </button>
-    ${showImages && images.map((img, i) => html`<img key=${i} class="chart-img" style="max-width:min(88%,480px)" src=${imgSrc(app, img)} alt="Tool output image" />`)}
-    ${d.kind === 'file_saved' && !open && html`<button class="activity" style="padding-left:32px" onClick=${() => ui.openFile(d.fileId)}><span class="lbl" style="color:var(--blue)">Open ${d.path}</span></button>`}
-    ${d.kind === 'search' && d.results?.length > 0 && open && html`<${Sources} items=${d.results} />`}
-    ${open && html`<div class="activity-detail">${detailFor(call)}</div>`}`;
-}
-
-function detailFor(call) {
-  const d = call.display || {};
-  if (d.kind === 'terminal') {
-    return html`<div class="terminal"><span class="cmd">$ ${d.command}</span>\n${d.stdout}${d.stderr ? html`<span class="err">\n${d.stderr}</span>` : ''}\n<span class="cmd">[exit ${d.code}]</span></div>`;
-  }
-  if (d.kind === 'code') {
-    return html`
-      <div class="k">${d.language}</div><pre>${d.code}</pre>
-      ${d.stdout && html`<div class="k">Output</div><pre>${d.stdout}</pre>`}
-      ${d.result && html`<div class="k">Result</div><pre>${d.result}</pre>`}
-      ${(d.error || d.stderr) && html`<div class="k">Errors</div><pre style="color:var(--red)">${d.error || d.stderr}</pre>`}
-      ${d.saved?.length > 0 && html`<div class="k">Files saved</div><pre>${d.saved.join('\n')}</pre>`}`;
-  }
-  const args = call.args && Object.keys(call.args).length ? JSON.stringify(call.args, null, 2) : '';
-  return html`
-    ${args && html`<div class="k">Input</div><pre>${truncate(args, 4000)}</pre>`}
-    <div class="k">${call.result?.isError ? 'Error' : 'Result'}</div>
-    <pre>${truncate(String(call.result?.content ?? (call.status === 'running' ? 'Running…' : '')), 6000)}</pre>`;
-}
-
-function prettyName(name) {
-  if (name.startsWith('mcp_')) return name.slice(4).replace(/_/g, ' ');
-  return name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+  return (call.result?.images || []).map((img, i) => html`<img key=${i} class="chart-img" style="max-width:min(88%,480px)" src=${imgSrc(app, img)} alt="Chart" />`);
 }
 
 function QuestionCard({ call, msg }) {
@@ -361,8 +292,8 @@ function ErrorCard({ msg }) {
     </div>`;
 }
 
-function Typing({ agent }) {
-  return html`<div class="typing">${agent && html`<${Avatar} shape=${agent.shape} color=${agent.color} size=${34} working anim=${thinkingOf(agent)} />`}</div>`;
+function Typing({ agent, activity = 'thinking' }) {
+  return html`<div class="typing">${agent && html`<${Avatar} shape=${agent.shape} color=${agent.color} size=${34} activity=${activity} anim=${thinkingOf(agent)} />`}</div>`;
 }
 
 export function Sources({ items }) {
