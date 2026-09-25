@@ -293,7 +293,8 @@ export function Avatar({
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
   const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
-  const dotSize = Math.max(8, Math.round(size * 0.3));
+  // The status dot: a quarter of the avatar (12 px on the chat list's 48 px ones).
+  const dotSize = Math.max(8, Math.round(size * 0.25));
   const idle = live && !mode && !expression;
   const busyClass = mode === 'thinking' ? `is-thinking think-${style}` : mode === 'working' ? 'is-working' : '';
   const cls = `avatar ${busyClass} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
