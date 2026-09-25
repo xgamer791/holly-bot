@@ -44,33 +44,35 @@ function home(app) {
 /** The first letter small, for text that goes mid-sentence. */
 const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 
-/** Who is signed in, and under it the usage bar: how much of the month's AI
- * credits is left, as on the Usage page it opens. Where there are no
- * accounts (Holly Computer's Wi-Fi links, browser automation) only Usage
+/** The top of Settings: who is signed in (their initials, name, email and
+ * how they sign in), and under it the usage meter, how much of the month's
+ * AI credits is left, which opens the Usage page. Where there are no
+ * accounts (Holly Computer's Wi-Fi links, browser automation) only the meter
  * shows. */
-function AccountGroup({ acct, go }) {
+function AccountHeader({ acct, go }) {
   const { credits } = useCredits();
   const pct = credits ? creditsShare(credits) : null;
-  const usage = html`<button class="row usage-row" onClick=${() => go('usage')}>
-    <div class="label">
-      <div class="usage-head"><span class="t">${tr('Usage')}</span><span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span></div>
-      ${pct != null && html`<div class="credits-bar usage-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
-        <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
-      </div>`}
-    </div>
-    <${Icon.chevron} class="chev" />
-  </button>`;
-  if (!acct.signedIn) return html`<${Group}>${usage}<//>`;
   const user = acct.user || {};
   const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
-  const detail = [user.name && user.email, via && tr('Signed in with {via}', { via })].filter(Boolean).join(' · ');
-  return html`<${Group}>
-    <div class="row">
+  return html`
+    ${acct.signedIn && html`<div class="drawer-account">
       <span class="initials">${initials(user.name || user.email)}</span>
-      <div class="label"><div class="t">${user.name || user.email || tr('Holly Bot account')}</div><div class="s">${detail || tr('Signed in')}</div></div>
-    </div>
-    ${usage}
-  <//>`;
+      <div class="who">
+        <div class="name">${user.name || user.email || tr('Holly Bot account')}</div>
+        ${user.name && user.email && html`<div class="detail">${user.email}</div>`}
+        <div class="detail">${via ? tr('Signed in with {via}', { via }) : tr('Signed in')}</div>
+      </div>
+    </div>`}
+    <button class="drawer-usage" onClick=${() => go('usage')}>
+      <span class="usage-head">
+        <span class="t">${tr('Usage')}</span>
+        <span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span>
+        <${Icon.chevron} class="chev" />
+      </span>
+      ${pct != null && html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+        <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
+      </span>`}
+    </button>`;
 }
 
 /** Settings is a drawer from the left that pushes the app over, with a
@@ -98,11 +100,14 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
   const Page = (top && pages[top.page]) || MainPage;
-  return html`<${Sheet} drawer=${drawer} title=${top ? tr(titles[top.page]) : ''} left=${left} onClose=${onClose}>
+  return html`<${Sheet} drawer=${drawer} title=${top ? tr(titles[top.page]) : tr('Settings')} left=${left} onClose=${onClose}>
     <${Page} go=${go} back=${back} onClose=${onClose} ...${top || {}} />
   <//>`;
 }
 
+/** Settings itself: who is signed in and the usage meter, then the settings
+ * in sections (the bots, safety and data, preferences, support), Sign Out,
+ * and the app's version. */
 function MainPage({ go, onClose }) {
   const app = useApp();
   const ui = useUi();
@@ -110,20 +115,21 @@ function MainPage({ go, onClose }) {
   const s = app.settings;
   const set = (patch) => app.saveSettings(patch);
   const lang = s.language || 'system';
+  const icon = (Glyph) => html`<${Glyph} class="row-icon" />`;
   return html`
-    <${AccountGroup} acct=${acct} go=${go} />
-    <${Group}>
-      <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
+    <${AccountHeader} acct=${acct} go=${go} />
+    <${Group} label=${tr('Bots')}>
+      <${Row} icon=${icon(Icon.plug)} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
+      <${Row} icon=${icon(Icon.botScreen)} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
+      <${Row} icon=${icon(Icon.brain)} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
+      <${Row} icon=${icon(Icon.clock)} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
     <//>
-    <div class="group-label">${tr('Bot')}</div>
-    <${Group}>
-      <${Row} title=${tr('Auto-review')} sub=${tr('Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories.')} toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
-      <${Row} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
-      <${Row} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
-      <${Row} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
+    <${Group} label=${tr('Safety & data')}>
+      <${Row} icon=${icon(Icon.shield)} title=${tr('Auto-review')} sub=${tr('Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories.')} toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
+      <${Row} icon=${icon(Icon.archive)} title=${tr('Data & Backup')} onClick=${() => go('data')} />
     <//>
-    <${Group}>
-      <${Row} title=${tr('Notifications')} toggle=${!!s.notifications} onToggle=${async (v) => {
+    <${Group} label=${tr('Preferences')}>
+      <${Row} icon=${icon(Icon.bell)} title=${tr('Notifications')} toggle=${!!s.notifications} onToggle=${async (v) => {
         if (v && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
           const p = await Notification.requestPermission().catch(() => 'denied');
           if (p !== 'granted') {
@@ -133,26 +139,23 @@ function MainPage({ go, onClose }) {
         }
         set({ notifications: v });
       }} />
-      <${Row} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
-      <${Row} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
-      <${Row} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
-      <${Row} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
+      <${Row} icon=${icon(Icon.palette)} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
+      <${Row} icon=${icon(Icon.globe)} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
+      <${Row} icon=${icon(Icon.wave)} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
+      <${Row} icon=${icon(Icon.haptics)} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
     <//>
-    <${Group}>
-      <${Row} title=${tr('Data & Backup')} onClick=${() => go('data')} />
+    <${Group} label=${tr('Support')}>
+      <${Row} icon=${icon(Icon.help)} title=${tr('Help Center')} onClick=${() => go('help')} />
+      <${Row} icon=${icon(Icon.chat)} title=${tr('Send Feedback')} chevron=${false} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')}>
+        <${Icon.external} class="chev" />
+      <//>
+      <${Row} icon=${icon(Icon.lock)} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
+      <${Row} icon=${icon(Icon.file)} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
     <//>
-    <${Group}>
-      <${Row} title=${tr('Help Center')} onClick=${() => go('help')} />
-      <${Row} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
-      <${Row} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
-    <//>
-    <${Group}>
-      <${Row} title=${tr('Send Feedback')} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')} />
-    <//>
-    <${Group}>
+    <div class="drawer-signout">
       ${acct.signedIn ? html`
-        <${Row} title=${tr('Sign Out')} sub=${app.remote ? tr('Your bots stay on your computer.') : tr('Your bots, chats, memories and keys stay in your account.')} danger onClick=${() => signOut(app, ui)} />`
-      : html`<${Row} title=${tr('Sign Out')} sub=${tr('Removes your API keys from this device. Bots and memories stay.')} danger onClick=${async () => {
+        <${Row} icon=${icon(Icon.logout)} title=${tr('Sign Out')} sub=${app.remote ? tr('Your bots stay on your computer.') : tr('Your bots, chats, memories and keys stay in your account.')} chevron=${false} danger onClick=${() => signOut(app, ui)} />`
+      : html`<${Row} icon=${icon(Icon.logout)} title=${tr('Sign Out')} sub=${tr('Removes your API keys from this device. Bots and memories stay.')} chevron=${false} danger onClick=${async () => {
         if (!(await ui.confirm({ title: tr('Sign out?'), message: tr('Your API keys will be removed. Your bots, chats and memories are kept.'), confirmText: tr('Sign Out'), danger: true }))) return;
         const providers = {};
         for (const [id, p] of Object.entries(s.providers || {})) providers[id] = { ...p, apiKey: '' };
@@ -163,11 +166,11 @@ function MainPage({ go, onClose }) {
         ui.toast(tr('Signed out — keys removed'));
         onClose();
       }} />`}
-    <//>
-    <div class="footer-brand">
-      <${Avatar} shape="circle" color="white" size=${84} expression="upRight" />
-      <div class="n">${APP_NAME}</div>
-      <div class="v">${APP_VERSION}</div>
+    </div>
+    <div class="drawer-foot">
+      <${Avatar} shape="cloud" color="blue" size=${26} expression="upRight" />
+      <span class="n">${APP_NAME}</span>
+      <span class="v">${APP_VERSION}</span>
     </div>`;
 }
 

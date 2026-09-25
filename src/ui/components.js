@@ -12,16 +12,13 @@ const DRAWER_MS = 450;
  * is, so every move carries on from wherever it is (styles.css → .sheet.drawer).
  * The tab on its right edge (and the strip around it) drags it closed: let go
  * a third of the way over, or with a flick, and it closes, otherwise it
- * springs back. A tap there closes it. While it's open the status bar, which
- * takes the theme color, takes the drawer's.
+ * springs back. A tap there closes it.
  */
 export function useDrawer(remove) {
   const ref = useRef(null);
   const timer = useRef(null);
   const drag = useRef(null);
   const root = document.documentElement;
-  const tint = (color) => color && document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
-  const untint = () => tint(getComputedStyle(root).getPropertyValue('--bg').trim());
   // How far a drag has brought it back (px, 0 or less), and how much of it still shows.
   const setDrag = (dx, w) => {
     if (dx == null) {
@@ -38,19 +35,16 @@ export function useDrawer(remove) {
     root.classList.add('drawer-mounted');
     ref.current?.getBoundingClientRect();
     root.classList.add('drawer-open');
-    if (ref.current) tint(getComputedStyle(ref.current).backgroundColor);
     return () => {
       clearTimeout(timer.current);
       root.classList.remove('drawer-mounted', 'drawer-open', 'drawer-dragging', 'drawer-flung');
       setDrag(null);
-      untint();
     };
   }, []);
   const close = () => {
     if (timer.current) return;
     root.classList.remove('drawer-open', 'drawer-dragging');
     setDrag(null);
-    untint();
     timer.current = setTimeout(() => remove?.(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_MS);
   };
   const handle = {
