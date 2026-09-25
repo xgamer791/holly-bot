@@ -3,8 +3,8 @@ import { App } from './core/app.js';
 import { DB } from './core/db.js';
 import { Root } from './ui/app.js';
 import {
-  RemoteApp, addressOf, computerConnection, computerState, declineComputer, declined, holdConnection, runsHere, sameComputer,
-  savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useConnectionsOf,
+  RemoteApp, addressOf, chooseComputer, computerConnection, computerState, declineComputer, declined, deviceKind, holdConnection, isPaired, markPaired,
+  probeComputer, reachComputer, runsHere, sameComputer, savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useConnectionsOf,
 } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
 import {
@@ -33,10 +33,11 @@ import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 // Holly Computer linked to the account keeps its bots there too, and runs
 // them (computer/src/home.mjs). Signing in on its own page links it. It tells
 // the account where it can be reached, so every device signed in to the
-// account controls it with no link to open: the app connects as it opens
-// (openComputer), or asks to while it's open (watchComputers). Its Wi-Fi
-// address can't sign in (convex/auth.ts); there the pairing token alone
-// protects it.
+// account controls it with no link to open. The first time, the phone asks
+// (Connect: watchComputers), and says it's connected, as does the computer's
+// own page; after that, the account's devices connect to it by themselves,
+// as they open (openComputer) and while they're open. Its Wi-Fi address can't
+// sign in (convex/auth.ts); there the pairing token alone protects it.
 
 const root = document.getElementById('app');
 /** A Holly Computer link opened just before this sign-in. */
@@ -44,12 +45,16 @@ let adopted = null;
 /** What to say once the app opens (how connecting a service went). */
 let notice = null;
 /** The computers linked to the account as the app opened, each with what it
- * was doing ({ id, name, state }: computerState, or 'unreachable'). */
+ * was doing ({ id, name, state }: stateOf). */
 let computers = [];
 /** What to say about the linked computer when the bots run here instead. */
 let computerNotice = null;
-/** Computers this app tried and couldn't reach as it opened (addressOf). */
-const unreachable = new Set();
+/** The account's computers, as last listed (convex/devices.ts list). */
+let linkedNow = null;
+/** Whether each computer answered at its address when this app last tried
+ * (addressOf → { ok, at }): a computer can say it's on while its address is
+ * dead, and this app keeps away from one that didn't answer until it does. */
+const reach = new Map();
 
 async function boot() {
   const link = takeConnectLink() || takeLegacyPairLink();
@@ -279,23 +284,39 @@ async function runAccount(db) {
 async function openComputer() {
   const saved = savedConnection();
   const linked = await linkedComputers(); // null: couldn't tell
+  linkedNow = linked;
   const mine = saved ? linked?.find((device) => sameComputer(device, saved)) : null;
   // A saved computer that was linked to the account and isn't any more (a
   // subscriber's server replaced by a smaller one) counts as none saved.
   const gone = !!(saved?.device && linked && !mine);
   // The saved computer first, and where the account says it is now if it
-  // moved. Then, with none saved, or when the saved one is linked to the
-  // account but can't be reached, any running, your own computer before the
-  // server that comes with a plan, and none this device was told to leave
-  // alone (Not now, Disconnect this device). A saved computer that isn't
-  // linked to the account is the only one tried: its bots may be only there.
+  // moved, unless it's the server that comes with a plan and wasn't just
+  // chosen. Then the running computers this app connects to by itself: your
+  // own that a device connected to before (the first time, the app asks:
+  // watchComputers), then the plan's server; none this device was told to
+  // leave alone (Not now, Disconnect this device, or moving away from it).
+  // A saved computer that isn't linked to the account is the only one tried:
+  // its bots may be only there.
   const tries = [];
   const add = (conn) => {
-    if (conn && !tries.some((t) => t.url === conn.url && t.token === conn.token)) tries.push(conn);
+    if (!conn || tries.some((t) => t.url === conn.url && t.token === conn.token)) return;
+    // Just chosen: what to say once connected goes with it, at whichever address it answers.
+    const chosen = saved?.hello && ((saved.url === conn.url && saved.token === conn.token) || (saved.device && saved.device === conn.device));
+    tries.push(chosen ? { ...conn, hello: saved.hello } : conn);
   };
-  if (saved && !gone) add(saved);
-  const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device));
-  for (const device of saved && !gone ? [mine, ...(mine ? others : [])] : others) add(computerConnection(device));
+  const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device) && isPaired(device));
+  if (saved && !gone && !mine) add(saved);
+  else {
+    if (saved && !gone && (!mine.server || saved.hello)) {
+      add(saved);
+      add(computerConnection(mine));
+    }
+    for (const device of others) add(computerConnection(device));
+    if (saved && !gone) {
+      add(saved);
+      add(computerConnection(mine));
+    }
+  }
   let problem = null;
   for (const conn of tries) {
     const app = new RemoteApp(conn);
@@ -303,7 +324,8 @@ async function openComputer() {
       await app.connect({ timeoutMs: 8000 });
     } catch (err) {
       problem ||= err;
-      unreachable.add(addressOf(conn.device ? { id: conn.device, url: conn.url } : mine && { id: mine.id, url: conn.url }));
+      const id = conn.device || mine?.id;
+      if (id) reach.set(addressOf({ id, url: conn.url }), { ok: false, at: Date.now() });
       continue;
     }
     controlComputer(app, conn);
@@ -319,18 +341,42 @@ async function openComputer() {
     saveConnection(null); // found through the account, and unlinked since
   }
   computers = statesOf(linked);
-  computerNotice = noticeAbout(computers, linked || []);
+  computerNotice = { list: computers, devices: linked || [] };
   return false;
 }
 
-/** What each computer linked to the account is doing (computerState), or
- * 'unreachable' when it says it's running but this app couldn't reach it
- * there: for the bots (src/core/prompts.js) and the note in the bot list. */
+/** What a computer linked to the account is doing, as far as this app can
+ * tell: computerState, or 'unreachable' when it says it's running but didn't
+ * answer here, and for one running without an address, why: 'starting'
+ * (opening its tunnel) or 'blocked' (its network blocks the tunnel). */
+function stateOf(device) {
+  const state = computerState(device);
+  if (state === 'running') return cantReach(device) ? 'unreachable' : state;
+  if (state === 'hidden' && ['starting', 'blocked'].includes(device.tunnel)) return device.tunnel;
+  return state;
+}
+
+/** What each computer linked to the account is doing (stateOf): for the
+ * bots (src/core/prompts.js) and the note in the bot list. */
 function statesOf(list) {
-  return preferred(list || []).map((device) => {
-    const state = computerState(device);
-    return { id: device.id, name: device.name, state: state === 'running' && unreachable.has(addressOf(device)) ? 'unreachable' : state };
-  });
+  return preferred(list || []).map((device) => ({ id: device.id, name: device.name, state: stateOf(device) }));
+}
+
+/** Whether `device` didn't answer at its address when this app last tried. */
+function cantReach(device) {
+  const tried = reach.get(addressOf(device));
+  return !!tried && !tried.ok;
+}
+
+/** Whether `device` answers at its address: asked again after a minute,
+ * or a quarter of one when it didn't answer (it may have just started). */
+async function answers(device) {
+  const key = addressOf(device);
+  const tried = reach.get(key);
+  if (tried && Date.now() - tried.at < (tried.ok ? 60_000 : 15_000)) return tried.ok;
+  const ok = await probeComputer(device.url);
+  reach.set(key, { ok, at: Date.now() });
+  return ok;
 }
 
 /** Your own computers first, then the server that comes with a plan. */
@@ -338,17 +384,38 @@ function preferred(list) {
   return [...list].sort((a, b) => Number(!!a.server) - Number(!!b.server));
 }
 
-/** Connects this app to a linked computer: it opens again as its remote control. */
-function connectTo(device) {
-  const conn = computerConnection(device);
-  if (!conn) return;
-  saveConnection(conn);
+/**
+ * Connects this app to a linked computer, once it's clear it answers: the
+ * app opens again as its remote control and says so, and so does the
+ * computer (`how`: 'first' after Connect, 'auto' when this app did it by
+ * itself: controlComputer). `from`: the computer the person chose to leave
+ * for it (chooseComputer). Fails with a message to show when it doesn't answer.
+ */
+async function connectTo(device, how = 'first', from = null) {
+  const conn = await reachComputer(device, { latest: async () => (await linkedComputers())?.find((d) => d.id === device.id) });
+  if (how === 'auto') saveConnection({ ...conn, hello: how });
+  else chooseComputer(conn, { from, hello: how });
   location.reload();
 }
 
 /** The note in the bot list for a computer that's on, which this app isn't using. */
-function connectNotice(device) {
-  return { key: `${addressOf(device)}:on`, offer: device.id, text: tr('{name} is on. Connect so your bots can use it.', { name: device.name }), action: { label: tr('Connect'), onClick: () => connectTo(device) } };
+function connectNotice(app, device) {
+  return {
+    key: `${addressOf(device)}:on`,
+    offer: device.id,
+    text: tr('{name} is on. Connect so your bots can use it.', { name: device.name }),
+    action: { label: tr('Connect'), onClick: () => connecting(app, device) },
+  };
+}
+
+/** Connect, tapped: says it's connecting, and why not when it can't. */
+function connecting(app, device) {
+  app.emit('toast', { text: tr('Connecting to {name}…', { name: device.name }) });
+  const here = app.remote ? linkedNow?.find((d) => sameComputer(d, whereIs(app))) : null;
+  connectTo(device, 'first', here).catch((err) => {
+    reach.set(addressOf(device), { ok: false, at: Date.now() });
+    app.emit('toast', { text: err.message, error: true });
+  });
 }
 
 /** Changes the note in the bot list (src/ui/home.js), when there's something new to say. */
@@ -358,26 +425,91 @@ function showNotice(app, next) {
   app.emit('computers');
 }
 
+/** Where the computer `app` controls is, to find it among the account's. */
+function whereIs(app) {
+  return { device: app.device, name: app.server?.name, url: app.base };
+}
+
+/** Whether this page is open on the computer itself (not a phone that
+ * opened its Wi-Fi link, which Holly Computer serves too). */
+const onThisComputer = () => location.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+
+/** Whether this is Holly Computer's own page, on the computer it controls. */
+function ownPage(app) {
+  try {
+    return !!app.remote && onThisComputer() && new URL(app.base).origin === location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether Holly Computer serves this page on the computer itself, even
+ * when the bots run in the page for a moment: it answers /v1/health here.
+ * The site doesn't, and nor does a development server. */
+async function servedByComputer() {
+  if (!onThisComputer()) return false;
+  try {
+    const res = await fetch(new URL('v1/health', location.origin), { cache: 'no-store' });
+    return res.ok && (await res.json())?.app === 'holly-computer';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * While the app is open, the account's computers come and go: one starts, or
  * someone signs in on it for the first time. Every ten seconds while the app
  * is in front, and as it comes back, this asks the account which are running
- * and offers to connect to one this app isn't using (src/ui/app.js asks): your
- * own computer whenever it comes on, and the server that comes with a plan
- * when this app runs the bots itself. Not now leaves a note in the bot list
- * instead. It keeps that note, and what the bots here are told about the
- * computer (src/core/prompts.js), up to date too.
+ * and, once one answers at its address, connects to it: by itself when a
+ * device connected to it before (or it's the server that comes with a plan
+ * and this app runs the bots itself), as soon as nothing's going on here; the
+ * first time, by asking (Connect, src/ui/app.js), which is said on the
+ * computer too. Not now leaves a note in the bot list instead. When the
+ * computer this app uses has stopped, it moves onto another it connects to
+ * by itself. It keeps the note, and what the bots here are told about the
+ * computer (src/core/prompts.js), up to date too. On Holly Computer's own page
+ * there's nothing to connect to: it says to tap Connect on the phone, until
+ * a phone has.
  */
-function watchComputers(app) {
+async function watchComputers(app) {
+  const own = ownPage(app) || await servedByComputer();
   let checking = false;
   let asking = false;
+  let moving = false;
+  let lastInput = Date.now();
+  for (const type of ['pointerdown', 'keydown', 'input']) {
+    addEventListener(type, () => { lastInput = Date.now(); }, { capture: true, passive: true });
+  }
+  // Moving to another computer reloads the app: not while something's going on.
+  const idle = () => !busyHere(app) && Date.now() - lastInput > 5000;
+  const move = async (device) => {
+    moving = true;
+    try {
+      await connectTo(device, 'auto');
+    } catch {
+      reach.set(addressOf(device), { ok: false, at: Date.now() });
+      moving = false;
+    }
+  };
+  // A phone connected to this computer (its own page): no need to say to any more.
+  app.on('hello', () => {
+    if (!own) return;
+    const here = linkedNow?.find((device) => sameComputer(device, whereIs(app)));
+    if (here) markPaired(here);
+    showNotice(app, null);
+  });
   const check = async () => {
-    if (checking || asking || document.visibilityState !== 'visible') return;
+    if (checking || asking || moving || document.visibilityState !== 'visible') return;
     checking = true;
     try {
       const list = await linkedComputers();
       if (!list) return;
-      const here = app.remote ? list.find((device) => sameComputer(device, { device: app.device, name: app.server?.name, url: app.base })) : null;
+      linkedNow = list;
+      const here = app.remote ? list.find((device) => sameComputer(device, whereIs(app))) : null;
+      if (own) {
+        showNotice(app, here && !here.server && !isPaired(here) && app.server?.account?.linked ? waitingNotice(here) : null);
+        return;
+      }
       if (app.remote) {
         // An offer left in the list goes once that computer is off again.
         const left = app.computerNotice?.offer;
@@ -385,20 +517,51 @@ function watchComputers(app) {
       } else {
         app.linkedComputers = statesOf(list);
         // Nothing to say while the plan's server is on its way: the app moves onto it by itself.
-        showNotice(app, app.awaitingServer ? null : noticeAbout(app.linkedComputers, list));
+        showNotice(app, app.awaitingServer ? null : noticeAbout(app, app.linkedComputers, list));
+      }
+      // The computer this app uses hasn't answered for a while (it stopped, or
+      // its connection did): another it connects to by itself, if one answers.
+      if (here && !app.reachable && Date.now() - (app.unreachableSince || Date.now()) > 120_000) {
+        const next = runsHere() ? null : preferred(list).find((device) => device !== here && isPaired(device) && computerConnection(device) && !declined(device));
+        if (next && idle() && await answers(next)) {
+          await move(next);
+          return;
+        }
       }
       // A server just set up isn't offered: the app moves onto it by itself (watchServerSetup).
       const offer = preferred(list).find((device) => device !== here && (!device.server || (!app.remote && !app.awaitingServer))
-        && computerConnection(device) && !declined(device) && !unreachable.has(addressOf(device)));
-      if (!offer || !app.events.map.get('computer-offer')?.size) return;
+        && computerConnection(device) && !declined(device));
+      if (!offer) {
+        if (app.remote && app.computerNotice?.unreachable) showNotice(app, null);
+        return;
+      }
+      if (!(await answers(offer))) {
+        // On, but its address doesn't answer (yet): a word, and a new try in a minute.
+        if (app.remote && !app.computerNotice?.offer) showNotice(app, unreachableNotice(offer));
+        else if (!app.remote) showNotice(app, noticeAbout(app, app.linkedComputers = statesOf(list), list));
+        return;
+      }
+      if (app.computerNotice?.unreachable) showNotice(app, null);
+      // Connected to before: by itself, unless this app is on another of your
+      // own computers, or runs the bots itself because it was told to.
+      const onServer = !!here?.server;
+      if (isPaired(offer) && (!app.remote || onServer) && !runsHere()) {
+        if (idle()) await move(offer);
+        return;
+      }
+      if (!app.events.map.get('computer-offer')?.size) return;
       asking = true;
       app.emit('computer-offer', {
         name: offer.name,
-        accept: () => connectTo(offer),
+        accept: () => connectTo(offer, 'first', here).catch((err) => {
+          asking = false;
+          reach.set(addressOf(offer), { ok: false, at: Date.now() });
+          throw err;
+        }),
         decline: () => {
           declineComputer(offer);
           asking = false;
-          if (!app.computerNotice) showNotice(app, connectNotice(offer));
+          if (!app.computerNotice) showNotice(app, connectNotice(app, offer));
         },
         later: () => {
           asking = false;
@@ -411,6 +574,16 @@ function watchComputers(app) {
   document.addEventListener('visibilitychange', check);
   setInterval(check, 10_000);
   check();
+}
+
+/** The note on Holly Computer's own page until a phone has connected to it. */
+function waitingNotice(device) {
+  return { key: `${device.id}:waiting`, text: tr('Open Holly Bot on your phone and tap Connect to use {name} from it.', { name: device.name }) };
+}
+
+/** The note for a computer that says it's on, whose address doesn't answer here. */
+function unreachableNotice(device) {
+  return { key: `${addressOf(device)}:unreachable`, unreachable: true, text: tr("{name} is on, but this app can't reach it yet. It keeps trying.", { name: device.name }) };
 }
 
 /** Whether version `a` is newer than `b` (both x.y.z). */
@@ -457,13 +630,17 @@ const howToComputer = () => ({ label: tr('How'), onClick: () => window.open('htt
  * when there's something to do about it (a computer that's off needs none),
  * shown at the top of the bot list (src/ui/home.js). `key` names a notice
  * that, once put away, stays away; a computer out of reach can come back. */
-function noticeAbout(list, devices) {
+function noticeAbout(app, list, devices) {
   const find = (state) => list.find((c) => c.state === state);
   let pc = find('unreachable');
-  if (pc) return { text: tr("Can't reach {name}, so your bots run in this app for now.", { name: pc.name }), action: { label: tr('Retry'), onClick: () => location.reload() } };
+  if (pc) return { unreachable: true, text: tr("Can't reach {name}, so your bots run in this app for now.", { name: pc.name }), action: { label: tr('Retry'), onClick: () => location.reload() } };
   pc = find('running');
   const device = pc && devices.find((d) => d.id === pc.id);
-  if (device) return connectNotice(device);
+  if (device) return connectNotice(app, device);
+  pc = find('starting');
+  if (pc) return { text: tr('{name} is on and opening its connection. Your bots can use it in a moment.', { name: pc.name }) };
+  pc = find('blocked');
+  if (pc) return { key: `${pc.id}:blocked`, text: tr("{name} is on, but its network blocks the secure tunnel Holly Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: pc.name }), action: howToComputer() };
   pc = find('old');
   if (pc) return { key: `${pc.id}:old`, text: tr('Update Holly Computer on {name} so your bots can use it.', { name: pc.name }), action: howToComputer() };
   pc = find('hidden');
@@ -476,18 +653,39 @@ function noticeAbout(list, devices) {
  * address when it restarts. */
 function controlComputer(app, conn) {
   window.holly = app;
-  saveConnection({ ...conn, name: app.server?.name || conn.name || '' });
+  const { hello, ...keep } = conn;
+  saveConnection({ ...keep, name: app.server?.name || conn.name || '' });
   if (computerAccountStep(app, conn)) return;
   if (signInWorksHere() && account.signedIn && app.server?.account?.linked) app.relocate = () => newAddress(app);
+  app.ownPage = ownPage(app);
+  if (!app.ownPage && signInWorksHere() && account.signedIn) connected(app, hello);
   mount(app);
+}
+
+/**
+ * This app has connected to a linked computer (not from the computer's own
+ * page): from now on the account's devices connect to it by themselves
+ * (convex/devices.ts pair). Just after Connect, or after connecting by itself
+ * while the app was open (`how`: 'first' or 'auto'), it says so here, and
+ * the computer says so on its own page and in its window.
+ */
+function connected(app, how) {
+  const device = app.device ? linkedNow?.find((d) => d.id === app.device) : null;
+  if (app.device && !device?.server) {
+    if (!device?.paired) account.authed('mutation', 'devices:pair', { id: app.device }).catch((err) => console.warn('pair', err));
+    markPaired(device || { id: app.device });
+  }
+  if (!how) return;
+  const name = app.server?.name || tr('your computer');
+  notice ||= { text: how === 'first' ? tr('Connected to {name}. Your bots run there now.', { name }) : tr('Connected to {name}.', { name }) };
+  app.rpc('devices.hello', { kind: deviceKind(), first: how === 'first' }).catch(() => {});
 }
 
 /** Where the account says the computer `app` controls is now, when that
  * changed (it restarted: a quick tunnel's address changes each time), saved
  * for next time. Null when it didn't. */
 async function newAddress(app) {
-  const here = { device: app.device, name: app.server?.name, url: app.base };
-  const conn = computerConnection((await linkedComputers())?.find((device) => sameComputer(device, here)));
+  const conn = computerConnection((await linkedComputers())?.find((device) => sameComputer(device, whereIs(app))));
   if (!conn || (conn.url === app.base && conn.token === app.token)) return null;
   saveConnection(conn);
   return conn;
@@ -639,7 +837,7 @@ async function bootLocal(db) {
     // A computer linked to the account runs the routines, so this app
     // doesn't, and its bots know the computer is there (src/core/prompts.js).
     app.linkedComputers = computers;
-    app.computerNotice = computerNotice;
+    app.computerNotice = computerNotice && noticeAbout(app, computerNotice.list, computerNotice.devices);
   }
   mount(app);
   app.start().catch((err) => console.warn('startup services', err));
@@ -750,7 +948,7 @@ async function mount(app, { chiefDone = false } = {}) {
   if (signInWorksHere() && account.signedIn) {
     if (billing?.pastDue) paymentBanner();
     watchSubscription();
-    watchComputers(app);
+    watchComputers(app).catch((err) => console.warn('computers', err));
     watchServerSetup(app);
   }
   if (signInWorksHere()) watchUpdates();

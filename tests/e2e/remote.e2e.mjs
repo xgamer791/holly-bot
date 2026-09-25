@@ -64,7 +64,8 @@ before(async () => {
     const last = json.messages.at(-1);
     if (/long-term memory of|compress conversation|reflect on what it knows|"human" core-memory/.test(system)) return res.end(sse([{ content: '{"operations":[]}' }]));
     if (last.role === 'tool') return res.end(sse([{ reasoning_content: 'It worked.' }, { content: `Done! The computer says: ${last.content.match(/stdout:\n(.*)/)?.[1]}` }]));
-    if (/computer/i.test(JSON.stringify(last.content))) {
+    // What the user typed (every message also carries a reminder for the bot, which mentions the computer).
+    if (/Use the computer/.test(JSON.stringify(last.content))) {
       await new Promise((r) => setTimeout(r, 800));
       return res.end(sse([
         { reasoning_content: 'I will use the shell.' },
@@ -75,14 +76,15 @@ before(async () => {
   });
   await new Promise((r) => modelServer.listen(0, '127.0.0.1', r));
   await startHolly();
+  // Holly Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
   await rpc('settings.save', {
-    providers: { custom: { baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, apiKey: 'test', noKey: true } },
-    defaults: { provider: 'custom', model: 'fake-flash', memoryModel: 'same' },
+    providers: { deepseek: { baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, apiKey: 'test' } },
+    defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' },
     askFirst: false,
     profile: { name: 'Sam', email: '', about: '' },
   });
   browser = await chromium.launch();
-  const ctx = await browser.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
+  const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'en-US', serviceWorkers: 'block' });
   page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
@@ -118,9 +120,12 @@ test('create a bot from the phone; it lives on the computer', async () => {
 test('the bot uses the computer; the phone sees it live', async () => {
   await page.getByLabel('Ask Holly').fill('Use the computer to say hello');
   await page.getByRole('button', { name: 'Send' }).click();
-  await chat().locator('.avatar.is-working').first().waitFor();
   await chat().getByText('Done! The computer says: hello-from-your-computer').waitFor();
-  await chat().getByText(/echo hello-from-your-computer/).first().waitFor();
+  // The chat shows the outcome, not the steps (1.12): the shell ran on the computer.
+  const agent = holly.app.listAgents().find((a) => a.name === 'Holly');
+  const reply = (await holly.app.loadMessages(`dm_${agent.id}`)).at(-1);
+  assert.equal(reply.steps[0].toolCalls[0].name, 'shell');
+  assert.match(reply.steps[0].toolCalls[0].result.content, /hello-from-your-computer/);
   await shot('chat');
 });
 
@@ -138,7 +143,7 @@ test('the phone notices when the computer is unreachable and recovers after it r
 });
 
 test('with the offline app cache on, live data still comes fresh from the computer', async () => {
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'en-US' });
   const phone = await ctx.newPage();
   const link = `http://localhost:${PORT}/#connect=${Buffer.from(JSON.stringify({ url: '', token: holly.token })).toString('base64url')}`;
   await phone.goto(link);

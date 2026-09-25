@@ -14,7 +14,9 @@ import { briefCurrent, jobLine, refusedRules } from './brief.js';
  * opened (src/main.js). */
 const COMPUTER_AWAY = {
   running: "Holly Computer is running there, but this app isn't using it; the user can tap Connect in the note at the top of their bot list, or in Settings → Bot Computer",
-  unreachable: "Holly Computer says it's running there, but this app couldn't reach it; the user should check the computer is on and online, then reopen Holly Bot",
+  unreachable: "Holly Computer says it's running there, but this app couldn't reach it; the user should check the computer is on and online. Holly Computer opens a new connection by itself when its old one stops working, and this app connects as soon as it answers",
+  starting: "Holly Computer is running there and opening its connection, so this app can't use it yet; it should be ready in a minute",
+  blocked: "Holly Computer is running there, but that computer's network blocks the secure tunnel it uses (Cloudflare Tunnel, outbound port 7844), so this app can't reach it; the user should allow that port on that network, use another network, or start Holly Computer with --public-url",
   hidden: "Holly Computer runs there without --tunnel, so this app can't reach it; the user should restart it with --tunnel",
   off: "Holly Computer isn't running there; the user should start it (node holly-computer.mjs --tunnel), then reopen Holly Bot",
   old: 'the Holly Computer there is out of date; the user should download holly-computer.mjs again, start it with --tunnel, then reopen Holly Bot',
