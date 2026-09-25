@@ -160,7 +160,8 @@ svg { display: block; }
 }
 @keyframes av-fade { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
-.avatar-dot { position: absolute; right: -4%; bottom: -4%; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 2.5px var(--bg); }
+/* Placed by src/ui/avatar.js on the shape's own bottom-right edge. */
+.avatar-dot { position: absolute; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 2.5px var(--bg); }
 .avatar-dot.dot-working { background: var(--green-dot); animation: pulse 1.4s ease-in-out infinite; }
 .avatar-dot.dot-waiting { background: var(--orange); }
 .avatar-dot.dot-error { background: var(--red-strong); }

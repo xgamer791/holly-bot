@@ -13,44 +13,55 @@ import { mark } from './i18n.js';
 // With Reduce Motion on, a busy bot fades gently instead of moving and an idle
 // one holds still (styles.css); both still blink.
 
+// Each shape in the 100×100 viewBox: `d` its outline, `face` where the eyes
+// sit, `lim` how far they move (across, up and down) and how tall they are,
+// and `dot` where the status dot's center goes: the point of the outline
+// farthest toward the bottom right, so the dot sits on the shape's own edge,
+// not on the corner of its square.
 export const SHAPES = {
-  circle: { label: mark('Circle'), d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1] },
+  circle: { label: mark('Circle'), d: 'M50 4a46 46 0 1 1 0 92a46 46 0 1 1 0-92Z', face: [50, 52], lim: [1, 1, 1], dot: [82.5, 82.5] },
   blob: {
     label: mark('Blob'),
     d: 'M53 13C81 12 97 30 96 53C95 76 75 89 49 88C23 87 4 75 4 52C5 29 25 14 53 13Z',
     face: [50, 52],
     lim: [1, 0.85, 1],
+    dot: [86.3, 75.7],
   },
   squircle: {
     label: mark('Squircle'),
     d: 'M50 5C83 5 95 17 95 50C95 83 83 95 50 95C17 95 5 83 5 50C5 17 17 5 50 5Z',
     face: [50, 52],
     lim: [1, 1, 1],
+    dot: [84.9, 84.9],
   },
-  pill: { label: mark('Pill'), d: 'M28 25H72A25 25 0 0 1 72 75H28A25 25 0 0 1 28 25Z', face: [50, 50], lim: [1, 0.4, 0.75] },
+  pill: { label: mark('Pill'), d: 'M28 25H72A25 25 0 0 1 72 75H28A25 25 0 0 1 28 25Z', face: [50, 50], lim: [1, 0.4, 0.75], dot: [89.7, 67.7] },
   triangle: {
     label: mark('Triangle'),
     d: 'M42.2 13.4Q50 1 57.8 13.4L93 75Q99 88 84 88H16Q1 88 7 75Z',
     face: [50, 63],
     lim: [0.7, 0.6, 0.85],
+    dot: [93.1, 85.5],
   },
   hexagon: {
     label: mark('Hexagon'),
     d: 'M44 6.5Q50 3 56 6.5L86 23.8Q92 27.3 92 34.2V65.8Q92 72.7 86 76.2L56 93.5Q50 97 44 93.5L14 76.2Q8 72.7 8 65.8V34.2Q8 27.3 14 23.8Z',
     face: [50, 52],
     lim: [1, 1, 1],
+    dot: [88.8, 74.1],
   },
   cloud: {
     label: mark('Cloud'),
     d: 'M27 82C14 82 5 74 5 63C5 53 12 46 22 45C22 32 33 22 46 23C53 15 67 14 75 23C85 25 92 33 91 43C97 47 99 54 97 62C95 74 86 82 74 82C68 88 58 89 50 84C43 88 33 88 27 82Z',
     face: [51, 56],
     lim: [1, 0.75, 1],
+    dot: [90.3, 75.5],
   },
   drop: {
     label: mark('Drop'),
     d: 'M53 5C60 17 83 40 83 62C83 81 69 95 50 95C31 95 17 81 17 62C17 42 42 20 53 5Z',
     face: [50, 64],
     lim: [0.8, 0.75, 0.9],
+    dot: [73.6, 85.6],
   },
 };
 
@@ -293,8 +304,11 @@ export function Avatar({
   const eyes = EXPRESSIONS[expr] || EXPRESSIONS.neutral;
   const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
-  // The status dot: a quarter of the avatar (12 px on the chat list's 48 px ones).
+  // The status dot: a quarter of the avatar (12 px on the chat list's 48 px
+  // ones), centered on the shape's bottom-right edge (SHAPES `dot`).
   const dotSize = Math.max(8, Math.round(size * 0.25));
+  const [dotX, dotY] = def.dot || [85, 85];
+  const dotAt = (v) => `${Math.round(((v * size) / 100 - dotSize / 2) * 10) / 10}px`;
   const idle = live && !mode && !expression;
   const busyClass = mode === 'thinking' ? `is-thinking think-${style}` : mode === 'working' ? 'is-working' : '';
   const cls = `avatar ${busyClass} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
@@ -313,7 +327,7 @@ export function Avatar({
         </g>
         ${mode && html`<${Extras} anim=${mode === 'working' ? 'working' : style} def=${def} clipId=${clipId.current} />`}
       </svg>
-      ${status ? html`<span class=${`avatar-dot dot-${status}`} style=${`width:${dotSize}px;height:${dotSize}px`}></span>` : null}
+      ${status ? html`<span class=${`avatar-dot dot-${status}`} style=${`width:${dotSize}px;height:${dotSize}px;left:${dotAt(dotX)};top:${dotAt(dotY)}`}></span>` : null}
     </span>`;
 }
 
