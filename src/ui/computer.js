@@ -25,6 +25,7 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
   ];
   return html`
     <${Sheet} title=${agent ? `${agent.name}'s computer` : 'Computer'} onClose=${onClose}
+      footer=${tab === 'screen' && caps.memory ? html`<${RamMeter} />` : null}
       right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast('Stopped all bots'), (err) => ui.toast(err.message, { error: true }))}>Stop all</button>`
         : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? 'Online' : 'Browser only'}</span>`}>
       <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
@@ -291,8 +292,7 @@ function Screen({ agentId }) {
     <div class="btn-row" style="margin-top:12px">
       <button class="btn small" onClick=${() => setLive(!live)}>${live ? '❚❚ Pause live view' : '▶ Live view'}</button>
       <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> Refresh</button>
-    </div>
-    ${caps.memory && html`<${RamMeter} />`}`;
+    </div>`;
 }
 
 /** Memory in bytes as "812 MB", "3.8 GB" or "15 GB". */
@@ -304,7 +304,8 @@ function ramSize(bytes) {
 }
 
 /** How much of the computer's memory is in use, as its own system monitor
- * counts it (computer/src/memory.mjs), read every few seconds while shown. */
+ * counts it (computer/src/memory.mjs), read every few seconds while shown:
+ * pinned at the bottom of the computer sheet under the Screen tab. */
 function RamMeter() {
   const app = useApp();
   const [mem, setMem] = useState(null);
@@ -326,15 +327,17 @@ function RamMeter() {
       reading?.abort();
     };
   }, []);
-  if (!mem?.total) return null;
-  const share = Math.min(1, Math.max(0, mem.used / mem.total));
+  // Until the first reading comes, it keeps its place, so nothing jumps.
+  const known = mem?.total > 0;
+  const share = known ? Math.min(1, Math.max(0, mem.used / mem.total)) : 0;
   const pct = Math.round(share * 100);
+  const text = known ? `${ramSize(mem.used)} of ${ramSize(mem.total)}` : '';
   return html`
     <div class="ram-meter" role="meter" aria-label="Memory in use" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
-      aria-valuetext=${`${ramSize(mem.used)} of ${ramSize(mem.total)} in use`}>
-      <div class="ram-meter-head"><b>RAM</b><span>${ramSize(mem.used)} of ${ramSize(mem.total)} · ${pct}%</span></div>
+      aria-valuetext=${known ? `${text} in use` : 'Reading'}>
+      <div class="ram-meter-head"><b>RAM</b><span>${known ? `${text} · ${pct}%` : '…'}</span></div>
       <div class="ram-meter-bar"><span class=${share >= 0.9 ? 'high' : share >= 0.75 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
-      ${mem.swapUsed > 0 && html`<div class="ram-meter-note">Swap: ${ramSize(mem.swapUsed)} of ${ramSize(mem.swapTotal)} in use</div>`}
+      ${mem?.swapUsed > 0 && html`<div class="ram-meter-note">Swap: ${ramSize(mem.swapUsed)} of ${ramSize(mem.swapTotal)} in use</div>`}
     </div>`;
 }
 
