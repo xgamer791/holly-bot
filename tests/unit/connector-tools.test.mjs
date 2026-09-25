@@ -258,7 +258,7 @@ test('GitHub: files and private repositories without asking; publishing asks; de
   assert.deepEqual(svc.github.at(-1), { method: 'PATCH', path: '/repos/octo/notes', body: { private: false } });
 
   // Auto-review off and "always allowed" before: deleting a repository still asks.
-  await app.saveSettings({ autoReview: false });
+  await app.saveSettings({ askFirst: false });
   await app.updateAgent(bot.id, { alwaysAllow: { github_delete_repo: true } });
   r = await app.runtime.send(tid, { text: 'Delete it' });
   assert.equal(r.status, 'waiting');
@@ -304,7 +304,7 @@ test('deleting email: the person sees exactly which emails first, only those go,
   assert.equal(svc.inbox.n1.trashed, false);
 
   // Deleting for good asks even with Auto-review off and deleting always allowed, with no Always allow.
-  await app.saveSettings({ autoReview: false });
+  await app.saveSettings({ askFirst: false });
   await app.updateAgent(bot.id, { alwaysAllow: { gmail_delete: true } });
   r = await app.runtime.send(tid, { text: 'Empty the trash' });
   assert.equal(r.status, 'waiting');
@@ -319,7 +319,7 @@ test('deleting email: the person sees exactly which emails first, only those go,
   r = await app.runtime.send(tid, { text: 'Delete the deals emails' });
   assert.equal(r.status, 'done');
   assert.ok(svc.inbox.n4.trashed && svc.inbox.n1.trashed);
-  await app.saveSettings({ autoReview: true });
+  await app.saveSettings({ askFirst: true });
   await app.updateAgent(bot.id, { alwaysAllow: {} });
   r = await app.runtime.send(tid, { text: 'Delete everything from nobody' });
   assert.equal(r.status, 'done', 'nothing to delete: no question');

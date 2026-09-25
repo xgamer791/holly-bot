@@ -78,7 +78,7 @@ before(async () => {
   await rpc('settings.save', {
     providers: { custom: { baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, apiKey: 'test', noKey: true } },
     defaults: { provider: 'custom', model: 'fake-flash', memoryModel: 'same' },
-    autoReview: false,
+    askFirst: false,
     profile: { name: 'Sam', email: '', about: '' },
   });
   browser = await chromium.launch();

@@ -158,7 +158,7 @@ function MainPage({ go, onClose }) {
     <//>
     <div class="group-label">Bot</div>
     <${Group}>
-      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories." toggle=${s.autoReview !== false} onToggle=${(v) => set({ autoReview: v })} />
+      <${Row} title="Auto-review" sub="Require approval for risky shell, MCP, and computer actions, sending or deleting email, and publishing repositories." toggle=${s.askFirst === true} onToggle=${(v) => set({ askFirst: v })} />
       <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
         onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
       <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />

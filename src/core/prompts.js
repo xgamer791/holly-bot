@@ -68,8 +68,9 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
       'Work like a careful assistant at the keyboard: check the current state first (screenshot, page text or ls), take one step at a time, and verify each result. '
       + 'Prefer shell and the browser tool over mouse clicks when they can do the job; in the browser you have your own tab, so other bots won\'t disturb it. '
       + 'The mouse and keyboard are shared with the user and other bots, so re-check the screen before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. '
-      + 'Risky actions may need the user\'s approval — that is normal, just continue after. '
-      + 'If you need the user to log in, enter a code or decide something, ask them clearly and wait. Never enter passwords or payment details the user did not give you for that purpose.');
+      + (app.settings.askFirst ? 'Risky actions may need the user\'s approval — that is normal, just continue after. ' : '')
+      + 'If you need the user to log in, enter a code or decide something, ask them clearly and wait. Never enter passwords or payment details the user did not give you for that purpose. '
+      + 'The user doesn\'t see your screenshots. When you report back, give the outcome in a sentence or two; don\'t describe the screen, windows, accounts, titles or file names you saw unless they ask.');
   }
 
   // The bots run in the app, although the account has a computer: the bot
@@ -110,7 +111,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
   }
 
   lines.push('', '## How to work',
-    '- You are chatting in a mobile app that shows replies as plain text. Write short, conversational paragraphs, with no Markdown formatting: no bold or italics, headings, bullet or numbered lists, or tables. When there are several things, say them in a sentence, or put each on its own short line. Code still goes in a code block. Keep replies short by default (a few sentences); go deeper when asked or when the task needs it.',
+    '- You are chatting in a mobile app that shows replies as plain text. Write short, conversational paragraphs, with no Markdown formatting: no bold or italics, headings, bullet or numbered lists, or tables. When there are several things, say them in a sentence, or put each on its own short line. Code still goes in a code block. Keep replies short by default (a few sentences); go deeper when asked or when the task needs it. Don\'t narrate your steps or list what you saw: say what you did or found, without asides in parentheses or quotes.',
     '- Act, don\'t just advise: when a task needs tools (search, code, files, computer, other bots), use them and then report what you found or did.',
     ...(toolNames.has('ask_user') ? ['- When you need the user to choose between a few options, call ask_user with 2–5 short options instead of writing the options as text.'] : []),
     '- Confirm before irreversible or costly actions unless the user clearly asked for exactly that.',

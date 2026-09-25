@@ -76,14 +76,17 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
   }
 
   const lastStep = msg.steps[msg.steps.length - 1];
-  const nothingYet = streaming && !msg.steps.some((s) => s.text || s.thinking || s.toolCalls?.length || s.serverTools?.length);
+  // Thoughts aren't shown: while the bot thinks (before its first words, or
+  // between tasks) its face does, below what it has done so far.
+  const doing = (lastStep?.toolCalls || []).some((c) => !c.result) || (lastStep?.serverTools || []).some((st) => st.status === 'running');
+  const thinkingNow = streaming && !lastStep?.text && !doing;
 
   return html`
     <div class="msg bot">
       ${showAuthor && agent && html`<div class="author"><${Avatar} shape=${agent.shape} color=${agent.color} size=${20} /> ${agent.name}</div>`}
       <div class="steps">
         ${msg.steps.map((step, i) => html`<${StepView} key=${step.id || i} step=${step} msg=${msg} streaming=${streaming && step === lastStep} />`)}
-        ${nothingYet && html`<${Typing} agent=${agent} />`}
+        ${thinkingNow && html`<${Typing} agent=${agent} />`}
         ${citations.length > 0 && html`<${Sources} items=${citations} />`}
         ${msg.status === 'error' && html`<${ErrorCard} msg=${msg} />`}
         ${msg.status === 'stopped' && !text && html`<div class="notice" style="align-self:flex-start">Stopped.</div>`}
@@ -110,15 +113,7 @@ function memorySummary(ops) {
 }
 
 function StepView({ step, msg, streaming }) {
-  const [showThinking, setShowThinking] = useState(false);
-  const thinking = (step.thinking || '').trim();
   return html`
-    ${thinking && html`
-      <button class="activity thinking" onClick=${() => setShowThinking(!showThinking)}>
-        <span class="ic"><${Icon.sparkle} /></span><span class=${`lbl ${streaming && !step.text ? 'running' : ''}`}>${streaming && !step.text && !step.toolCalls?.length ? 'Thinking…' : 'Thoughts'}</span>
-        <${Icon.down} size="14" />
-      </button>
-      ${showThinking && html`<div class="thinking-body">${thinking}</div>`}`}
     ${(step.serverTools || []).map((st) => html`<${ServerToolView} key=${st.id} st=${st} />`)}
     ${step.text && html`<div class="bubble"><${Markdown} text=${step.text} streaming=${streaming} /></div>`}
     ${(step.toolCalls || []).map((c) => html`<${ToolCallView} key=${c.id} call=${c} msg=${msg} />`)}
@@ -184,14 +179,15 @@ function ActivityLine({ call }) {
   const d = call.display || {};
   const label = call.label || prettyName(call.name);
   const images = call.result?.images || [];
-  const showImagesInline = d.kind === 'code' || d.kind === 'screenshot' || d.kind === 'browser';
+  // Charts from code show in the chat; screenshots only when the row is opened.
+  const showImages = d.kind === 'code' || (open && (d.kind === 'screenshot' || d.kind === 'browser'));
   const decided = call.approval && call.approval.status !== 'pending' ? (call.approval.status === 'denied' ? ' · denied' : ' · approved') : '';
   return html`
     <button class=${`activity ${running ? 'running' : ''} ${error ? 'error' : ''}`} onClick=${() => setOpen(!open)} aria-expanded=${open}>
       <span class="ic">${running ? html`<span class="spinner"></span>` : html`<${Ic} />`}</span>
       <span class="lbl">${label}${decided}${running && call.progress ? ` — ${call.progress}` : ''}</span>
     </button>
-    ${showImagesInline && images.map((img, i) => html`<img key=${i} class="chart-img" style="max-width:min(88%,480px)" src=${imgSrc(app, img)} alt="Tool output image" />`)}
+    ${showImages && images.map((img, i) => html`<img key=${i} class="chart-img" style="max-width:min(88%,480px)" src=${imgSrc(app, img)} alt="Tool output image" />`)}
     ${d.kind === 'file_saved' && !open && html`<button class="activity" style="padding-left:32px" onClick=${() => ui.openFile(d.fileId)}><span class="lbl" style="color:var(--blue)">Open ${d.path}</span></button>`}
     ${d.kind === 'search' && d.results?.length > 0 && open && html`<${Sources} items=${d.results} />`}
     ${open && html`<div class="activity-detail">${detailFor(call)}</div>`}`;

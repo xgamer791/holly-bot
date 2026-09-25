@@ -28,7 +28,9 @@ export const DEFAULT_SETTINGS = {
   computer: { url: '', token: '' },
   mcpServers: [],
   skills: [],
-  autoReview: true,
+  // Ask before risky actions (shell, clicks, MCP, sending email). Off, bots just
+  // do them. Replaces `autoReview`, which was on; saved values of it are ignored.
+  askFirst: false,
   timeZoneAuto: true,
   timeZone: '',
   notifications: false,

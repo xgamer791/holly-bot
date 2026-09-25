@@ -521,7 +521,7 @@ export class Runtime {
       const turnApproved = tool.approvalScope === 'turn' && (msg.turn?.approved || []).includes(tool.name);
       // `alwaysAsk`: can't be undone (deleting a repository, or email for good), so it asks whatever Auto-review and Always allow say.
       const alwaysAsk = typeof tool.alwaysAsk === 'function' ? !!tool.alwaysAsk(args) : !!tool.alwaysAsk;
-      const needsReview = alwaysAsk || (risk === 'high' && app.settings.autoReview !== false && !agent.alwaysAllow?.[tool.name] && !turnApproved);
+      const needsReview = alwaysAsk || (risk === 'high' && app.settings.askFirst === true && !agent.alwaysAllow?.[tool.name] && !turnApproved);
       if (needsReview && call.approval?.status !== 'approved') {
         let summary = tool.approval ? tool.approval(args, { app, agent }) : call.label;
         // `preview`: what the call would do, looked up first (which emails a

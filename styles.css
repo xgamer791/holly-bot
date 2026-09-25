@@ -398,7 +398,6 @@ button.row:active { background: var(--surface-2); }
 .activity-detail .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 4px; }
 .activity-detail .k:first-child { margin-top: 0; }
 .thinking { color: var(--muted); font-size: 14.5px; }
-.thinking-body { color: var(--muted); font-size: 14px; border-left: 2px solid var(--border-strong); padding: 2px 0 2px 12px; margin: 2px 0 6px 8px; white-space: pre-wrap; max-height: 260px; overflow: auto; }
 .sources { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 0 2px; }
 .source { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 10px 4px 6px; font-size: 13px; color: var(--text-2); text-decoration: none; max-width: 220px; }
 .source img { width: 14px; height: 14px; border-radius: 3px; flex: none; }
