@@ -4,7 +4,7 @@ import { CONNECTOR_READS } from './tools/connector-tools.js';
 import { buildSystemPrompt, buildMessageContext, userProfile } from './prompts.js';
 import { USER_ID } from './memory/store.js';
 import { extractAndApply, summarizeHistory, synthesizeProfile, reflect } from './memory/extract.js';
-import { MAX_TOOL_STEPS } from './constants.js';
+import { MAX_TOOL_STEPS, effortOf } from './constants.js';
 import { CONTENT_NOTE } from './safety.js';
 import { contextWindow, supportsVision } from './providers/index.js';
 import { extractJson } from './util.js';
@@ -405,7 +405,7 @@ export class Runtime {
           messages: history,
           tools,
           serverTools: app.providers.serverToolsFor(c, agent),
-          reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
+          reasoningEffort: effortOf(app, agent),
           maxTokens: agent.maxTokens || undefined,
           signal: controller.signal,
           onEvent: (e) => this.onStreamEvent(msg, step, e),
@@ -524,7 +524,7 @@ export class Runtime {
         system: msg.turn.system,
         messages: history,
         tools,
-        reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
+        reasoningEffort: effortOf(app, agent),
         maxTokens: agent.maxTokens || undefined,
         signal,
         onEvent: (e) => {

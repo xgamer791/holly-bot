@@ -6,7 +6,7 @@ import { briefCurrent, jobSummary } from '../core/brief.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { AI_MODELS } from '../core/providers/index.js';
-import { TOOL_GROUPS } from '../core/constants.js';
+import { TOOL_GROUPS, effortOf } from '../core/constants.js';
 import { mark, phraseOr, tr, trn } from './i18n.js';
 
 export function BotProfileSheet({ agentId, onClose }) {
@@ -53,7 +53,7 @@ export function BotProfileSheet({ agentId, onClose }) {
         <${Row} title=${tr('Model')} value=${cfgLabel} onClick=${() => ui.openSheet('modelPicker', { agentId })} />
         <div class="row-wrap"><div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
           <div class="label"><div class="t">${tr('Reasoning effort')}</div><div class="s">${tr('Higher = smarter, but slower and uses more credits.')}</div></div>
-          <${Segmented} value=${agent.effort || ''} onChange=${(effort) => save({ effort })} options=${[{ value: '', label: tr('Auto') }, { value: 'low', label: tr('Low') }, { value: 'medium', label: tr('Med') }, { value: 'high', label: tr('High') }]} />
+          <${Segmented} value=${effortOf(app, agent)} onChange=${(effort) => save({ effort })} options=${[{ value: 'low', label: tr('Low') }, { value: 'medium', label: tr('Med') }, { value: 'high', label: tr('High') }, { value: 'max', label: tr('Max') }]} />
         </div></div>
       <//>
       <${Group} label=${tr('Memory')}>

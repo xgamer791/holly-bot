@@ -296,7 +296,9 @@ export class ProviderHub {
       if (provider.thinkingParam) {
         extraBody.thinking = { type: thinking === false ? 'disabled' : 'enabled' };
       }
-      const effort = provider.effortMap ? provider.effortMap[reasoningEffort] : provider.reasoningEffort ? reasoningEffort : undefined;
+      // "max" is DeepSeek's (effortMap); an OpenAI-style effort tops out at "high".
+      const effort = provider.effortMap ? provider.effortMap[reasoningEffort]
+        : provider.reasoningEffort ? (reasoningEffort === 'max' ? 'high' : reasoningEffort) : undefined;
       return await chatCompletion({
         ...req,
         extraBody,

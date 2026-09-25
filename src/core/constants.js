@@ -3,7 +3,7 @@
 import { mark } from './i18n.js';
 
 export const APP_NAME = 'Holly Bot';
-export const APP_VERSION = '1.29.0';
+export const APP_VERSION = '1.29.1';
 
 export const SHAPE_KEYS_CORE = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
 export const COLOR_KEYS_CORE = ['white', 'brown', 'red', 'vermilion', 'orange', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'];
@@ -29,3 +29,13 @@ export const TOOL_GROUPS = {
 export const FOCUS_OPTIONS = ['Coding & projects', 'Email & calendar', 'Research & writing', 'Shopping & errands', 'Something else'];
 
 export const MAX_TOOL_STEPS = 24;
+
+/** How hard a bot thinks when neither it nor the app's defaults say: as hard
+ * as it can (DeepSeek's max; a bot's profile can set it lower, for faster,
+ * cheaper replies). */
+export const DEFAULT_EFFORT = 'max';
+
+/** How hard `agent` thinks: its own setting, else the app's, else DEFAULT_EFFORT. */
+export function effortOf(app, agent) {
+  return agent?.effort || app.settings.defaults?.effort || DEFAULT_EFFORT;
+}
