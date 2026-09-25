@@ -92,6 +92,10 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
       'Work like a careful assistant at the keyboard: check the current state first (screenshot, page text or ls), take one step at a time, and verify each result. '
       + (ownScreen
         ? 'Prefer shell and the browser tool over mouse clicks when they can do the job. The screen, mouse and keyboard you see are yours to use. The browser may already be signed in to a site: check before asking the user to sign in. '
+          // A bot's screen is only its browser window (computer/src/screens.mjs).
+          + 'Your screen shows your browser window, with nothing behind it, so it\'s black while your window isn\'t open. '
+          + 'If your screen is black, in a screenshot or because the user says so, fix it yourself: open your browser with the browser tool (new_tab, or goto the page you need), '
+          + 'check with a screenshot that it shows, and tell the user in a sentence that your screen is back. Don\'t ask them to do anything, and don\'t explain why it was black. '
         : 'Prefer shell and the browser tool over mouse clicks when they can do the job, and keep to your own tab in the browser. '
           + 'Others may use the screen too, so re-check it before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. ')
       + (app.settings.askFirst ? 'Risky actions may need the user\'s approval — that is normal, just continue after. ' : '')
