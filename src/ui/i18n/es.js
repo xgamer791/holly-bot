@@ -456,6 +456,7 @@ export default {
   "Yesterday {time}": "Ayer {time}",
   "{day} {time}": "{day} {time}",
   "{date}, {time}": "{date}, {time}",
+  "Yesterday": "Ayer",
   "Once on {date}": "Una vez el {date}",
   "Every {n} min": "Cada {n} min",
   "Every hour": "Cada hora",

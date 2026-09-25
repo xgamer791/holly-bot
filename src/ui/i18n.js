@@ -183,6 +183,19 @@ export function dayTime(ts, ref = Date.now()) {
   return tr('{date}, {time}', { date: dateText(ts, { month: 'short', day: 'numeric' }), time });
 }
 
+/** When a chat was last active, for the chat list: "2:06 PM" today, then
+ * "Yesterday", the day of the week within a week ("Wednesday"), and the date
+ * ("Sep 3", or "Sep 3, 2025" in another year). */
+export function dayOrTime(ts, ref = Date.now()) {
+  const days = Math.round((startOfDay(ref) - startOfDay(ts)) / DAY);
+  if (days <= 0) return clock(ts);
+  if (days === 1) return tr('Yesterday');
+  const otherYear = new Date(ts).getFullYear() !== new Date(ref).getFullYear();
+  const text = days < 7 ? dateText(ts, { weekday: 'long' }) : dateText(ts, { month: 'short', day: 'numeric', ...(otherYear && { year: 'numeric' }) });
+  // Spanish writes the days in lowercase ("miércoles"); first in a label, they take a capital.
+  return text.charAt(0).toLocaleUpperCase(locale()) + text.slice(1);
+}
+
 /** "Apple and Google", in the app's language. */
 export function listText(items) {
   try {

@@ -456,6 +456,7 @@ export default {
   "Yesterday {time}": "昨天 {time}",
   "{day} {time}": "{day} {time}",
   "{date}, {time}": "{date} {time}",
+  "Yesterday": "昨天",
   "Once on {date}": "{date} 运行一次",
   "Every {n} min": "每 {n} 分钟",
   "Every hour": "每小时",

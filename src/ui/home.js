@@ -6,7 +6,7 @@ import { Popover } from './components.js';
 import { initials } from '../core/util.js';
 import { chiefOf } from '../core/chief.js';
 import { ComputerButton } from './computer-button.js';
-import { phraseOr, shortTime, tr } from './i18n.js';
+import { dayOrTime, phraseOr, tr } from './i18n.js';
 
 export function HomeScreen({ activeThreadId }) {
   const app = useApp();
@@ -189,14 +189,13 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
           ? html`<${AvatarStack} agents=${agents} size=${48} rest="lookUpRight" activityOf=${(a) => botActivity(app, a, thread.id)} />`
           : html`<${Avatar} shape=${agent?.shape} color=${agent?.color} size=${48} rest="lookUpRight" activity=${botActivity(app, agent, thread.id) || (busy ? 'thinking' : null)} anim=${thinkingOf(agent)} status=${busy ? 'working' : undefined} />`}
         <div class="meta">
-          <div class=${`line1 ${isChief ? 'tagged' : ''}`}>
-            <span class="title">${title}</span>
-            ${isChief && html`<span class="chief-tag">${tr('Chief')}</span>`}
-            ${!(thread.unread && !active) && html`<span class="time">${at ? shortTime(at) : ''}</span>`}
+          <div class="line1">
+            <span class="title">${title}${isChief && html`<span class="chief-tag">${tr('Chief')}</span>`}</span>
+            <span class="time">${at ? dayOrTime(at) : ''}</span>
           </div>
           <div class="line2">
             <span class=${`preview ${waiting ? 'waiting' : previewClass}`}>${preview}</span>
-            ${waiting && kind === 'waiting' ? html`<span class="dot waiting"></span>` : thread.unread && !active ? html`<span class="dot unread"></span>` : null}
+            <span class=${`dot ${waiting && kind === 'waiting' ? 'waiting' : thread.unread && !active ? 'unread' : ''}`}></span>
           </div>
         </div>
       </button>
