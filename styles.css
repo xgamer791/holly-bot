@@ -569,6 +569,17 @@ button.row:active { background: var(--surface-2); }
 .act-item .what { flex: 1; min-width: 0; }
 .act-item .what .d { color: var(--muted); font-size: 12.5px; margin-top: 3px; white-space: pre-wrap; word-break: break-word; max-height: 90px; overflow: hidden; }
 .screen-img { width: 100%; border-radius: 12px; background: #000; cursor: crosshair; }
+/* The computer's RAM in use, under the Screen tab (src/ui/computer.js) */
+.ram-meter { margin-top: 16px; padding: 12px 14px 13px; border-radius: 16px; background: var(--elevated); }
+.ram-meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; }
+.ram-meter-head b { font-weight: 600; }
+.ram-meter-head span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ram-meter-bar { height: 8px; margin-top: 9px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.ram-meter-bar span { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .4s ease, background-color .4s ease; }
+.ram-meter-bar span.mid { background: var(--orange); }
+.ram-meter-bar span.high { background: var(--red-strong); }
+.ram-meter-note { margin-top: 7px; font-size: 12.5px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .ram-meter-bar span { transition: none; } }
 .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 12px; background: var(--surface-2); color: var(--muted); }
 .status-pill.ok { color: var(--green); }
 .status-pill.bad { color: var(--red); }

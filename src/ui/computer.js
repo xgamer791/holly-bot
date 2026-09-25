@@ -291,6 +291,50 @@ function Screen({ agentId }) {
     <div class="btn-row" style="margin-top:12px">
       <button class="btn small" onClick=${() => setLive(!live)}>${live ? '❚❚ Pause live view' : '▶ Live view'}</button>
       <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> Refresh</button>
+    </div>
+    ${caps.memory && html`<${RamMeter} />`}`;
+}
+
+/** Memory in bytes as "812 MB", "3.8 GB" or "15 GB". */
+function ramSize(bytes) {
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 10) return `${Math.round(gb)} GB`;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
+}
+
+/** How much of the computer's memory is in use, as its own system monitor
+ * counts it (computer/src/memory.mjs), read every few seconds while shown. */
+function RamMeter() {
+  const app = useApp();
+  const [mem, setMem] = useState(null);
+  useEffect(() => {
+    let reading = null;
+    const read = async () => {
+      if (reading || document.visibilityState !== 'visible') return;
+      reading = new AbortController();
+      try {
+        setMem(await app.computer.memory({ signal: reading.signal }));
+      } catch { /* keeps the last reading */ } finally {
+        reading = null;
+      }
+    };
+    read();
+    const t = setInterval(read, 3000);
+    return () => {
+      clearInterval(t);
+      reading?.abort();
+    };
+  }, []);
+  if (!mem?.total) return null;
+  const share = Math.min(1, Math.max(0, mem.used / mem.total));
+  const pct = Math.round(share * 100);
+  return html`
+    <div class="ram-meter" role="meter" aria-label="Memory in use" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
+      aria-valuetext=${`${ramSize(mem.used)} of ${ramSize(mem.total)} in use`}>
+      <div class="ram-meter-head"><b>RAM</b><span>${ramSize(mem.used)} of ${ramSize(mem.total)} · ${pct}%</span></div>
+      <div class="ram-meter-bar"><span class=${share >= 0.9 ? 'high' : share >= 0.75 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
+      ${mem.swapUsed > 0 && html`<div class="ram-meter-note">Swap: ${ramSize(mem.swapUsed)} of ${ramSize(mem.swapTotal)} in use</div>`}
     </div>`;
 }
 

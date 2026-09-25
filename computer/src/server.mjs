@@ -341,6 +341,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
     if (p === '/v1/info' && req.method === 'GET') return json(res, 200, await computer.connect());
     if (p === '/v1/export' && req.method === 'GET') return exportFiles(res, computer);
     if (p === '/v1/apps' && req.method === 'GET') return json(res, 200, await findApps({ workspace: computer.workspace }));
+    if (p === '/v1/memory' && req.method === 'GET') return json(res, 200, await computer.memory());
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (p === '/v1/exec') {
       const job = jobs.start(body);

@@ -10,6 +10,7 @@ import { runCommand, startBackground, detectShell } from './shell.mjs';
 import { fetchPage, webSearch } from './web.mjs';
 import { McpHost } from './mcp-stdio.mjs';
 import { BotScreens, SCREEN_SIZE } from './screens.mjs';
+import { memoryUsage } from './memory.mjs';
 import { APP_VERSION } from '../../src/core/constants.js';
 
 const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|js|mjs|cjs|ts|tsx|jsx|py|html?|css|scss|xml|svg|ya?ml|toml|ini|cfg|conf|log|sh|bash|zsh|ps1|psm1|bat|cmd|sql|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|lua|r|tex|env|gitignore|dockerfile)$/i;
@@ -151,10 +152,16 @@ export class LocalComputer {
         mcp: true,
         // Each bot has a screen of its own (and its own Chrome) rather than sharing this one.
         screens: !!this.screens,
+        memory: true,
       },
     };
     this.connected = true;
     return this.info;
+  }
+
+  /** How much of this computer's memory is in use (computer/src/memory.mjs). */
+  memory() {
+    return memoryUsage();
   }
 
   resolvePath(p) {
