@@ -299,11 +299,12 @@ svg { display: block; }
 /* Settings (src/ui/settings.js, useDrawer in src/ui/components.js): a drawer
    from the left, full height, square-cornered and 50px short of the right
    edge. It slides in over 450ms and pushes the app over to the right by its
-   own width, and slides back out the same way pulling the app back, the way
-   out being the way in played backwards (the easing mirrored). The page's
-   .drawer-open class says where it is, so a move always carries on from
-   wherever it is. While its handle is dragged, --drawer-drag is how far it
-   has come back (px, 0 or less) and --drawer-shown how much of it still shows. */
+   own width, dimming it, and slides back out the same way pulling the app
+   back, the way out being the way in played backwards (the easing mirrored).
+   The page's .drawer-open class says where it is, so a move always carries on
+   from wherever it is (.drawer-mounted stays on until it's gone). While its
+   handle is dragged, --drawer-drag is how far it has come back (px, 0 or
+   less) and --drawer-shown how much of it still shows. */
 :root {
   --drawer-w: min(calc(100vw - 50px), 560px);
   --drawer-in: cubic-bezier(.2, .8, .2, 1);
@@ -314,16 +315,31 @@ svg { display: block; }
 .drawer-open .sheet.drawer { transform: translateX(var(--drawer-drag, 0px)); transition-timing-function: var(--drawer-in); }
 .app { transition: transform .45s var(--drawer-out); }
 .drawer-open .app { transform: translateX(calc(var(--drawer-w) + var(--drawer-drag, 0px))); transition-timing-function: var(--drawer-in); }
-.sheet-scrim.drawer-scrim { animation: none; opacity: 0; transition: opacity .45s var(--drawer-out); }
-.drawer-open .sheet-scrim.drawer-scrim { opacity: var(--drawer-shown, 1); transition-timing-function: var(--drawer-in); }
-.drawer-dragging .sheet.drawer, .drawer-dragging .app, .drawer-dragging .drawer-scrim { transition: none; }
+/* The dimming is part of the app, so it moves with it and never reaches over
+   the drawer. On a phone the status bar takes its color from the top of the
+   page: a dimming layer across the whole top turned it gray above the drawer.
+   The sheet's own scrim stays, clear, to close the drawer when tapped. */
+.drawer-mounted .app::after { content: ""; position: absolute; inset: 0; z-index: 49; background: var(--scrim); opacity: 0; pointer-events: none;
+  transition: opacity .45s var(--drawer-out); }
+.drawer-open .app::after { opacity: var(--drawer-shown, 1); transition-timing-function: var(--drawer-in); }
+.sheet-scrim.drawer-scrim { background: none; animation: none; }
+/* While it's open the page behind is the drawer's color, for the status bar
+   (useDrawer sets the theme color to it too). */
+html.drawer-open { background: #161616; }
+html.drawer-open[data-theme="light"] { background: #f5f5f7; }
+.drawer-dragging .sheet.drawer, .drawer-dragging .app, .drawer-dragging .app::after { transition: none; }
 /* Let go of mid-drag to close: it's already moving, so it carries on out easing off. */
-.drawer-flung .sheet.drawer, .drawer-flung .app, .drawer-flung .drawer-scrim { transition-timing-function: var(--drawer-in); }
-/* The handle: the whole strip to the drawer's right, with a grabber halfway down. */
-.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 50px; display: flex; align-items: center; justify-content: center;
-  touch-action: none; cursor: grab; }
+.drawer-flung .sheet.drawer, .drawer-flung .app, .drawer-flung .app::after { transition-timing-function: var(--drawer-in); }
+/* The handle: a tab on the drawer's right edge, halfway down, in the drawer's
+   color with a grabber on it. The whole strip beside the drawer answers to it.
+   It shows only while the drawer is open (closed, it would sit at the screen's edge). */
+.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 50px; display: flex; align-items: center; touch-action: none; cursor: grab; }
 .drawer-dragging .drawer-handle { cursor: grabbing; }
-.drawer-handle span { width: 5px; height: 48px; border-radius: 3px; background: rgba(255, 255, 255, .9); box-shadow: 0 1px 6px rgba(0, 0, 0, .25); }
+.drawer-handle span { flex: none; width: 20px; height: 60px; border-radius: 0 10px 10px 0; background: #161616; box-shadow: 6px 0 12px -6px rgba(0, 0, 0, .3);
+  display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .45s var(--drawer-out); }
+:root[data-theme="light"] .drawer-handle span { background: #f5f5f7; }
+.drawer-open .drawer-handle span { opacity: 1; transition-timing-function: var(--drawer-in); }
+.drawer-handle span::after { content: ""; width: 4px; height: 24px; border-radius: 2px; background: var(--border-strong); }
 
 /* ---------- grouped settings rows (iOS style) ---------- */
 .group { background: var(--elevated); border-radius: var(--radius-card); margin: 14px 0; overflow: hidden; }

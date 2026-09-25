@@ -10,15 +10,18 @@ const DRAWER_MS = 450;
  * the app back, 450 ms each; `close` plays that and then calls `remove` (at
  * once with Reduce Motion on). The page's `drawer-open` class says where it
  * is, so every move carries on from wherever it is (styles.css → .sheet.drawer).
- * The handle in the strip to its right drags it closed: let go a third of the
- * way over, or with a flick, and it closes, otherwise it springs back. A tap
- * on the handle closes it.
+ * The tab on its right edge (and the strip around it) drags it closed: let go
+ * a third of the way over, or with a flick, and it closes, otherwise it
+ * springs back. A tap there closes it. While it's open the status bar, which
+ * takes the theme color, takes the drawer's.
  */
 export function useDrawer(remove) {
   const ref = useRef(null);
   const timer = useRef(null);
   const drag = useRef(null);
   const root = document.documentElement;
+  const tint = (color) => color && document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  const untint = () => tint(getComputedStyle(root).getPropertyValue('--bg').trim());
   // How far a drag has brought it back (px, 0 or less), and how much of it still shows.
   const setDrag = (dx, w) => {
     if (dx == null) {
@@ -30,19 +33,24 @@ export function useDrawer(remove) {
     root.style.setProperty('--drawer-shown', String(Math.max(0, 1 + dx / w)));
   };
   useEffect(() => {
-    // It has been drawn closed once, so it has somewhere to slide in from.
+    // It (and the app's dimming) has been drawn closed once, so there's
+    // somewhere to slide and fade in from.
+    root.classList.add('drawer-mounted');
     ref.current?.getBoundingClientRect();
     root.classList.add('drawer-open');
+    if (ref.current) tint(getComputedStyle(ref.current).backgroundColor);
     return () => {
       clearTimeout(timer.current);
-      root.classList.remove('drawer-open', 'drawer-dragging', 'drawer-flung');
+      root.classList.remove('drawer-mounted', 'drawer-open', 'drawer-dragging', 'drawer-flung');
       setDrag(null);
+      untint();
     };
   }, []);
   const close = () => {
     if (timer.current) return;
     root.classList.remove('drawer-open', 'drawer-dragging');
     setDrag(null);
+    untint();
     timer.current = setTimeout(() => remove?.(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_MS);
   };
   const handle = {
