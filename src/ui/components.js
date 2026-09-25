@@ -2,7 +2,28 @@ import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { Icon } from './icons.js';
 import { tr } from './i18n.js';
 
-export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false }) {
+/**
+ * For a sheet that plays its way out: `close` starts the exit (`closing` is
+ * true while it plays) and calls onClose once `ms` have passed, or at once
+ * with Reduce Motion on.
+ */
+export function useClosing(onClose, ms) {
+  const [closing, setClosing] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const close = () => {
+    if (timer.current) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onClose?.();
+      return;
+    }
+    setClosing(true);
+    timer.current = setTimeout(() => onClose?.(), ms);
+  };
+  return [closing, close];
+}
+
+export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false, closing = false }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.();
@@ -11,8 +32,8 @@ export function Sheet({ title, onClose, children, footer, left, right, className
     return () => removeEventListener('keydown', onKey);
   }, [onClose]);
   return html`
-    <div class="sheet-scrim" onClick=${onClose}></div>
-    <section class=${`sheet ${className}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
+    <div class=${`sheet-scrim ${closing ? 'closing' : ''}`} onClick=${onClose}></div>
+    <section class=${`sheet ${className} ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
       ${!headless && html`
         <header class="sheet-head">
           ${left || html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`}
