@@ -190,14 +190,10 @@ test('group chat with both bots', async () => {
   await shot('group-chat');
 });
 
-test('computer panel and activity drawer open', async () => {
+test('computer panel opens', async () => {
   await page.getByRole('button', { name: 'Bot computer' }).click();
   await page.waitForTimeout(200);
   await shot('computer-panel');
-  await page.getByRole('button', { name: 'Close' }).last().click();
-  await page.getByRole('button', { name: 'Open activity' }).click();
-  await page.waitForTimeout(250);
-  await shot('activity-drawer');
   await page.getByRole('button', { name: 'Close' }).last().click();
 });
 

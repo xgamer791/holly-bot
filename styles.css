@@ -520,8 +520,6 @@ button.row:active { background: var(--surface-2); }
 .pbar-go.stop span { width: 13px; height: 13px; border-radius: 3px; background: var(--pb-accent-ink); }
 .icon-btn { width: 40px; height: 40px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex: none; }
 .icon-btn svg { width: 22px; height: 22px; }
-.stop-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--surface-3); display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.stop-btn span { width: 13px; height: 13px; background: var(--text); border-radius: 3px; }
 .pending-atts { display: flex; gap: 8px; padding: 0 16px 6px; overflow-x: auto; flex: none; }
 .pending-att { position: relative; flex: none; }
 .pending-att img { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; }
@@ -532,15 +530,6 @@ button.row:active { background: var(--surface-2); }
 .mention-list { position: absolute; bottom: calc(100% + 4px); left: 16px; right: 16px; background: var(--elevated); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
 .mention-list button { display: flex; align-items: center; gap: 10px; padding: 10px 14px; width: 100%; text-align: left; }
 .mention-list button:active { background: var(--surface-2); }
-
-/* ---------- right edge drawer ---------- */
-.edge-handle { position: fixed; right: 0; top: 42%; width: 22px; height: 96px; border-radius: 16px 0 0 16px; background: rgba(40, 40, 42, .92); display: flex; align-items: center; justify-content: center; z-index: 30; color: #d0d0d0; box-shadow: -2px 0 10px rgba(0, 0, 0, .3); }
-.edge-handle svg { width: 12px; height: 26px; }
-.edge-handle .badge { position: absolute; top: -6px; left: -6px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--orange); color: #000; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
-.drawer-scrim { position: fixed; inset: 0; z-index: 60; background: var(--scrim); animation: fade .2s; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(88vw, 400px); z-index: 61; background: #141414; border-left: 1px solid var(--border); display: flex; flex-direction: column; animation: slide .25s cubic-bezier(.2, .9, .3, 1); padding-top: var(--safe-top); }
-:root[data-theme="light"] .drawer { background: var(--bg); }
-@keyframes slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
 /* ---------- panels: memory, files, computer ---------- */
 .tabs { display: flex; gap: 6px; padding: 0 18px 8px; overflow-x: auto; flex: none; }

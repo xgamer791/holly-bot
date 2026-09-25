@@ -9,9 +9,8 @@ import { MemorySheet } from './memory.js';
 import { ComputerSheet } from './computer.js';
 import { WorkspaceSheet } from './workspace.js';
 import { RoutinesSheet } from './routines.js';
-import { ActivityDrawer, GroupInfoSheet } from './drawer.js';
+import { GroupInfoSheet } from './group-info.js';
 import { Dialog, Toasts } from './components.js';
-import { Icon } from './icons.js';
 import { Avatar, avatarSvgString } from './avatar.js';
 import { threadTitle } from './home.js';
 import { phraseOr, tr } from './i18n.js';
@@ -40,7 +39,6 @@ export function Root({ app }) {
   const [sheets, setSheets] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [dialog, setDialog] = useState(null);
-  const [drawer, setDrawer] = useState(false);
   const [, setTick] = useState(0);
   const wide = useMedia('(min-width: 900px)');
   const prefersLight = useMedia('(prefers-color-scheme: light)');
@@ -98,7 +96,6 @@ export function Root({ app }) {
     regenerate(msg) {
       app.runtime.regenerate(msg.id);
     },
-    openDrawer: () => setDrawer(true),
   }), []);
 
   // Notifications when a bot finishes or needs you while you're elsewhere.
@@ -192,15 +189,10 @@ export function Root({ app }) {
             ? html`<${ChatScreen} key=${route.threadId} threadId=${route.threadId} wide=${wide} />`
             : wide && html`<div class="pane-chat empty"><div style="text-align:center"><${Avatar} shape="cloud" color="blue" size=${84} live /><p>${tr('Pick a bot or create a new one.')}</p></div></div>`}
         </div>
-        <button class="edge-handle" aria-label=${tr('Open activity')} onClick=${() => setDrawer(true)}>
-          <${Icon.handle} />
-          ${waitingCount > 0 && html`<span class="badge">${waitingCount}</span>`}
-        </button>
         ${sheets.map((s) => {
           const C = SHEETS[s.name];
           return C ? html`<${C} key=${s.id} ...${s.props} onClose=${() => ui.closeSheet(s.id)} />` : null;
         })}
-        ${drawer && html`<${ActivityDrawer} onClose=${() => setDrawer(false)} />`}
         ${dialog && html`<${Dialog} ...${dialog} />`}
         <${Toasts} toasts=${toasts} onDismiss=${(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
       <//>
