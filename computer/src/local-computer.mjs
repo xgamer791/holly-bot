@@ -4,22 +4,18 @@
 
 import os from 'node:os';
 import { join, resolve, isAbsolute, dirname, extname, basename } from 'node:path';
-import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { readFile, writeFile, appendFile, readdir, stat, rm } from 'node:fs/promises';
 import { runCommand, startBackground, detectShell } from './shell.mjs';
 import { fetchPage, webSearch } from './web.mjs';
 import { McpHost } from './mcp-stdio.mjs';
-import { BotScreens, SCREEN_SIZE, folderName } from './screens.mjs';
+import { BotScreens, SCREEN_SIZE } from './screens.mjs';
 import { APP_VERSION } from '../../src/core/constants.js';
 
 const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|js|mjs|cjs|ts|tsx|jsx|py|html?|css|scss|xml|svg|ya?ml|toml|ini|cfg|conf|log|sh|bash|zsh|ps1|psm1|bat|cmd|sql|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|lua|r|tex|env|gitignore|dockerfile)$/i;
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf', '.json': 'application/json', '.html': 'text/html', '.md': 'text/markdown', '.csv': 'text/csv', '.svg': 'image/svg+xml' };
 const MAX_READ = 8 * 1024 * 1024;
 const NO_BROWSER = 'No Chrome, Edge, Chromium or Brave found. Install Chrome, or set HOLLY_BROWSER to the browser executable path.';
-/** What a bot's own Chrome profile leaves out of the shared one's: locks, and caches it makes again. */
-const NOT_COPIED = /^(Singleton(Lock|Socket|Cookie)|DevToolsActivePort|lockfile|Cache|Code Cache|GPUCache|GrShaderCache|ShaderCache|DawnCache|DawnGraphiteCache|GraphiteDawnCache|Crashpad|component_crx_cache|BrowserMetrics.*)$/;
-
-const browserArgs = () => String(process.env.HOLLY_BROWSER_ARGS || '').split(/\s+/).filter(Boolean);
 
 export const VERSION = APP_VERSION;
 
@@ -35,18 +31,17 @@ export class LocalComputer {
     this.error = '';
     this.info = null;
     this.desktopPromise = null;
-    this.desktopQueues = new Map(); // '' for the shared screen, or a bot with its own
+    this.desktopQueues = new Map(); // '' for this computer's screen, 'bots' for the bots' own screens
     this.browserInstance = null;
     this.browserQueues = new Map();
     // On a server each bot gets a screen of its own (computer/src/screens.mjs),
-    // with its own desktop and its own Chrome.
-    /** Whether a bot is working (set by main.mjs), so its screen stays up. */
+    // with its own window of the one Chrome, so the logins are shared.
+    /** Whether a bot is working (set by main.mjs), so it keeps its screen. */
     this.isBusy = () => false;
     this.screens = BotScreens.available()
-      ? new BotScreens({ dataDir, log, onStop: (owner) => this.letGo(owner), busy: (owner) => this.isBusy(owner) })
+      ? new BotScreens({ log, onFree: (owner) => this.letGo(owner), busy: (owner) => this.isBusy(owner) })
       : null;
-    this.botDesktops = new Map(); // bot → { display, ready: Promise<desktop> }
-    this.botBrowsers = new Map(); // bot → CdpBrowser on its screen
+    this.botDesktops = new Map(); // bot → { index, ready: Promise<desktop> }
     this.mcp = new McpHost({ configPath: join(dataDir, 'mcp.json'), log });
     mkdirSync(workspace, { recursive: true });
   }
@@ -63,13 +58,13 @@ export class LocalComputer {
     return !!this.screens && !!owner && owner !== 'user';
   }
 
-  /** The screen's controls: a bot's own screen's, or the shared one's. */
+  /** The screen's controls: a bot's own screen's, or this computer's. */
   async desktop(owner) {
     if (this.ownScreen(owner)) {
-      const display = await this.screens.display(owner);
+      const place = await this.screens.place(owner);
       let d = this.botDesktops.get(owner);
-      if (!d || d.display !== display) {
-        d = { display, ready: import('./desktop.mjs').then((m) => m.createDesktop({ log: this.log, env: { ...process.env, DISPLAY: display } })) };
+      if (!d || d.index !== place.index || d.display !== place.display) {
+        d = { index: place.index, display: place.display, ready: import('./desktop.mjs').then((m) => m.createDesktop({ log: this.log, env: { ...process.env, DISPLAY: place.display }, region: place })) };
         this.botDesktops.set(owner, d);
       }
       return d.ready;
@@ -81,76 +76,37 @@ export class LocalComputer {
     return this.desktopPromise;
   }
 
-  /** The browser: a bot's own Chrome on its own screen, or the shared one, where each bot has a tab. */
-  async browserApi(owner) {
-    if (this.ownScreen(owner)) {
-      const display = await this.screens.display(owner);
-      let b = this.botBrowsers.get(owner);
-      if (b && b.display !== display) {
-        await b.close().catch(() => {});
-        b = null;
-      }
-      if (!b) {
-        const { CdpBrowser, findChrome } = await import('./browser-cdp.mjs');
-        const executablePath = findChrome();
-        if (!executablePath) throw new Error(NO_BROWSER);
-        b = new CdpBrowser({
-          executablePath,
-          userDataDir: this.botProfile(owner),
-          downloadDir: join(this.workspace, 'Downloads'),
-          width: SCREEN_SIZE.width,
-          height: SCREEN_SIZE.height,
-          extraArgs: ['--start-maximized', ...browserArgs()],
-          env: { ...process.env, DISPLAY: display },
-          log: this.log,
-        });
-        b.display = display;
-        this.botBrowsers.set(owner, b);
-      }
-      return b;
-    }
+  /** The browser: one Chrome, where each bot has its tab, or with screens of
+   * their own, its own window on its screen. */
+  async browserApi() {
     if (this.browserInstance) return this.browserInstance;
     const { CdpBrowser, findChrome } = await import('./browser-cdp.mjs');
     const executablePath = findChrome();
     if (!executablePath) throw new Error(NO_BROWSER);
-    // No screen to show a window on (a server): run the browser headless.
+    const screens = this.screens;
+    const display = screens ? await screens.display() : null;
+    // No screen to show a window on (a server without one): run the browser headless.
     const noDisplay = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
     this.browserInstance = new CdpBrowser({
       executablePath,
       userDataDir: join(this.dataDir, 'browser-profile'),
       downloadDir: join(this.workspace, 'Downloads'),
-      headless: this.headlessBrowser || noDisplay,
-      extraArgs: browserArgs(),
+      headless: !display && (this.headlessBrowser || noDisplay),
+      extraArgs: String(process.env.HOLLY_BROWSER_ARGS || '').split(/\s+/).filter(Boolean),
       log: this.log,
+      ...(display ? {
+        env: { ...process.env, DISPLAY: display },
+        width: SCREEN_SIZE.width,
+        height: SCREEN_SIZE.height,
+        place: (owner) => screens.place(owner),
+      } : {}),
     });
     return this.browserInstance;
   }
 
-  /** A bot's own Chrome profile. The first time, it starts as a copy of the
-   * shared one, so the logins there carry over to every bot. */
-  botProfile(owner) {
-    const dir = join(this.dataDir, 'browser-profiles', folderName(owner));
-    if (existsSync(dir)) return dir;
-    const shared = join(this.dataDir, 'browser-profile');
-    if (!existsSync(shared)) return dir;
-    const copying = `${dir}.copying`;
-    try {
-      mkdirSync(dirname(dir), { recursive: true });
-      rmSync(copying, { recursive: true, force: true });
-      cpSync(shared, copying, { recursive: true, filter: (src) => !NOT_COPIED.test(basename(src)) });
-      renameSync(copying, dir);
-    } catch (err) {
-      rmSync(copying, { recursive: true, force: true });
-      this.log.warn?.(`  Couldn't copy the browser's logins for a bot: ${err.message}`);
-    }
-    return dir;
-  }
-
-  /** Lets go of what ran on a bot's screen, once it stops (BotScreens). */
+  /** A bot gave up its screen (BotScreens): its browser windows close. */
   letGo(owner) {
-    const b = this.botBrowsers.get(owner);
-    this.botBrowsers.delete(owner);
-    b?.close().catch(() => {});
+    this.browserInstance?.release(owner).catch(() => {});
     const d = this.botDesktops.get(owner);
     this.botDesktops.delete(owner);
     d?.ready.then((desk) => desk.close()).catch(() => {});
@@ -276,8 +232,9 @@ export class LocalComputer {
   /** Screen actions run one at a time on each screen, so bots and the phone
    * never interleave clicks. `owner`: the bot, when it has a screen of its own. */
   serialDesktop(fn, owner) {
-    const key = this.ownScreen(owner) ? owner : '';
-    if (key) this.screens.touch(key);
+    // The bots' screens are on one display, with one mouse and keyboard.
+    const key = this.ownScreen(owner) ? 'bots' : '';
+    if (key) this.screens.touch(owner);
     const prev = this.desktopQueues.get(key) || Promise.resolve();
     const run = prev.then(fn, fn);
     const tail = run.catch(() => {});
@@ -378,19 +335,23 @@ export class LocalComputer {
   async browser(action, args = {}) {
     const owner = args.agentId || args.owner || 'user';
     const own = this.ownScreen(owner);
-    // A look at a browser that isn't open doesn't start it (or its screen).
-    if (action === 'screenshot' && args.ifRunning && !(own ? this.botBrowsers.get(owner) : this.browserInstance)?.running) return { running: false };
+    // A look at a browser that isn't open doesn't start it.
+    if (action === 'screenshot' && args.ifRunning && !this.browserInstance?.running) return { running: false };
     if (own) this.screens.touch(owner);
-    const b = await this.browserApi(owner);
+    const b = await this.browserApi();
     const o = { owner, tab: args.tab || undefined };
     if (action === 'screenshot') {
       const s = await b.screenshot({ quality: Number(args.quality) || 70, maxWidth: Number(args.maxWidth) || 1280 }, o);
       return { running: true, url: s.url, title: s.title, tab: s.tab, screenshot: s.data, width: s.width, height: s.height };
     }
     if (action === 'close') {
+      // A bot with a window of its own closes that; the browser stays for the others.
+      if (own) {
+        await b.release(owner);
+        return { note: 'Closed your browser window.' };
+      }
       await b.close();
-      if (own) this.botBrowsers.delete(owner);
-      else this.browserInstance = null;
+      this.browserInstance = null;
       return { note: 'Closed the browser.' };
     }
     const map = {
@@ -439,7 +400,7 @@ export class LocalComputer {
 
   async close() {
     this.mcp.stop();
-    this.screens?.closeAll(); // and the bots' own browsers with them
+    this.screens?.closeAll();
     try {
       await this.browserInstance?.close();
     } catch { /* already closed */ }

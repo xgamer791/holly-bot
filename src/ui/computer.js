@@ -167,8 +167,8 @@ function Terminal() {
 }
 
 /** The computer's screen, or with `agentId`, that bot's: on a server each bot
- * has a screen of its own, with its own Chrome (computer/src/screens.mjs);
- * elsewhere they share the one. */
+ * has a screen of its own, with its own window of the shared Chrome
+ * (computer/src/screens.mjs); elsewhere they share the one. */
 function Screen({ agentId }) {
   const app = useApp();
   const ui = useUi();
@@ -272,7 +272,7 @@ function Screen({ agentId }) {
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
     <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${own
-      ? (mode === 'browser' ? 'Sign in to sites here for this bot — logins stay in its own browser.' : 'This bot\'s own screen: each bot has one of its own.')
+      ? (mode === 'browser' ? 'Sign in to sites here and every bot is signed in: the browser\'s logins are shared.' : 'This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.')
       : (mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.')}</div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <input class="input" placeholder="Type text…" value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />

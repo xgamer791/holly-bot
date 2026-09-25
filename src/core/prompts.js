@@ -71,7 +71,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
         : `You can use a real computer: ${where}, shell: ${i.shell || 'default'}, workspace: ${i.workspace || i.cwd || '~'}.`,
       'Work like a careful assistant at the keyboard: check the current state first (screenshot, page text or ls), take one step at a time, and verify each result. '
       + (ownScreen
-        ? 'Prefer shell and the browser tool over mouse clicks when they can do the job. The screen, mouse and keyboard you use are your own, and so is your Chrome, with your own logins: other bots have screens of their own, and the user can watch yours. Your desktop is XFCE on Linux. '
+        ? 'Prefer shell and the browser tool over mouse clicks when they can do the job. Your screen, mouse and keyboard are your own: your browser window fills your screen, and other bots have screens of their own, so you won\'t get in each other\'s way. Everything else on this computer is shared with the other bots: files, installed apps, and the browser\'s logins (signed in once, every bot is). The user can watch your screen. '
         : 'Prefer shell and the browser tool over mouse clicks when they can do the job; in the browser you have your own tab, so other bots won\'t disturb it. '
           + 'The mouse and keyboard are shared with the user and other bots, so re-check the screen before acting. If a screenshot shows a lock screen or a black screen, tell the user the computer is locked or asleep. ')
       + (app.settings.askFirst ? 'Risky actions may need the user\'s approval — that is normal, just continue after. ' : '')
