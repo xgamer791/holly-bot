@@ -54,13 +54,13 @@ export const signInOptions = query({
 });
 
 /**
- * Settings → Delete Account. Erases every record and upload the account owns,
- * its change count and routine claims, its linked computers and connected
- * services, and its subscription (cancelled at Stripe) and servers, then its
- * sessions, sign-in methods and the user itself, so the next sign-in
- * with the same Apple or Google account starts from nothing. Convex bounds the
- * work one mutation may do, so this goes in batches and the app repeats it
- * until `done`.
+ * Deletes an account on request (the apps don't offer it). Erases every
+ * record and upload the account owns, its change count and routine claims,
+ * its linked computers and connected services, and its subscription
+ * (cancelled at Stripe) and servers, then its sessions, sign-in methods and
+ * the user itself, so the next sign-in with the same Apple or Google account
+ * starts from nothing. Convex bounds the work one mutation may do, so this
+ * goes in batches, called again until `done`.
  */
 export const deleteAccount = mutation({
   args: {},

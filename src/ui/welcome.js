@@ -133,7 +133,7 @@ function MoreOptions({ onClose }) {
 }
 
 /** Wordmark in the middle, Create Account and Sign In docked at the bottom,
- * then More options. `notice` says what just happened (an account deleted). */
+ * then More options. `notice` says what just happened (a sign-in that failed). */
 function WelcomeScreen({ go, notice }) {
   const [more, setMore] = useState(false);
   return html`

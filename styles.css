@@ -653,7 +653,6 @@ html.signed-out #boot { background: #fff !important; }
 .hello-grabber { align-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--border-strong); }
 .hello-sheet h2 { margin: 2px 0 4px; text-align: center; font-size: 17px; line-height: 22px; font-weight: 600; }
 .hello-sheet-cancel { align-self: center; min-height: 44px; padding: 0 16px; font-size: 15px; font-weight: 600; }
-.hello-cta.danger { background: var(--red); }
 
 /* ---------- the subscription page (src/ui/subscribe.js) ---------- */
 /* On the white page, right after Create Account: the plans as cards to pick
@@ -721,7 +720,6 @@ html.signed-out #boot { background: #fff !important; }
   padding: 28px 24px calc(max(var(--safe-bottom), 12px) + 8px); background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff 28px); }
 .sub-dock .auth-error { text-align: center; }
 .sub-fine { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
-.sub-sheet-text { margin: 0; color: var(--text-2); font-size: 15px; line-height: 21px; text-align: center; }
 @keyframes sub-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 /* Setting up the subscriber's computer (src/ui/setup.js): a checklist that

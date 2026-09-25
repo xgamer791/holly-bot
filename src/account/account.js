@@ -15,7 +15,6 @@ import { CONVEX_URL, SITE } from './config.js';
 export { CONVEX_URL, SITE };
 const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
-const NOTICE_KEY = 'holly.notice';
 
 /** Where the app asks you to sign in: the Holly Bot site and localhost
  * (Holly Computer's own page, local development), the only places Google and
@@ -90,24 +89,6 @@ function exclusive(name, fn) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** A message for the welcome screen after the next reload (the app reloads
- * into it when the account is deleted). */
-export function noticeAfterReload(text) {
-  try {
-    sessionStorage.setItem(NOTICE_KEY, text);
-  } catch { /* storage blocked */ }
-}
-
-export function takeNotice() {
-  try {
-    const text = sessionStorage.getItem(NOTICE_KEY);
-    sessionStorage.removeItem(NOTICE_KEY);
-    return text;
-  } catch {
-    return null;
-  }
-}
 
 /** Turns a failed call into something a person can act on. */
 export function friendlyError(err) {
@@ -280,16 +261,6 @@ class Account {
     write(USER_KEY, JSON.stringify(user));
     this.emit();
     return user;
-  }
-
-  /** Deletes the account and everything in it on the server (the server works
-   * in batches), then signs this device out. */
-  async deleteAccount() {
-    const as = this.userId;
-    let done = false;
-    for (let i = 0; i < 5000 && !done; i++) ({ done } = await this.authed('mutation', 'account:deleteAccount', {}, { as }));
-    if (!done) throw new Error('Deleting your account is taking longer than expected. Try again.');
-    this.store(null);
   }
 
   /** Ends the session on the server if it answers within a few seconds, and

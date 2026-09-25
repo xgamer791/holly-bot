@@ -21,7 +21,7 @@ Accounts, through [Convex Auth](https://labs.convex.dev/auth) with Sign in with 
 
 - `convex/auth.ts`: the two providers, and the allow-list of places a sign-in may return to (the live site and `http://localhost`).
 - `convex/http.ts`: the OAuth routes, `/api/auth/signin/*` and `/api/auth/callback/*`, on `https://impressive-ferret-800.convex.site`.
-- `convex/account.ts`: `account:viewer` (who is signed in), `account:signInOptions` (which sign-in buttons are set up, so the app can say what's missing) and `account:deleteAccount` (Settings → Delete Account).
+- `convex/account.ts`: `account:viewer` (who is signed in), `account:signInOptions` (which sign-in buttons are set up, so the app can say what's missing) and `account:deleteAccount` (deleting an account on request; the apps don't offer it).
 - `convex/data.ts`: the app's storage, below.
 - `convex/schema.ts`: Convex Auth's tables (`users`, `authAccounts`, `authSessions`, …), `records`, `blobs`, `heads`, `claims` and `meta`.
 - `convex/health.ts`: `health:ping`, and `health:upsertMeta` (internal: dashboard or `npx convex run` only).

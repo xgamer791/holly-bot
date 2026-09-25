@@ -2,7 +2,7 @@ import { html, useEffect, useState } from '../../vendor/preact.js';
 import { account } from '../account/account.js';
 import { Avatar } from './avatar.js';
 import { Icon } from './icons.js';
-import { AccountLinks, DeleteSheet } from './subscribe.js';
+import { AccountLinks } from './subscribe.js';
 
 // "Setting up your computer…". Every subscriber gets their own server, made at
 // Vultr with Holly installed on it the moment they subscribe
@@ -35,13 +35,12 @@ function clock(ms) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** `status` is billing:status; `onReady` opens the app. */
-export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount }) {
+export function SetupScreen({ status: first, onReady, onSignOut }) {
   const [status, setStatus] = useState(first);
   const [now, setNow] = useState(Date.now());
   const [opened, setOpened] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let stopped = false;
@@ -81,8 +80,7 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
 
   const server = status.server;
   const plan = status.plans?.find((p) => p.id === status.subscription?.plan);
-  const links = html`<${AccountLinks} busy=${busy} onSignOut=${onSignOut} onDelete=${() => setDeleting(true)} />`;
-  const sheet = deleting && html`<${DeleteSheet} subscribed onDelete=${onDeleteAccount} onClose=${() => setDeleting(false)} />`;
+  const links = html`<${AccountLinks} busy=${busy} onSignOut=${onSignOut} />`;
 
   if (server?.status === 'error') {
     return html`
@@ -102,7 +100,6 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
             ${links}
           </div>
         </div>
-        ${sheet}
       </div>`;
   }
 
@@ -129,6 +126,5 @@ export function SetupScreen({ status: first, onReady, onSignOut, onDeleteAccount
         </div>
         <div class="hello-dock">${links}</div>
       </div>
-      ${sheet}
     </div>`;
 }

@@ -13,7 +13,7 @@ import {
 import { SubscribeScreen } from './ui/subscribe.js';
 import { SetupScreen } from './ui/setup.js';
 import {
-  account, friendlyError, noticeAfterReload, signInWorksHere, SITE, takeNotice,
+  account, friendlyError, signInWorksHere, SITE,
 } from './account/account.js';
 import { CloudDB, inactive } from './account/cloud-db.js';
 import { makeLinkCode } from './account/device-link.js';
@@ -54,7 +54,7 @@ async function boot() {
   if (!signInWorksHere()) return bootWithoutAccount(link);
   if (link) holdConnection(link); // for whoever signs in
   const unfinished = await account.finishSignIn();
-  if (!account.signedIn) return welcome(unfinished?.from, unfinished?.error || takeNotice());
+  if (!account.signedIn) return welcome(unfinished?.from, unfinished?.error);
   // Signing out or in as someone else, here or in another tab, or a session
   // that ends, starts again from the top.
   const me = account.userId;
@@ -150,8 +150,7 @@ function showSubscribe(status, back) {
       if (usable(next)) openApp();
       else showSetup(next);
     }}
-    onSignOut=${() => signOut()}
-    onDeleteAccount=${deleteFromSubscribePage} />`);
+    onSignOut=${() => signOut()} />`);
 }
 
 function showSetup(status) {
@@ -162,8 +161,7 @@ function showSetup(status) {
       billing = next;
       openApp();
     }}
-    onSignOut=${() => signOut()}
-    onDeleteAccount=${deleteFromSubscribePage} />`);
+    onSignOut=${() => signOut()} />`);
 }
 
 function welcomeText(status) {
@@ -184,27 +182,6 @@ function takeBillingReturn() {
   history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
   if (checkout) return checkout === 'done' ? 'paid' : 'cancelled';
   return 'billing';
-}
-
-/**
- * Delete Account on the subscription page, for someone who'd rather not
- * subscribe (Settings, where it usually is, is part of the app). Like
- * Settings → Delete Account, it leaves nothing of the account on the device.
- */
-async function deleteFromSubscribePage() {
-  const conn = savedConnection();
-  saveConnection(null);
-  try {
-    indexedDB.deleteDatabase(CloudDB.outboxName(account.userId));
-  } catch { /* no IndexedDB here */ }
-  noticeAfterReload('Your account and everything in it have been deleted.');
-  try {
-    await account.deleteAccount(); // the listener in boot() reloads into the welcome screen
-  } catch (err) {
-    takeNotice();
-    if (conn) saveConnection(conn);
-    throw err;
-  }
 }
 
 /**

@@ -10,9 +10,9 @@ import { estimateCost, totalCost, deepseekPeak } from '../core/pricing.js';
 import { voices } from './speech.js';
 import { modelsFor } from './bot-profile.js';
 import {
-  RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, savedConnection, saveConnection,
+  RemoteApp, computerConnection, computerState, declineComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
-import { account, noticeAfterReload, signInWorksHere, takeNotice, SITE } from '../account/account.js';
+import { account, signInWorksHere, SITE } from '../account/account.js';
 import { longDate } from './subscribe.js';
 
 const APPEARANCE = { system: 'System · Black', black: 'Black', dark: 'Dark', light: 'Light' };
@@ -195,8 +195,7 @@ function MainPage({ go, onClose }) {
     <//>
     <${Group}>
       ${acct.signedIn ? html`
-        <${Row} title="Sign Out" sub=${app.remote ? 'Your bots stay on your computer.' : 'Your bots, chats, memories and keys stay in your account.'} danger onClick=${() => signOut(app, ui)} />
-        <${Row} title="Delete Account" sub="Permanently deletes your account and everything in it." danger onClick=${() => deleteAccount(app, ui)} />`
+        <${Row} title="Sign Out" sub=${app.remote ? 'Your bots stay on your computer.' : 'Your bots, chats, memories and keys stay in your account.'} danger onClick=${() => signOut(app, ui)} />`
       : html`<${Row} title="Sign Out" sub="Removes your API keys from this device. Bots and memories stay." danger onClick=${async () => {
         if (!(await ui.confirm({ title: 'Sign out?', message: 'Your API keys will be removed. Your bots, chats and memories are kept.', confirmText: 'Sign Out', danger: true }))) return;
         const providers = {};
@@ -236,42 +235,6 @@ async function signOut(app, ui) {
   await app.db?.close?.({ forget: true });
   saveConnection(null);
   await account.signOut(); // src/main.js reloads into the welcome screen
-}
-
-/**
- * Settings → Delete Account (App Store guideline 5.1.1(v)): erases the account
- * and everything in it on Holly Bot's server (convex/account.ts), and what
- * this device kept for it. Storage stops first, so nothing is written after.
- */
-async function deleteAccount(app, ui) {
-  const computer = app.remote && !app.server?.account?.linked
-    ? " Bots on your Holly Computer aren't part of your account: they stay on that computer until you delete them there."
-    : '';
-  if (!(await ui.confirm({
-    title: 'Delete your account?',
-    message: `This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys, and cancels your subscription right away. It can't be undone.${computer}`,
-    confirmText: 'Delete Account',
-    danger: true,
-  }))) return;
-  ui.toast('Deleting your account…');
-  const conn = savedConnection();
-  try {
-    if (!app.remote) {
-      app.stopScheduler();
-      app.runtime.stopAll();
-    }
-    await app.db?.discard?.();
-    saveConnection(null);
-    noticeAfterReload('Your account and everything in it have been deleted.');
-    await account.deleteAccount(); // src/main.js reloads into the welcome screen
-  } catch (err) {
-    console.error('delete account', err);
-    takeNotice();
-    if (conn) saveConnection(conn);
-    ui.toast("Your account couldn't be deleted. Check your connection and try again.", { error: true });
-    // This app stopped saving to the account; reload to start it again.
-    if (app.db?.cloud) setTimeout(() => location.reload(), 4000);
-  }
 }
 
 function ProfilePage() {

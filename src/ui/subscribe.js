@@ -55,7 +55,7 @@ const here = () => `${location.origin}${location.pathname}`;
  * from: 'paid' (Checkout), 'cancelled' (left Checkout), 'billing' (the portal)
  * or null. `onActive` opens the app once the subscription is active.
  */
-export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDeleteAccount }) {
+export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
   const [status, setStatus] = useState(first);
   const sub = status.subscription;
   const plans = status.plans || [];
@@ -65,7 +65,6 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
   const [error, setError] = useState(null);
   // Just paid: Stripe's word can take a moment. 'slow' once it's taken a while.
   const [waiting, setWaiting] = useState(back === 'paid' ? 'yes' : null);
-  const [deleting, setDeleting] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -129,9 +128,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
   });
 
   const planName = plans.find((p) => p.id === sub?.plan)?.name;
-  const accountLinks = html`<${AccountLinks} busy=${!!busy} onSignOut=${onSignOut} onDelete=${() => setDeleting(true)} />`;
-  const deleteSheet = deleting && html`<${DeleteSheet} subscribed=${!!sub && !['canceled', 'incomplete_expired'].includes(sub.status)}
-    onDelete=${onDeleteAccount} onClose=${() => setDeleting(false)} />`;
+  const accountLinks = html`<${AccountLinks} busy=${!!busy} onSignOut=${onSignOut} />`;
 
   if (waiting) {
     return html`
@@ -154,7 +151,6 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
               ${accountLinks}
             </div>`}
         </div>
-        ${deleteSheet}
       </div>`;
   }
 
@@ -191,7 +187,6 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
             ${accountLinks}
           </div>
         </div>
-        ${deleteSheet}
       </div>`;
   }
 
@@ -269,55 +264,18 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut, onDe
           <p class="sub-fine">${every === 'year' ? 'Paid yearly' : 'Month to month'}, and renews every ${every} until you cancel. Secure checkout with Stripe.</p>
         </div>
       </div>
-      ${deleteSheet}
     </div>`;
 }
 
-/** Who is signed in, with Sign Out and Delete Account: before the app opens,
- * Settings (where they usually are) can't be reached. */
-export function AccountLinks({ busy, onSignOut, onDelete }) {
+/** Who is signed in, with Sign Out: before the app opens, Settings (where it
+ * usually is) can't be reached. */
+export function AccountLinks({ busy, onSignOut }) {
   const who = account.user?.email || account.user?.name || '';
   return html`
     <div class="sub-account">
       ${who && html`<p>Signed in as <b>${who}</b></p>`}
       <div class="sub-account-actions">
         <button disabled=${busy} onClick=${onSignOut}>Sign Out</button>
-        <span aria-hidden="true">·</span>
-        <button disabled=${busy} onClick=${onDelete}>Delete Account</button>
       </div>
     </div>`;
-}
-
-/** Deleting the account from here, for someone who'd rather not subscribe:
- * the same as Settings → Delete Account, which they can't reach without a
- * subscription. */
-export function DeleteSheet({ subscribed, onDelete, onClose }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && !busy && onClose();
-    addEventListener('keydown', onKey);
-    return () => removeEventListener('keydown', onKey);
-  }, [busy]);
-  const remove = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onDelete();
-    } catch (err) {
-      console.error('delete account', err);
-      setBusy(false);
-      setError("Your account couldn't be deleted. Check your connection and try again.");
-    }
-  };
-  return html`
-    <div class="hello-scrim" onClick=${() => !busy && onClose()}></div>
-    <section class="hello-sheet" role="dialog" aria-modal="true" aria-label="Delete your account">
-      <div class="hello-grabber"></div>
-      <h2>Delete your account?</h2>
-      <p class="sub-sheet-text">This permanently deletes your Holly Bot account and everything in it: bots, chats, memories, files, routines, settings and API keys.${subscribed ? ' Your subscription is cancelled right away, and your computer is deleted.' : ''} It can't be undone.</p>
-      ${error && html`<p class="auth-error" role="alert">${error}</p>`}
-      <button class="hello-cta danger" disabled=${busy} onClick=${remove}>${busy ? html`<span class="spinner"></span>` : 'Delete Account'}</button>
-      <button class="hello-sheet-cancel" disabled=${busy} onClick=${onClose}>Cancel</button>
-    </section>`;
 }
