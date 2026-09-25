@@ -21,9 +21,11 @@ export interface Plan {
 }
 
 /** Month to month ($60, $120 or $200), or a year paid up front for less
- * ($490, $990 or $1,790). Smallest to largest: a later plan is an upgrade. */
+ * ($490, $990 or $1,790). Smallest to largest: a later plan is an upgrade.
+ * Starter is $5 a month while the owner tests subscribing (its monthly price
+ * at Stripe too); it goes back to 6000 after. */
 export const PLANS: Plan[] = [
-  { id: "starter", name: "Starter", price: { month: 6000, year: 49000 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot" },
+  { id: "starter", name: "Starter", price: { month: 500, year: 49000 }, server: "vc2-2c-4gb", cpu: 2, memoryGb: 4, note: "Best for 1 bot" },
   { id: "pro", name: "Pro", price: { month: 12000, year: 99000 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8 },
   { id: "ultra", name: "Ultra", price: { month: 20000, year: 179000 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16 },
 ];
