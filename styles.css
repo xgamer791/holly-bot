@@ -362,8 +362,8 @@ button.row:active { background: var(--surface-2); }
 .bubble a { color: #6cb4ff; text-decoration: none; }
 :root[data-theme="light"] .bubble a { color: var(--blue); }
 .bubble code { font-family: var(--mono); font-size: .86em; background: rgba(255, 255, 255, .08); padding: .1em .35em; border-radius: 6px; }
-:root[data-theme="light"] .bubble code { background: rgba(0, 0, 0, .06); }
-.bubble pre { background: var(--code-bg); border-radius: 12px; padding: 12px; overflow-x: auto; margin: .5em 0; position: relative; font-size: 13.5px; line-height: 1.45; }
+:root[data-theme="light"] .bubble :not(pre) > code { background: rgba(0, 0, 0, .06); }
+.bubble pre { background: var(--code-bg); border-radius: 12px; padding: 12px; overflow-x: auto; margin: .5em 0; font-size: 13.5px; line-height: 1.45; }
 .bubble pre code { background: none; padding: 0; font-size: inherit; }
 .bubble table { border-collapse: collapse; margin: .5em 0; font-size: .92em; display: block; overflow-x: auto; }
 .bubble th, .bubble td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
@@ -387,7 +387,17 @@ button.row:active { background: var(--surface-2); }
 .msg .bubble hr, .agent-card .a hr { border: 0; border-top: 1px solid var(--border); margin: .7em 0; }
 .msg .bubble :is(h1, h2, h3, h4, h5, h6):first-child { margin-top: 0; }
 .msg .bubble :is(p, ul, ol, li, blockquote, h1, h2, h3, h4, h5, h6):last-child { margin-bottom: 0; }
-.copy-code { position: absolute; top: 6px; right: 6px; font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--surface-3); color: var(--muted); opacity: .9; }
+/* Code blocks (src/ui/markdown.js): a header row with the language and Copy,
+   then the code, which scrolls sideways under it. White in light mode so the
+   block stands out from the gray bot bubble. */
+.code-box { margin: .5em 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.code-box:last-child { margin-bottom: 0; }
+:root[data-theme="light"] .code-box { background: #fff; }
+.code-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px 0 12px; border-bottom: 1px solid var(--border); font-family: var(--font); font-size: 12.5px; line-height: 1; color: var(--muted); }
+.code-lang { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-code { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 9px; margin-left: auto; border-radius: 8px; flex: none; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.copy-code:active { background: var(--surface-3); }
+.code-box pre { margin: 0; padding: 10px 12px 12px; background: none; border-radius: 0; overflow-x: auto; font-family: var(--mono); font-size: 13.5px; line-height: 1.45; }
 .cursor::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text); margin-left: 4px; vertical-align: middle; animation: pulse 1s infinite; }
 .msg-meta { color: var(--dim); font-size: 12px; margin: 4px 8px 0; display: flex; gap: 10px; align-items: center; }
 .msg-actions { display: flex; gap: 4px; margin: 2px 4px 0; opacity: .75; }
