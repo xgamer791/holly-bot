@@ -23,6 +23,8 @@ const STOPPED_NOTE = '[The user stopped your last reply before you finished. Any
 /** Results for tool calls a Stop cut off (settleStopped). */
 const STOPPED_RUNNING = 'Stopped by the user while this was running, so it may not have finished. Check before doing it again.';
 const STOPPED_BEFORE = 'Not run: the user stopped the task first.';
+/** For the bot, once it has used every tool step of a turn (sayWhereThingsStand). */
+const OUT_OF_STEPS_NOTE = '[You\'ve used every tool step you get for one reply, so no more tool calls: any you make won\'t run. In a few sentences, tell the user what you got done, what\'s left, and what\'s in your way, if anything (a tool that keeps failing, something you can\'t reach, something you need from them). Don\'t repeat what you already said.]';
 /** How long what's sent after a Stop waits for the stopped turn to wind down. */
 const STOP_GRACE_MS = 3000;
 
@@ -440,7 +442,10 @@ export class Runtime {
         }
         const outcome = await this.executeCalls({ agent, thread, msg, step, tools, depth, signal: controller.signal, cfg });
         if (outcome === 'paused') return await this.pause(msg, msg, threadId);
-        if (i === MAX_TOOL_STEPS - 1) step.notices.push(`Stopped after ${MAX_TOOL_STEPS} tool steps.`);
+        if (i === MAX_TOOL_STEPS - 1) {
+          step.notices.push(`Stopped after ${MAX_TOOL_STEPS} tool steps.`);
+          if (!run.interrupted) await this.sayWhereThingsStand({ agent, threadId, msg, cfg, tools, signal: controller.signal });
+        }
       }
 
       // A Stop that came as the last step finished still stops the turn.
@@ -481,6 +486,51 @@ export class Runtime {
       if (this.runs.get(threadId)?.messageId === msg.id) this.runs.delete(threadId);
       app.emitRuns();
     }
+  }
+
+  /**
+   * Out of tool steps: one more reply, with nothing it asks for run, tells the
+   * user what got done and what's in the way, so a turn never ends without a
+   * word. (The tools stay listed: some providers refuse a history of tool
+   * calls without them.)
+   */
+  async sayWhereThingsStand({ agent, threadId, msg, cfg, tools, signal }) {
+    const app = this.app;
+    const history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
+    history.push({ role: 'user', parts: [{ type: 'text', text: OUT_OF_STEPS_NOTE }] });
+    const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
+    msg.steps.push(step);
+    this.setPhase(threadId, 'thinking');
+    let result;
+    try {
+      result = await app.providers.chat({
+        cfg,
+        system: msg.turn.system,
+        messages: history,
+        tools,
+        reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
+        maxTokens: agent.maxTokens || undefined,
+        signal,
+        onEvent: (e) => {
+          if (e.type === 'text' || e.type === 'thinking') this.onStreamEvent(msg, step, e);
+        },
+      });
+    } catch (err) {
+      if (isAbort(err) || signal.aborted) throw err;
+      // The work stands; only the summary is missing.
+      console.warn('out-of-steps summary failed', err);
+      msg.steps.splice(msg.steps.indexOf(step), 1);
+      return;
+    }
+    if (signal.aborted) throw abortError(signal);
+    step.text = result.text;
+    step.endedAt = now();
+    step.provider = cfg.provider.id;
+    step.usage = result.usage;
+    step.model = result.model;
+    app.recordUsage(cfg.provider.id, result.model || cfg.model, result.usage);
+    if (!step.text) msg.steps.splice(msg.steps.indexOf(step), 1);
+    await app.saveMessage(msg);
   }
 
   /**

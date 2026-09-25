@@ -32,10 +32,11 @@ export function enabledGroups(agent) {
 
 /** A chat's workspace (thread.workspace, src/ui/workspace.js) puts its bot on
  * GitHub repositories or on a server, never both, and its tools follow:
- * GitHub's without the computer's, or the other way round. */
+ * GitHub's, with the bot's own computer as usual (the code on disk, to run
+ * it), or the server's without GitHub's. */
 export function workspaceGroups(thread) {
   const ws = thread?.workspace;
-  if (ws?.kind === 'github' && ws.repos?.length) return { github: true, computer: false };
+  if (ws?.kind === 'github' && ws.repos?.length) return { github: true };
   if (ws?.kind === 'server') return { computer: true, github: false };
   return {};
 }

@@ -39,7 +39,9 @@ export function runCommand(command, { cwd, timeoutMs = 120000, onData, signal, e
   return new Promise((resolve) => {
     const child = spawn(shell.exe, shell.args(command), {
       cwd,
-      env: { ...process.env, ...env, HOLLY_BOT: '1' },
+      // Nobody can type into a prompt here: git fails at once instead of
+      // waiting out the timeout for a username (a private repository).
+      env: { GIT_TERMINAL_PROMPT: '0', ...process.env, ...env, HOLLY_BOT: '1' },
       detached: process.platform !== 'win32',
       windowsHide: true,
     });
