@@ -106,7 +106,7 @@ export function ChatScreen({ threadId, wide }) {
           ${messages === null && html`<div class="notice">${tr('Loading…')}</div>`}
           ${isChannel && html`<div class="notice">${tr('Private channel between {names}. Bots use it when they message each other.', { names: listText(agents.map((a) => a.name)) })}</div>`}
           ${items}
-          ${busy && runAgent && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
+          ${busy && runAgent && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${36} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
         </div>
       </div>
       ${!isChannel && html`<${Composer} thread=${thread} agents=${agents} onVoice=${() => setVoice(true)} />`}
