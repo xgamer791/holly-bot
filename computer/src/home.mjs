@@ -14,7 +14,10 @@
 // on every device signed in to the account connects with them by itself
 // (src/main.js), and follows it to its new address after a restart. The
 // account answers with whether this is the server that comes with a plan,
-// which stays linked to it: then this computer won't unlink (`planServer`).
+// which stays linked to it: then this computer won't unlink (`planServer`),
+// and which of the account's computers this is. Its bots are told which of the
+// user's computers they're working on, and what the others are doing
+// (`computers`, src/core/prompts.js Your computers).
 
 import { existsSync, renameSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
@@ -24,6 +27,7 @@ import { FileOutbox } from './outbox.mjs';
 import { App } from '../../src/core/app.js';
 import { SCHEMA } from '../../src/core/db.js';
 import { CloudDB, inactive } from '../../src/account/cloud-db.js';
+import { computerSummary } from '../../src/core/computers.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -43,6 +47,8 @@ export class BotHome {
     this.tunnel = null; // why there's no address: 'off', 'starting' or 'blocked' (setAddress)
     this.reporting = Promise.resolve();
     this.planServer = false; // the server that comes with the account's plan (report)
+    this.deviceId = null; // which of the account's computers this is (report)
+    this.computers = []; // the account's computers, as its bots hear of them (refreshComputers)
     this.closing = false;
     this.onSwap = () => {};
     account.onEnded = () => this.linkEnded();
@@ -98,21 +104,24 @@ export class BotHome {
       const url = stopping ? '' : this.address || '';
       const access = url ? this.account.accessKey || '' : '';
       const args = { url, access, ...(stopping ? { stopping } : {}) };
-      // Why there's no address, for the app to say (an account server from
-      // before 1.31 doesn't take it: then it's left out).
-      if (!url && !stopping && this.tunnel && !this.oldAccountServer) args.tunnel = this.tunnel;
+      // Why there's no address, for the app to say, and this computer's
+      // system, for its bots to say ("your Windows PC"). An account server
+      // from before 1.31 doesn't take them: then they're left out.
+      const extra = stopping || this.oldAccountServer ? {} : { ...(!url && this.tunnel ? { tunnel: this.tunnel } : {}), platform: process.platform };
       try {
         let answer;
         try {
-          answer = await this.account.authed('mutation', 'devices:report', args);
+          answer = await this.account.authed('mutation', 'devices:report', { ...args, ...extra });
         } catch (err) {
-          if (!args.tunnel || !/tunnel/.test(err?.message || '') || !/validator|extra field/i.test(err?.message || '')) throw err;
+          const said = err?.message || '';
+          if (!Object.keys(extra).length || !/validator|extra field/i.test(said) || !Object.keys(extra).some((key) => said.includes(key))) throw err;
           this.oldAccountServer = true;
-          delete args.tunnel;
           answer = await this.account.authed('mutation', 'devices:report', args);
         }
         if (answer && typeof answer.server === 'boolean') this.planServer = answer.server;
+        if (answer?.id) this.deviceId = answer.id;
         this.reportFailed = false;
+        if (!stopping) this.refreshComputers();
       } catch (err) {
         // A ConvexError carries the server's own words in `data`.
         const why = typeof err?.data === 'string' ? err.data : err?.message;
@@ -122,6 +131,36 @@ export class BotHome {
     };
     this.reporting = this.reporting.then(send, send);
     return this.reporting;
+  }
+
+  /**
+   * The account's computers, as this computer's bots are told of them: which
+   * is this one, and what the others are doing (src/core/computers.js
+   * computerSummary: never their addresses or keys). Asked as this computer
+   * reports in, so it's never more than a few minutes old. Never throws.
+   */
+  async refreshComputers() {
+    if (!this.account.linked || this.listing) return this.listing;
+    this.listing = (async () => {
+      try {
+        const list = await this.account.authed('query', 'devices:list');
+        // Which one is this: the account says (report); an account server from
+        // before 1.31 doesn't, and then it goes by name.
+        const mine = list.some((device) => device.id === this.deviceId) ? this.deviceId : list.find((device) => device.name === this.account.name)?.id;
+        this.computers = list.map((device) => computerSummary(device, { here: device.id === mine }));
+        if (this.app) this.app.linkedComputers = this.computers;
+      } catch { /* the bots keep what they knew */ } finally {
+        this.listing = null;
+      }
+    })();
+    return this.listing;
+  }
+
+  /** No account, so no computers of it to know. */
+  forgetComputers() {
+    this.deviceId = null;
+    this.computers = [];
+    if (this.app) this.app.linkedComputers = [];
   }
 
   /** The account's storage. At startup it waits for the server if it can't
@@ -157,6 +196,8 @@ export class BotHome {
 
   async build(db) {
     const app = await App.create({ db, computer: this.computer, host: 'computer' });
+    // What its bots know of the user's computers (refreshComputers), until the next word from the account.
+    app.linkedComputers = this.account.linked ? this.computers : [];
     if (db.cloud) {
       db.onError = (message) => this.log.warn?.(`  ${message}`);
       db.onStale = () => this.reloadWhenIdle();
@@ -240,6 +281,7 @@ export class BotHome {
       this.app.runtime.stopAll();
       await this.app.db.close?.({ timeout: 10_000 });
       await this.account.unlink();
+      this.forgetComputers();
       await rm(this.outboxDir(userId), { recursive: true, force: true });
       await this.forgetAccountFiles();
       this.swap(await this.build(await NodeDB.open(this.localDir())));
@@ -260,6 +302,7 @@ export class BotHome {
     }
     if (this.account.linked) return; // linked again meanwhile
     this.busy = 'ended';
+    this.forgetComputers();
     (async () => {
       if (this.app?.db?.cloud) {
         await this.app.db.discard();
