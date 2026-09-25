@@ -92,7 +92,7 @@ export function ChatScreen({ threadId, wide }) {
         <button class="name-pill" onClick=${openProfile} aria-label=${`${title} settings`}>
           ${isGroup
             ? html`<${AvatarStack} agents=${agents} size=${30} activityOf=${activityOf} live />`
-            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live activity=${faceActivity} anim=${thinkingOf(face)} status=${faceActivity ? 'working' : app.providers.readyProviders().length ? 'online' : undefined} />`}
+            : html`<${Avatar} shape=${face?.shape} color=${face?.color} size=${30} live activity=${faceActivity} anim=${thinkingOf(face)} />`}
           <span class="name">${title}</span>
           ${isGroup && html`<span class="sub">${agents.length}</span>`}
         </button>
