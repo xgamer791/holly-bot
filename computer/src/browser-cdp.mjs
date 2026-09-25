@@ -837,6 +837,11 @@ export class CdpBrowser {
     }
   }
 
+  /** Whether `owner` has a window of its own open (with screens of their own). */
+  hasWindow(owner) {
+    return this.running && !!this.owned.get(owner)?.size;
+  }
+
   /** `owner` gave up its screen: its windows close. */
   async release(owner) {
     const ids = [...(this.owned.get(owner) || [])];

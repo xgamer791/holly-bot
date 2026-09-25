@@ -202,7 +202,8 @@ function Screen({ agentId }) {
     inflight.current = true;
     if (!quiet) setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280, agentId }), true);
+      // `show`: on a bot's own screen with nothing on it, its browser window opens (local-computer.mjs).
+      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280, agentId, show: own }), true);
       else show(await app.computer.browser('screenshot', { ifRunning: true, agentId }), false);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });

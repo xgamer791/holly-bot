@@ -43,6 +43,7 @@ export class LocalComputer {
       ? new BotScreens({ log, onFree: (owner) => this.letGo(owner), busy: (owner) => this.isBusy(owner) })
       : null;
     this.botDesktops = new Map(); // bot → { index, ready: Promise<desktop> }
+    this.opening = new Map(); // bot → Promise, while its browser window opens to be shown
     this.mcp = new McpHost({ configPath: join(dataDir, 'mcp.json'), log });
     mkdirSync(workspace, { recursive: true });
   }
@@ -103,6 +104,24 @@ export class LocalComputer {
       } : {}),
     });
     return this.browserInstance;
+  }
+
+  /** Opens `owner`'s browser window on its screen when nothing's there. A
+   * bot's screen is only its window, with nothing behind it, and the window
+   * closes when Holly Computer restarts (as it does to update) or after half
+   * an hour unused (screens.mjs): so someone looking at the screen then sees
+   * the window, where they can go anywhere, not a black screen. */
+  showWindow(owner) {
+    if (this.browserInstance?.hasWindow(owner)) return Promise.resolve();
+    let opening = this.opening.get(owner);
+    if (!opening) {
+      opening = this.serialBrowser(owner, async () => {
+        const b = await this.browserApi();
+        if (!b.hasWindow(owner)) await b.tabFor({ owner });
+      }).finally(() => this.opening.delete(owner));
+      this.opening.set(owner, opening);
+    }
+    return opening;
   }
 
   /** A bot gave up its screen (BotScreens): its browser windows close. */
@@ -268,6 +287,10 @@ export class LocalComputer {
    */
   async desktopAction(action, args = {}) {
     if (action === 'wait') await new Promise((r) => setTimeout(r, Math.min(30, Math.max(0.2, Number(args.seconds) || 1)) * 1000));
+    // `show`: someone is looking at a bot's own screen (the app's Screen view).
+    if (args.show && this.ownScreen(args.agentId)) {
+      await this.showWindow(args.agentId).catch((err) => this.log.warn?.(`  Couldn't open a bot's browser window on its screen: ${err.message}`));
+    }
     return this.serialDesktop(async () => {
       const d = await this.desktop(args.agentId);
       const info = await d.info();
