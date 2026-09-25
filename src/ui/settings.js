@@ -1,6 +1,6 @@
 import { html, useState, useEffect } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useAsync } from './hooks.js';
-import { Sheet, Group, Row, Field, Toggle, downloadBlob } from './components.js';
+import { Sheet, Group, Row, Field, Toggle, downloadBlob, useClosing } from './components.js';
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
 import { AI_MODELS } from '../core/providers/index.js';
@@ -73,8 +73,11 @@ function AccountGroup({ acct, go }) {
   <//>`;
 }
 
-export function SettingsSheet({ onClose, page: initialPage, provider: initialProvider }) {
+/** Settings slides in from the left as a drawer and back out the same way,
+ * 450 ms each (styles.css → .sheet.drawer). */
+export function SettingsSheet({ onClose: remove, page: initialPage, provider: initialProvider }) {
   const app = useApp();
+  const [closing, onClose] = useClosing(remove, 450);
   useTopics(['settings', 'computer', 'plugins', 'agents']);
   const [stack, setStack] = useState(() => (initialPage ? [{ page: initialPage, provider: initialProvider }] : []));
   const top = stack[stack.length - 1];
@@ -94,7 +97,7 @@ export function SettingsSheet({ onClose, page: initialPage, provider: initialPro
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
   const Page = (top && pages[top.page]) || MainPage;
-  return html`<${Sheet} title=${top ? tr(titles[top.page]) : ''} left=${left} onClose=${onClose}>
+  return html`<${Sheet} className="drawer" closing=${closing} title=${top ? tr(titles[top.page]) : ''} left=${left} onClose=${onClose}>
     <${Page} go=${go} back=${back} onClose=${onClose} ...${top || {}} />
   <//>`;
 }
