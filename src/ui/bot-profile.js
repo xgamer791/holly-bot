@@ -101,15 +101,15 @@ function toolSub(app, key, g) {
 }
 
 /** What Holly Bot's AI models are called in the app. */
-export const MODEL_NAMES = { 'deepseek-flash': 'DeepSeek V4.1 Flash', 'deepseek-v4-pro': 'DeepSeek V4 Pro' };
+export const MODEL_NAMES = { 'glm-flash': 'GLM 5.3 Flash', 'deepseek-v4-pro': 'DeepSeek V4 Pro' };
 
 /** What each costs in credits, next to the other. */
-const MODEL_NOTES = { 'deepseek-flash': 'Smart, fast and light on credits', 'deepseek-v4-pro': 'Deeper thinking; uses credits about 4× as fast' };
+const MODEL_NOTES = { 'glm-flash': 'Smart, fast and light on credits', 'deepseek-v4-pro': 'Deeper thinking; uses credits several times as fast' };
 
 export function modelLabel(app, agent) {
   try {
     const cfg = app.providers.resolve(agent);
-    return MODEL_NAMES[cfg.model] || cfg.model;
+    return MODEL_NAMES[cfg.model] || (cfg.model === 'deepseek-flash' ? 'DeepSeek V4.1 Flash' : cfg.model);
   } catch {
     return MODEL_NAMES[agent.model] || MODEL_NAMES[AI_MODELS[0]];
   }

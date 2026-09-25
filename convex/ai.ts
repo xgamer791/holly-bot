@@ -1,29 +1,21 @@
 import { getAuthSessionId, getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
-import { MODELS, OPENROUTER, costOf, effortFor, promptTokens, usageOf, type Usage, type Via } from "./lib/credits";
+import { AI, MODELS, RENAMED, costOf, effortFor, promptTokens, usageOf, type Usage } from "./lib/credits";
 
-// Holly Bot's AI: DeepSeek's models on Holly Bot's own account, paid for with
-// each account's monthly credits (convex/credits.ts). They run on OpenRouter
-// when OPENROUTER_API_KEY is set, or else on DeepSeek's own API with
-// DEEPSEEK_API_KEY. The app and Holly Computer send their bots' chat requests
-// here, in DeepSeek's form (src/core/providers), with the account's session
-// in place of a key. This lets a request through while the account has
-// credits, passes it on, streams the answer back as it comes (in DeepSeek's
-// form, whichever ran it), and charges what it cost. The keys never leave the
-// server, and nothing of the request is kept: only what it cost and how many
-// tokens it used.
+// Holly Bot's AI: GLM 5.3 Flash and DeepSeek V4 Pro (convex/lib/credits.ts)
+// on OpenRouter, with Holly Bot's own key (OPENROUTER_API_KEY), paid for with
+// each account's monthly credits (convex/credits.ts). The app and Holly
+// Computer send their bots' chat requests here in DeepSeek's form, the form
+// the app has always used (src/core/providers), with the account's session in
+// place of a key. This lets a request through while the account has credits,
+// passes it on to OpenRouter in its form, streams the answer back as it comes
+// in DeepSeek's form, and charges what OpenRouter says it cost. The key never
+// leaves the server, and nothing of the request is kept: only what it cost
+// and how many tokens it used.
 
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SITE = "https://xgamer791.github.io/holly-bot/";
-
-/** Where requests go, and with which key: OpenRouter's first. */
-function upstream(): { via: Via; url: string; key: string; keyName: string; label: string } | null {
-  const openrouter = process.env.OPENROUTER_API_KEY?.trim();
-  if (openrouter) return { via: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: openrouter, keyName: "OPENROUTER_API_KEY", label: "OpenRouter" };
-  const deepseek = process.env.DEEPSEEK_API_KEY?.trim();
-  if (deepseek) return { via: "deepseek", url: "https://api.deepseek.com/chat/completions", key: deepseek, keyName: "DEEPSEEK_API_KEY", label: "DeepSeek" };
-  return null;
-}
 
 /** What a chat request may carry on; anything else is left out. */
 const PASSED = [
@@ -34,6 +26,10 @@ const PASSED = [
 /** The most output a request may ask for, and what it gets when it doesn't say. */
 const MAX_TOKENS = 65_536;
 const DEFAULT_TOKENS = 8_192;
+
+/** Room for thinking added to a request that asks a model that always thinks
+ * not to (a short background job, say), so its answer still fits. */
+const THINKING_ROOM = 8_192;
 
 // Requests carry the session as a bearer token, never a cookie, so any page may send one.
 const CORS = {
@@ -51,46 +47,52 @@ function refuse(status: number, code: string, message: string): Response {
   });
 }
 
-/** OpenRouter or DeepSeek turned a request down: in words for the app, and,
- * when it's Holly Bot's key or balance at fault, in the logs for the owner. */
-async function fromUpstream(res: Response, up: { label: string; keyName: string }): Promise<Response> {
+/** OpenRouter turned a request down: in words for the app, and, when it's
+ * Holly Bot's key or credits at fault, in the logs for the owner. */
+async function fromOpenRouter(res: Response): Promise<Response> {
   const text = await res.text().catch(() => "");
   let detail = text.slice(0, 300);
   try {
     detail = JSON.parse(text)?.error?.message || detail;
   } catch { /* not JSON */ }
   if (res.status === 401 || res.status === 402 || res.status === 403) {
-    console.error(`${up.label} refused Holly Bot's key (${res.status}: ${detail}). ${res.status === 402 ? `Top up the ${up.label} balance.` : `Check ${up.keyName}.`}`);
+    console.error(`OpenRouter refused Holly Bot's key (${res.status}: ${detail}). ${res.status === 402 ? "Top up the OpenRouter credits." : "Check OPENROUTER_API_KEY."}`);
     return refuse(503, "unavailable", "Holly Bot's AI is unavailable right now. Try again soon.");
   }
   if (res.status === 429) return refuse(429, "busy", "Holly Bot's AI is busy right now. Try again in a moment.");
   if (res.status >= 500) return refuse(502, "unavailable", "Holly Bot's AI had a problem answering. Try again in a moment.");
-  console.warn(`${up.label} turned a request down (${res.status}: ${detail})`);
-  return refuse(res.status, "deepseek", `Holly Bot's AI couldn't take that request: ${detail || `error ${res.status}`}`);
+  console.warn(`OpenRouter turned a request down (${res.status}: ${detail})`);
+  return refuse(res.status, "rejected", `Holly Bot's AI couldn't take that request: ${detail || `error ${res.status}`}`);
 }
 
 /**
  * Which of OpenRouter's providers may run a request: only ones that don't
- * keep what they're sent or train on it, which leaves out DeepSeek's own API.
- * Among them OpenRouter picks by price and uptime, and, for requests with
- * tools, by how reliably each calls them.
+ * keep what they're sent or train on it. Among them OpenRouter picks by price
+ * and uptime, and, for requests with tools, by how reliably each calls them.
  */
 const PROVIDER = { data_collection: "deny" };
 
 /**
  * A request in DeepSeek's form as OpenRouter takes it: OpenRouter's name for
- * the model, DeepSeek's `thinking` and `reasoning_effort` as OpenRouter's
- * `reasoning` (earlier answers' `reasoning_content` it takes as it is), the
- * providers it may use, and `session`, which keeps the account's requests on
- * one provider, where its input is cached.
+ * the model; DeepSeek's `thinking` and `reasoning_effort` as OpenRouter's
+ * `reasoning` (high effort unless it says; earlier answers'
+ * `reasoning_content` OpenRouter takes as it is); the providers it may use;
+ * and `session`, which keeps the account's requests on one provider, where
+ * its input is cached. A model that always thinks, asked not to, thinks as
+ * little as it can, with room for that on top of the answer.
  */
 function forOpenRouter(out: Record<string, any>, model: string, session: string): Record<string, any> {
   const { thinking, reasoning_effort: effort, stream_options: _usageIsAlwaysSent, ...rest } = out;
+  const spec = AI[model];
   const off = thinking?.type === "disabled";
+  const reasoning = !off
+    ? { enabled: true, effort: effortFor(model, typeof effort === "string" ? effort : "high") }
+    : spec.alwaysThinks ? { enabled: true, effort: spec.efforts[0] } : { enabled: false };
   return {
     ...rest,
-    model: OPENROUTER[model].id,
-    reasoning: off ? { enabled: false } : { enabled: true, ...(typeof effort === "string" ? { effort: effortFor(model, effort) } : {}) },
+    model: spec.id,
+    max_tokens: off && spec.alwaysThinks ? Math.min(MAX_TOKENS, rest.max_tokens + THINKING_ROOM) : rest.max_tokens,
+    reasoning,
     provider: PROVIDER,
     session_id: session,
   };
@@ -103,9 +105,9 @@ async function sessionOf(userId: string): Promise<string> {
 }
 
 /** An answer from OpenRouter in DeepSeek's form, the way the app reads it:
- * the model's own name, and its reasoning as `reasoning_content` (which the
- * app keeps to send back while tools run). `part` is a streamed event's
- * `delta` or a whole answer's `message`. */
+ * the model's name as the app asked for it, and its reasoning as
+ * `reasoning_content` (which the app keeps to send back while tools run).
+ * `part` is a streamed event's `delta` or a whole answer's `message`. */
 function asDeepSeek(event: any, model: string, part: "delta" | "message"): any {
   if (event && typeof event === "object") {
     if (event.model) event.model = model;
@@ -124,8 +126,8 @@ export const preflight = httpAction(async () => new Response(null, { status: 204
 
 /** POST /ai/chat/completions (convex/http.ts): a bot's chat request. */
 export const chat = httpAction(async (ctx, request) => {
-  const up = upstream();
-  if (!up) return refuse(503, "not_set_up", "Holly Bot's AI isn't set up on its server yet.");
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  if (!key) return refuse(503, "not_set_up", "Holly Bot's AI isn't set up on its server yet.");
   // A token Convex can't verify (expired, or not one of its own) throws here:
   // that's "not signed in" too, so the app renews its session and asks again.
   let userId: Awaited<ReturnType<typeof getAuthUserId>> = null;
@@ -142,20 +144,21 @@ export const chat = httpAction(async (ctx, request) => {
   } catch {
     return refuse(400, "bad_request", "That request isn't JSON.");
   }
-  const model = String(body?.model ?? "");
-  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holly Bot's AI runs DeepSeek V4.1 Flash and V4 Pro, not ${model || "that model"}.`);
+  const asked = String(body?.model ?? "");
+  const model = RENAMED[asked] ?? asked;
+  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holly Bot's AI runs GLM 5.3 Flash and DeepSeek V4 Pro, not ${asked || "that model"}.`);
 
   const stream = body.stream === true;
   const out: Record<string, any> = { model };
   for (const name of PASSED) if (body[name] !== undefined) out[name] = body[name];
   out.max_tokens = Math.min(MAX_TOKENS, Math.max(1, Math.floor(Number(body.max_tokens) || DEFAULT_TOKENS)));
-  if (stream) Object.assign(out, { stream: true, stream_options: { include_usage: true } });
-  const sent = up.via === "openrouter" ? forOpenRouter(out, model, await sessionOf(userId)) : out;
+  if (stream) out.stream = true;
+  const sent = forOpenRouter(out, model, await sessionOf(userId));
 
   // Held back while it runs: the most it could cost (all its input new, and
   // all the output it may ask for).
   const prompt = promptTokens(out);
-  const hold = costOf(model, { cached: 0, fresh: prompt, output: out.max_tokens }, Date.now(), up.via);
+  const hold = costOf(model, { cached: 0, fresh: prompt, output: sent.max_tokens });
   let admitted;
   try {
     admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, hold });
@@ -169,20 +172,19 @@ export const chat = httpAction(async (ctx, request) => {
     ctx.runMutation(internal.credits.charge, {
       userId,
       model,
-      at: Date.now(),
       held,
-      via: up.via,
       ...(used ? { usage: used } : { estimate: { prompt, output } }),
     }).catch((err) => console.error(`Charging ${userId} for a request failed: ${err instanceof Error ? err.message : err}`));
 
   let response: Response;
   try {
-    response = await fetch(up.url, {
+    response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${up.key}`,
+        Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
-        ...(up.via === "openrouter" ? { "HTTP-Referer": SITE, "X-Title": "Holly Bot" } : {}),
+        "HTTP-Referer": SITE,
+        "X-Title": "Holly Bot",
       },
       body: JSON.stringify(sent),
     });
@@ -192,22 +194,22 @@ export const chat = httpAction(async (ctx, request) => {
   }
   if (!response.ok || !response.body) {
     await charge({ cached: 0, fresh: 0, output: 0 });
-    return await fromUpstream(response, up);
+    return await fromOpenRouter(response);
   }
 
   if (!stream) {
     const data = await response.json().catch(() => null);
     await charge(usageOf(data?.usage));
-    return new Response(JSON.stringify(up.via === "openrouter" ? asDeepSeek(data, model, "message") : data), {
+    return new Response(JSON.stringify(asDeepSeek(data, asked, "message")), {
       status: 200,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
 
   // The answer goes back to the app line by line as it comes, in DeepSeek's
-  // form. Its last event says what the request used (and, on OpenRouter, what
-  // it cost); that's charged before the stream ends. If the app goes away
-  // first, the upstream is stopped too, and what was sent is estimated.
+  // form. Its last event says what the request used and cost; that's charged
+  // before the stream ends. If the app goes away first, OpenRouter is stopped
+  // too, and what was sent is estimated.
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const source = response.body;
   const pump = async () => {
@@ -235,8 +237,7 @@ export const chat = httpAction(async (ctx, request) => {
         outputChars += String(delta.content ?? "").length + String(delta.reasoning_content ?? delta.reasoning ?? "").length;
         if (delta.tool_calls) outputChars += JSON.stringify(delta.tool_calls).length;
       }
-      if (up.via !== "openrouter") return line;
-      return `data: ${JSON.stringify(asDeepSeek(event, model, "delta"))}${line.endsWith("\n") ? "\n" : ""}`;
+      return `data: ${JSON.stringify(asDeepSeek(event, asked, "delta"))}${line.endsWith("\n") ? "\n" : ""}`;
     };
     try {
       for (;;) {

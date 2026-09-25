@@ -7,15 +7,14 @@ import { PLANS, planById } from "./lib/plans";
 import { INACTIVE, hasAccess, isExempt, subscriberOf } from "./lib/subscription";
 import { MICROS_PER_CENT, anchorFor, costOf, estimateUsage, refillIn, settle, type Ledger } from "./lib/credits";
 
-// AI credits. Holly Bot's AI is DeepSeek's models on Holly Bot's own account,
-// through OpenRouter or DeepSeek's own API (convex/ai.ts), and each account
-// gets its plan's allowance of it every month (convex/lib/plans.ts): Starter
-// $10, Pro $20, Ultra $35 of use, which the app shows as credits, 1 per cent.
-// Every request is let in only while credits are left (`admit`, which holds
-// back what it could cost at most, so requests at once can't spend more than
-// is left), and then charged what it cost (`charge`, which gives back the rest
-// of the hold): what OpenRouter says it came to, or what DeepSeek says it
-// used at DeepSeek's prices.
+// AI credits. Holly Bot's AI is GLM 5.3 Flash and DeepSeek V4 Pro on Holly
+// Bot's own OpenRouter account (convex/ai.ts), and each account gets its
+// plan's allowance of it every month (convex/lib/plans.ts): Starter $10, Pro
+// $20, Ultra $35 of use, which the app shows as credits, 1 per cent. Every
+// request is let in only while credits are left (`admit`, which holds back
+// what it could cost at most, so requests at once can't spend more than is
+// left), and then charged what OpenRouter says it cost (`charge`, which gives
+// back the rest of the hold).
 // A new month refills the credits; unused ones don't carry over. The months
 // start on the day the account's paid period renews, so a monthly plan's
 // credits refill as it's billed, and a yearly plan's refill monthly on that
@@ -54,7 +53,7 @@ async function save(ctx: MutationCtx, userId: Id<"users">, row: Doc<"credits"> |
 /** The signed-in account's credits this month, for the app's bar: what the
  * month gives and what's left (millionths of a dollar; the app shows credits),
  * and when they refill. `ready`: Holly Bot's server can run its AI (its
- * OpenRouter or DeepSeek key is set). Null without a subscription that lets it in. */
+ * OpenRouter key is set). Null without a subscription that lets it in. */
 export const mine = query({
   args: {},
   returns: v.union(v.null(), v.object({ ready: v.boolean(), allowance: v.number(), balance: v.number(), refillsAt: v.number() })),
@@ -64,7 +63,7 @@ export const mine = query({
     if (!plan) return null;
     const now = Date.now();
     const ledger = settle(ledgerOf(await rowOf(ctx, userId)), plan.allowance, anchorFor(plan.periodEnd, now), now);
-    const ready = !!(process.env.OPENROUTER_API_KEY?.trim() || process.env.DEEPSEEK_API_KEY?.trim());
+    const ready = !!process.env.OPENROUTER_API_KEY?.trim();
     return { ready, allowance: ledger.allowance, balance: Math.max(0, ledger.balance), refillsAt: ledger.periodEnd };
   },
 });
@@ -103,24 +102,21 @@ export const admit = internalMutation({
 });
 
 /**
- * Charges a finished request (convex/ai.ts): what OpenRouter said it cost, or
- * what DeepSeek said it used at DeepSeek's prices, or, when the answer was cut
- * off before either said, an estimate from the request's input and what was
- * sent back, at the list prices of where it ran (`via`). The hold `admit`
- * took is given back first.
+ * Charges a finished request (convex/ai.ts): what OpenRouter said it cost,
+ * or, when the answer was cut off before it said, an estimate from the
+ * request's input and what was sent back, at the model's usual price. The
+ * hold `admit` took is given back first.
  */
 export const charge = internalMutation({
   args: {
     userId: v.id("users"),
     model: v.string(),
-    at: v.number(),
     held: v.number(),
-    via: v.optional(v.union(v.literal("openrouter"), v.literal("deepseek"))),
     usage: v.optional(usage),
     estimate: v.optional(v.object({ prompt: v.number(), output: v.number() })),
   },
   returns: v.number(),
-  handler: async (ctx, { userId, model, at, held, via, usage, estimate }) => {
+  handler: async (ctx, { userId, model, held, usage, estimate }) => {
     const now = Date.now();
     const row = await rowOf(ctx, userId);
     const plan = await planOf(ctx, userId);
@@ -130,7 +126,7 @@ export const charge = internalMutation({
     // A hold from last month isn't given back into a month that just refilled.
     const back = ledgerOf(row) && ledger.periodStart !== row!.periodStart ? 0 : held;
     const used = usage ?? estimateUsage(estimate?.prompt ?? 0, estimate?.output ?? 0, ledger);
-    const cost = costOf(model, used, at, via ?? "deepseek");
+    const cost = costOf(model, used);
     await save(ctx, userId, row, {
       ...ledger,
       balance: ledger.balance + back - cost,

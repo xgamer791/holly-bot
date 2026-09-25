@@ -4,6 +4,8 @@
 const PRICES = [
   // DeepSeek: listed at peak; half price off-peak (see deepseekPeak).
   [/^deepseek-flash/, 0.3, 1.2, 0.006], [/^deepseek-v4-pro/, 1.32, 3.96, 0.044],
+  // GLM 5.3 Flash: its usual price on OpenRouter (Holly Bot's AI).
+  [/^glm-flash|^glm-5\.3-flash/, 0.15, 0.5, 0.03],
   [/^deepseek-chat/, 0.27, 1.1, 0.07], [/^deepseek-reasoner/, 0.55, 2.19, 0.14],
   [/^claude-fable-5/, 10, 50], [/^claude-opus-(5|4-[5-8])/, 5, 25], [/^claude-sonnet-5/, 2, 10],
   [/^claude-sonnet-4/, 3, 15], [/^claude-haiku-4/, 1, 5],

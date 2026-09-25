@@ -100,10 +100,11 @@ export const PROVIDERS = {
     keyUrl: 'https://platform.deepseek.com/api_keys',
     keyHint: 'sk-…',
     recommended: true,
-    defaultModel: 'deepseek-flash',
-    memoryModel: 'deepseek-flash',
-    suggested: ['deepseek-flash', 'deepseek-v4-pro'],
-    // V4.1 Flash sees images; V4 Pro is text-only (images are described by Flash for it).
+    // Holly Bot's AI (convex/lib/credits.ts): GLM 5.3 Flash, or DeepSeek V4 Pro.
+    defaultModel: 'glm-flash',
+    memoryModel: 'glm-flash',
+    suggested: ['glm-flash', 'deepseek-v4-pro'],
+    // Flash sees images; V4 Pro is text-only (images are described by Flash for it).
     vision: (model) => !/v4-pro|reasoner/.test(model),
     // Thinking mode: reasoning_content must be replayed verbatim on every assistant turn when tools are sent.
     replayReasoning: true,
@@ -151,15 +152,18 @@ export const PROVIDERS = {
 
 export const PROVIDER_ORDER = ['deepseek', 'xai', 'anthropic', 'openai', 'google', 'openrouter', 'groq', 'mistral', 'ollama', 'custom'];
 
-/** Everything defaults to DeepSeek V4.1 Flash. */
+/** Everything defaults to Holly Bot's AI, GLM 5.3 Flash. */
 export const DEFAULT_PROVIDER = 'deepseek';
 
-/** The models Holly Bot's AI runs (convex/lib/credits.ts): Flash, the default,
- * and Pro, which uses credits about four times as fast. */
-export const AI_MODELS = ['deepseek-flash', 'deepseek-v4-pro'];
+/** The models Holly Bot's AI runs (convex/lib/credits.ts): GLM 5.3 Flash, the
+ * default, and DeepSeek V4 Pro, which uses credits several times as fast.
+ * Flash was DeepSeek V4.1 Flash (`deepseek-flash`) until 1.25.0: bots and
+ * settings that still say so get the default, and the server runs requests
+ * for it on GLM 5.3 Flash. */
+export const AI_MODELS = ['glm-flash', 'deepseek-v4-pro'];
 
 const CONTEXT_WINDOWS = [
-  [/^deepseek-/, 1000000], [/^claude-(opus-(4-[678]|5)|sonnet-(4-6|5)|fable|mythos)/, 1000000], [/^claude-/, 200000],
+  [/^deepseek-|^glm-/, 1000000], [/^claude-(opus-(4-[678]|5)|sonnet-(4-6|5)|fable|mythos)/, 1000000], [/^claude-/, 200000],
   [/^gpt-5/, 400000], [/^gpt-4\.1/, 1000000], [/^o[34]/, 200000], [/^gpt-4o/, 128000],
   [/^grok-4-fast|^grok-4-1|^grok-code/, 2000000], [/^grok-4/, 256000], [/^grok-3/, 131072],
   [/^gemini-(2\.5|3)/, 1000000], [/^gemini/, 1000000], [/^mistral-(large|medium)/, 128000], [/llama|qwen|kimi|gpt-oss/, 128000],
@@ -242,6 +246,8 @@ export class ProviderHub {
       const mm = agent?.memoryModel || defaults.memoryModel;
       if (mm && mm !== 'same') model = ours(mm.includes(':') ? mm.split(':').slice(1).join(':') : mm) || model;
     }
+    // On a DeepSeek key of the account's own (from before credits), Flash is DeepSeek's.
+    if (!provider.credits && model === 'glm-flash') model = 'deepseek-flash';
     return { provider, model, purpose };
   }
 
@@ -391,13 +397,13 @@ export class ProviderHub {
       .concat(data.is_available === false ? [{ unavailable: true }] : []);
   }
 
-  /** A vision-capable model to describe images for text-only bots (DeepSeek Flash first). */
+  /** A vision-capable model to describe images for text-only bots (Holly Bot's Flash first). */
   visionHelper() {
     const order = ['deepseek', 'google', 'openai', 'xai', 'anthropic', 'openrouter'];
     for (const id of order) {
       if (!this.isReady(id)) continue;
       const def = PROVIDERS[id];
-      const model = id === 'deepseek' ? 'deepseek-flash' : def.memoryModel || def.defaultModel;
+      const model = id === 'deepseek' ? (this.onCredits() ? 'glm-flash' : 'deepseek-flash') : def.memoryModel || def.defaultModel;
       if (supportsVision(id, model)) return { provider: this.config(id), model, purpose: 'vision' };
     }
     return null;
