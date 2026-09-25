@@ -31,12 +31,16 @@ const CALL_MS = 9 * 60_000;
 const MAX_TEXT = 60_000;
 const MAX_IMAGE = 3_000_000;
 
-/** The Higgsfield account a token belongs to: its email, else its name. */
+/** The Higgsfield account a token belongs to, for Settings: its email, else
+ * its name. Only a label: when Higgsfield won't say, connecting goes ahead. */
 export async function higgsfieldAccount(api: HiggsfieldApi): Promise<string> {
-  const res = await (api.fetch ?? fetch)(USERINFO, { headers: { Authorization: `Bearer ${api.token}`, Accept: "application/json" } });
-  if (!res.ok) throw new HiggsfieldError(`Higgsfield couldn't say whose account this is (HTTP ${res.status}).`, res.status);
-  const me: any = await res.json().catch(() => ({}));
-  return String(me?.email || me?.preferred_username || me?.name || "Higgsfield account");
+  try {
+    const res = await (api.fetch ?? fetch)(USERINFO, { headers: { Authorization: `Bearer ${api.token}`, Accept: "application/json" } });
+    const me: any = res.ok ? await res.json() : {};
+    return String(me?.email || me?.preferred_username || me?.name || "Higgsfield account");
+  } catch {
+    return "Higgsfield account";
+  }
 }
 
 /** One JSON-RPC message to the MCP server (a request when `id` is given, else
@@ -62,7 +66,10 @@ async function send(api: HiggsfieldApi, session: string, message: Record<string,
       const data = JSON.parse(text);
       detail = String(data?.error_description || data?.error?.message || data?.error || data?.detail || detail);
     } catch { /* plain text */ }
-    throw new HiggsfieldError(detail || `HTTP ${res.status}`, res.status);
+    // A sign-in turned down says why in its challenge (RFC 6750), when it does.
+    const challenge = res.headers.get("www-authenticate") ?? "";
+    const why = /error_description="([^"]*)"/.exec(challenge)?.[1] || /error="([^"]*)"/.exec(challenge)?.[1] || "";
+    throw new HiggsfieldError([why, detail].filter(Boolean).join(": ") || `HTTP ${res.status}`, res.status);
   }
   if (message.id === undefined) {
     await res.body?.cancel().catch(() => {});

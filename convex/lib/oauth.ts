@@ -22,7 +22,11 @@ export interface Tokens {
 /** Higgsfield's MCP server: the tools bots use (convex/lib/higgsfield.ts), and
  * the resource its sign-in grants access to. */
 export const HIGGSFIELD_MCP = "https://mcp.higgsfield.ai/mcp";
-const HIGGSFIELD_AUTH = "https://clerk.higgsfield.ai/oauth";
+/** The sign-in in front of it, its own (over Clerk's, clerk.higgsfield.ai):
+ * the one its server points MCP apps to (its /.well-known metadata). */
+const HIGGSFIELD_AUTH = "https://mcp.higgsfield.ai/oauth2";
+/** It has no revocation endpoint of its own; its clients are Clerk's. */
+const HIGGSFIELD_REVOKE = "https://clerk.higgsfield.ai/oauth/token/revoke";
 
 export interface OAuthApp {
   clientId: string;
@@ -76,9 +80,9 @@ export const SERVICES: Record<Service, ServiceConfig> = {
     pkce: false,
     params: { allow_signup: "false" },
   },
-  // Higgsfield's own sign-in (Clerk), for its MCP server. There's no app to
-  // set up: Holly Bot registers a client as each connection starts
-  // (registerClient), a public one, so PKCE is what keeps the code safe.
+  // Higgsfield's MCP server's own sign-in (in front of Clerk's). There's no
+  // app to set up: Holly Bot registers a client with it as each connection
+  // starts (registerClient), a public one, so PKCE is what keeps the code safe.
   higgsfield: {
     label: "Higgsfield",
     authorizeUrl: `${HIGGSFIELD_AUTH}/authorize`,
@@ -278,7 +282,7 @@ function outlookScope(granted: string[]): string {
 export async function revokeTokens(service: Service, o: { app: OAuthApp | null; tokens: Tokens; fetch?: Fetch }): Promise<void> {
   const f = o.fetch ?? fetch;
   if (service === "higgsfield" && o.app) {
-    await f(`${HIGGSFIELD_AUTH}/token/revoke`, {
+    await f(HIGGSFIELD_REVOKE, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ token: o.tokens.refreshToken ?? o.tokens.accessToken, ...client(o.app) }).toString(),

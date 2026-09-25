@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, httpAction, internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { ActionCtx, MutationCtx } from "./_generated/server";
 import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
 import { requireSubscriber } from "./lib/subscription";
@@ -52,7 +52,8 @@ const key = () => process.env.CONNECTORS_KEY;
 const bound = (userId: string, s: string) => `${userId}:${s}`;
 const callbackUrl = (s: Service) => `${process.env.CONVEX_SITE_URL}/connectors/${s}/callback`;
 const label = (s: string) => SERVICES[s as Service]?.label ?? s;
-const reconnect = (s: string) => new ConvexError(`${label(s)} needs connecting again: Settings → Plugins.`);
+/** `why`: the service's own words, when it gave any. */
+const reconnect = (s: string, why = "") => new ConvexError(`${label(s)} needs connecting again: Settings → Plugins.${why ? ` (${why.slice(0, 120)})` : ""}`);
 
 /** The OAuth app a connection goes through: the deployment's (CONVEX.md), or,
  * for a service Holly Bot registers with as each connection starts
@@ -386,7 +387,7 @@ function asError(s: Service, err: unknown): ConvexError<string> {
   if (err instanceof ConvexError) return err;
   const status = statusOf(err);
   const message = err instanceof Error ? err.message : String(err);
-  if (status === 401) return reconnect(s);
+  if (status === 401) return reconnect(s, message);
   if (status === 403) return new ConvexError(`${label(s)} doesn't allow that: ${message}`);
   if (status === 404) return new ConvexError(`${label(s)} couldn't find that: ${message}`);
   if (status === 429) return new ConvexError(`${label(s)} asked to slow down. Try again in a minute.`);
@@ -398,43 +399,56 @@ export const run = action({
   args: { service, op: v.string(), args: v.optional(v.any()) },
   returns: v.any(),
   handler: async (ctx, { service: s, op, args }): Promise<any> => {
-    const fn = Object.prototype.hasOwnProperty.call(OPS[s], op) ? OPS[s][op] : undefined;
-    if (!fn) throw new ConvexError(`${label(s)} has no “${op}”.`);
-    const conn: { id: Id<"connections">; userId: Id<"users">; sealed: string; scopes: string[] } | null = await ctx.runQuery(internal.connectors.mine, { service: s });
-    if (!conn) throw new ConvexError(`${label(s)} isn't connected. Connect it in Settings → Plugins.`);
-    // peek is how a delete starts (its preview), so it says so before anyone is asked to approve.
-    if ((op === "peek" || op === "delete" || op === "restore") && outdated(s, conn.scopes)) {
-      throw new ConvexError(`${label(s)} was connected before bots could delete email. To let them, connect it again: Settings → Plugins → ${label(s)}.`);
-    }
-    const where = bound(conn.userId, s);
-    let tokens: Tokens = await unseal<Tokens>(key(), conn.sealed, where).catch(() => {
-      throw reconnect(s);
-    });
-    const renew = async () => {
-      const app = appFor(s, tokens);
-      if (!app || !tokens.refreshToken) throw reconnect(s);
-      try {
-        tokens = await refreshTokens(s, { app, tokens });
-      } catch (err) {
-        if (err instanceof OAuthError && (err.code === "invalid_grant" || err.code === "unauthorized_client")) throw reconnect(s);
-        throw err;
-      }
-      await ctx.runMutation(internal.connectors.updateTokens, { id: conn.id, sealed: await seal(key(), tokens, where) });
-    };
-    if (tokens.expiresAt && tokens.expiresAt - 60_000 < Date.now()) await renew();
-    const perform = async (): Promise<unknown> => JSON.parse(JSON.stringify((await fn({ token: tokens.accessToken }, args ?? {})) ?? null));
     try {
-      return await perform();
+      return await runOp(ctx, s, op, args);
     } catch (err) {
-      if (statusOf(err) === 401 && tokens.refreshToken) {
-        await renew();
-        try {
-          return await perform();
-        } catch (again) {
-          throw asError(s, again);
-        }
-      }
+      // Nothing gets out as a bare "Server Error": the person reads what went wrong.
+      if (!(err instanceof ConvexError)) console.error(`${s} ${op} failed: ${err instanceof Error ? err.stack || err.message : String(err)}`);
       throw asError(s, err);
     }
   },
 });
+
+async function runOp(ctx: ActionCtx, s: Service, op: string, args: unknown): Promise<any> {
+  const fn = Object.prototype.hasOwnProperty.call(OPS[s], op) ? OPS[s][op] : undefined;
+  if (!fn) throw new ConvexError(`${label(s)} has no “${op}”.`);
+  const conn: { id: Id<"connections">; userId: Id<"users">; sealed: string; scopes: string[] } | null = await ctx.runQuery(internal.connectors.mine, { service: s });
+  if (!conn) throw new ConvexError(`${label(s)} isn't connected. Connect it in Settings → Plugins.`);
+  // peek is how a delete starts (its preview), so it says so before anyone is asked to approve.
+  if ((op === "peek" || op === "delete" || op === "restore") && outdated(s, conn.scopes)) {
+    throw new ConvexError(`${label(s)} was connected before bots could delete email. To let them, connect it again: Settings → Plugins → ${label(s)}.`);
+  }
+  const where = bound(conn.userId, s);
+  let tokens: Tokens = await unseal<Tokens>(key(), conn.sealed, where).catch(() => {
+    throw reconnect(s);
+  });
+  const renew = async () => {
+    const app = appFor(s, tokens);
+    if (!app || !tokens.refreshToken) throw reconnect(s);
+    try {
+      tokens = await refreshTokens(s, { app, tokens });
+    } catch (err) {
+      console.error(`Renewing ${s} failed: ${err instanceof Error ? err.message : String(err)}`);
+      // Turned down: connect again. Not reached, or down for now: try again later.
+      const code = err instanceof OAuthError ? err.code : "";
+      if (["invalid_grant", "unauthorized_client", "invalid_client", "unsupported_grant_type", "invalid_scope", "invalid_target", "invalid_request"].includes(code)) throw reconnect(s, code);
+      throw new ConvexError(`${label(s)} couldn't renew its sign-in just now. Try again in a minute.`);
+    }
+    await ctx.runMutation(internal.connectors.updateTokens, { id: conn.id, sealed: await seal(key(), tokens, where) });
+  };
+  if (tokens.expiresAt && tokens.expiresAt - 60_000 < Date.now()) await renew();
+  const perform = async (): Promise<unknown> => JSON.parse(JSON.stringify((await fn({ token: tokens.accessToken }, args ?? {})) ?? null));
+  try {
+    return await perform();
+  } catch (err) {
+    if (statusOf(err) === 401 && tokens.refreshToken) {
+      await renew();
+      try {
+        return await perform();
+      } catch (again) {
+        throw asError(s, again);
+      }
+    }
+    throw asError(s, err);
+  }
+}
