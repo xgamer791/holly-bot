@@ -52,7 +52,10 @@ export class RemoteApp {
       isThreadBusy: (id) => self.runtime.runs.has(id),
       isAgentBusy: (id) => [...self.runtime.runs.values()].some((r) => r.agentId === id),
       activeRuns: () => [...self.runtime.runs.values()],
-      send: (threadId, payload) => self.rpc('runtime.send', threadId, payload),
+      send: (threadId, payload) => {
+        self.usedFor(threadId);
+        return self.rpc('runtime.send', threadId, payload);
+      },
       answer: (m, c, a) => self.rpc('runtime.answer', m, c, a),
       dismiss: (m, c) => self.rpc('runtime.dismiss', m, c),
       approve: (m, c, d) => self.rpc('runtime.approve', m, c, d),
@@ -95,6 +98,12 @@ export class RemoteApp {
       },
       toolsFor: () => [],
     };
+  }
+
+  /** A message sent in the chat `threadId`: its bots are using this computer
+   * (useComputer), when it's one linked to the account. */
+  usedFor(threadId) {
+    if (this.device) useComputer({ id: this.device, name: this.server?.name || this.name }, this.getThread(threadId)?.agentIds || []);
   }
 
   // ----- transport -----------------------------------------------------------
@@ -736,15 +745,49 @@ export function isPaired(device) {
 
 /**
  * This device moves to the computer at `conn` because the person chose it
- * (Connect, or picking it in a chat's workspace): it's saved, with what to
- * say once connected there (`hello`: 'first' or 'auto', src/main.js). Moving
- * away from another of their own computers (`from`, a linked computer) on
- * purpose, this device doesn't go back to that one by itself until it
- * restarts, or for twelve hours (declineComputer).
+ * (Connect, picking it in a chat's workspace, or opening a chat whose bots
+ * use it): it's saved, with what to say once connected there (`hello`:
+ * 'first' or 'auto', src/main.js), and it's the computer they're using
+ * (useComputer), with the bots `bots` when it was for a chat.
  */
-export function chooseComputer(conn, { from = null, hello = 'first' } = {}) {
-  if (from?.id && !from.server && from.id !== conn.device) declineComputer(from);
+export function chooseComputer(conn, { hello = 'first', bots = [] } = {}) {
+  if (conn.device) useComputer({ id: conn.device, name: conn.name }, bots);
   saveConnection({ ...conn, hello });
+}
+
+/**
+ * The linked computer the person was last using on this device, and the one
+ * each bot last used ({ device, name, at }). The app opens on the first
+ * again, and switches to a bot's own as its chat opens (src/main.js), so
+ * each bot is back on its computer after the app was closed.
+ */
+const LAST = 'holly.lastComputer';
+const BOTS = 'holly.botComputers';
+
+/** The person is using the linked computer `device` ({ id, name }), and so
+ * are the bots `agentIds` (a message sent to them there, or it was picked
+ * for their chat). */
+export function useComputer(device, agentIds = []) {
+  if (!device?.id) return;
+  const entry = { device: device.id, name: device.name || '', at: Date.now() };
+  writeJson(LAST + scope, entry);
+  if (!agentIds.length) return;
+  const bots = readJson(BOTS + scope);
+  const next = { ...(bots && typeof bots === 'object' ? bots : {}) };
+  for (const id of agentIds) next[id] = entry;
+  const kept = Object.entries(next).filter(([, e]) => e?.device).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 200);
+  writeJson(BOTS + scope, Object.fromEntries(kept));
+}
+
+export function lastComputer() {
+  const last = readJson(LAST + scope);
+  return last?.device ? last : null;
+}
+
+/** The computer the bot `agentId` last used, or null. */
+export function botComputer(agentId) {
+  const entry = readJson(BOTS + scope)?.[agentId];
+  return entry?.device ? entry : null;
 }
 
 export function markPaired(device) {

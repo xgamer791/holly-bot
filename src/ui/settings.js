@@ -463,7 +463,6 @@ function computerStatus(device, answers) {
  * one that started since, or after Disconnect this device.
  */
 function LinkedComputers() {
-  const app = useApp();
   const ui = useUi();
   const { data: devices = [], reload } = useAsync(() => account.authed('query', 'devices:list'), []);
   const [busy, setBusy] = useState(null);
@@ -479,8 +478,7 @@ function LinkedComputers() {
     setBusy(device.id);
     try {
       const conn = await reachComputer(device, { latest: async () => (await account.authed('query', 'devices:list')).find((d) => d.id === device.id) });
-      const here = app.remote ? devices.find((d) => sameComputer(d, { device: app.device, name: app.server?.name, url: app.base })) : null;
-      chooseComputer(conn, { from: here, hello: isPaired(device) ? 'auto' : 'first' });
+      chooseComputer(conn, { hello: isPaired(device) ? 'auto' : 'first' });
       location.reload();
     } catch (err) {
       setBusy(null);

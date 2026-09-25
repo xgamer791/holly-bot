@@ -3,7 +3,9 @@ import { useApp, useUi, useTopics, useAsync, haptic } from './hooks.js';
 import { Sheet, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { account } from '../account/account.js';
-import { chooseComputer, computerConnection, computerState, isPaired, probeComputer, reachComputer, sameComputer } from '../remote/remote-app.js';
+import {
+  chooseComputer, computerConnection, computerState, isPaired, probeComputer, reachComputer, sameComputer, useComputer,
+} from '../remote/remote-app.js';
 import { shortTime, tr } from './i18n.js';
 
 // A chat's workspace (thread.workspace): what its bot works on. GitHub
@@ -41,7 +43,7 @@ export function WorkspaceSheet({ threadId, onClose }) {
         ? tr('What {name} works on in this chat: GitHub repositories, or a server. One or the other, never both.', { name: bot })
         : tr('What the bots work on in this chat: GitHub repositories, or a server. One or the other, never both.')}</p>
       <${Segmented} value=${tab} onChange=${setTab} options=${[{ value: 'github', label: 'GitHub' }, { value: 'server', label: tr('Server') }]} />
-      ${tab === 'github' ? html`<${GitHubPane} ws=${ws} save=${save} />` : html`<${ServerPane} ws=${ws} save=${save} />`}
+      ${tab === 'github' ? html`<${GitHubPane} ws=${ws} save=${save} />` : html`<${ServerPane} ws=${ws} save=${save} bots=${thread?.agentIds || []} />`}
     <//>`;
 }
 
@@ -107,7 +109,9 @@ function GitHubPane({ ws, save }) {
     ${!repos.loading && !repos.error && !rows.length && html`<p class="ws-note">${q ? tr('No repositories match “{query}”.', { query }) : tr('No repositories on {account} yet.', { account: gh.account })}</p>`}`;
 }
 
-function ServerPane({ ws, save }) {
+/** Servers. Picking one for the chat is picking it for its bots `bots`
+ * too: they go back to it whenever the chat opens (src/main.js). */
+function ServerPane({ ws, save, bots }) {
   const app = useApp();
   const ui = useUi();
   useTopics(['computer', 'reachable']);
@@ -136,6 +140,7 @@ function ServerPane({ ws, save }) {
   const pick = async (d) => {
     if (picked(d)) return;
     if (isHere(d)) {
+      useComputer(d, bots);
       save({ kind: 'server', device: d.id, name: d.name, apps: [] });
       return;
     }
@@ -149,7 +154,7 @@ function ServerPane({ ws, save }) {
     }
     if (!(await ui.confirm({
       title: tr('Connect to {name}?', { name: d.name }),
-      message: tr('Your bots run on {name} from now on, in every chat, and this chat works on it.', { name: d.name }),
+      message: tr('This chat works on {name} from now on, and the app connects to {name} whenever you open this chat.', { name: d.name }),
       confirmText: tr('Connect'),
     }))) return;
     setBusy(d.id);
@@ -158,7 +163,7 @@ function ServerPane({ ws, save }) {
       const conn = await reachComputer(d, { latest: async () => (await account.authed('query', 'devices:list')).find((x) => x.id === d.id) });
       await save({ kind: 'server', device: d.id, name: d.name, apps: [] });
       await app.db?.drain?.(5000)?.catch?.(() => {});
-      chooseComputer(conn, { from: here && list.find((x) => x.id && sameComputer(x, here)), hello: isPaired(d) ? 'auto' : 'first' });
+      chooseComputer(conn, { hello: isPaired(d) ? 'auto' : 'first', bots });
       location.reload();
     } catch (err) {
       setBusy(null);

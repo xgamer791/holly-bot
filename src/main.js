@@ -3,8 +3,9 @@ import { App } from './core/app.js';
 import { DB } from './core/db.js';
 import { Root } from './ui/app.js';
 import {
-  RemoteApp, addressOf, chooseComputer, computerConnection, computerState, declineComputer, declined, deviceKind, holdConnection, isPaired, markPaired,
-  probeComputer, reachComputer, runsHere, sameComputer, savedConnection, saveConnection, takeConnectLink, takeHeldConnection, useConnectionsOf,
+  RemoteApp, addressOf, botComputer, chooseComputer, computerConnection, computerState, declineComputer, declined, deviceKind, holdConnection, isPaired,
+  lastComputer, markPaired, probeComputer, reachComputer, runsHere, sameComputer, savedConnection, saveConnection, takeConnectLink, takeHeldConnection,
+  useComputer, useConnectionsOf,
 } from './remote/remote-app.js';
 import { ConnectProblem } from './ui/connect.js';
 import {
@@ -289,14 +290,18 @@ async function openComputer() {
   // A saved computer that was linked to the account and isn't any more (a
   // subscriber's server replaced by a smaller one) counts as none saved.
   const gone = !!(saved?.device && linked && !mine);
-  // The saved computer first, and where the account says it is now if it
-  // moved, unless it's the server that comes with a plan and wasn't just
-  // chosen. Then the running computers this app connects to by itself: your
-  // own that a device connected to before (the first time, the app asks:
-  // watchComputers), then the plan's server; none this device was told to
-  // leave alone (Not now, Disconnect this device, or moving away from it).
-  // A saved computer that isn't linked to the account is the only one tried:
-  // its bots may be only there.
+  // Until the person uses a computer here (useComputer), the one this app
+  // was on as it closed is the one they were last using.
+  if (mine && !lastComputer()) useComputer(mine);
+  // The computer the person was last using first, even the server that
+  // comes with a plan, where the account says it is now; but one the app
+  // just moved to (`hello`) before it. Then the one this app was on as it
+  // closed, and where the account says it is now if it moved. Then the
+  // running computers this app connects to by itself: your own that a device
+  // connected to before (the first time, the app asks: watchComputers), then
+  // the plan's server; none this device was told to leave alone (Not now,
+  // Disconnect this device). A saved computer that isn't linked to the
+  // account is the only one tried: its bots may be only there.
   const tries = [];
   const add = (conn) => {
     if (!conn || tries.some((t) => t.url === conn.url && t.token === conn.token)) return;
@@ -305,17 +310,16 @@ async function openComputer() {
     tries.push(chosen ? { ...conn, hello: saved.hello } : conn);
   };
   const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device) && isPaired(device));
+  const last = runsHere() ? null : linked?.find((device) => device.id === lastComputer()?.device && !declined(device));
   if (saved && !gone && !mine) add(saved);
   else {
-    if (saved && !gone && (!mine.server || saved.hello)) {
-      add(saved);
-      add(computerConnection(mine));
-    }
-    for (const device of others) add(computerConnection(device));
+    if (last && last !== mine && !saved?.hello) add(computerConnection(last));
     if (saved && !gone) {
       add(saved);
       add(computerConnection(mine));
     }
+    if (last) add(computerConnection(last));
+    for (const device of others) add(computerConnection(device));
   }
   let problem = null;
   for (const conn of tries) {
@@ -388,14 +392,18 @@ function preferred(list) {
  * Connects this app to a linked computer, once it's clear it answers: the
  * app opens again as its remote control and says so, and so does the
  * computer (`how`: 'first' after Connect, 'auto' when this app did it by
- * itself: controlComputer). `from`: the computer the person chose to leave
- * for it (chooseComputer). Fails with a message to show when it doesn't answer.
+ * itself: controlComputer). `chosen`: it's the computer the person is using
+ * now (chooseComputer), not one the app only fell back on. `stay`: whether
+ * something started here meanwhile, and the app stays put (false). Fails
+ * with a message to show when it doesn't answer.
  */
-async function connectTo(device, how = 'first', from = null) {
+async function connectTo(device, how = 'first', { chosen = how === 'first', stay = null } = {}) {
   const conn = await reachComputer(device, { latest: async () => (await linkedComputers())?.find((d) => d.id === device.id) });
-  if (how === 'auto') saveConnection({ ...conn, hello: how });
-  else chooseComputer(conn, { from, hello: how });
+  if (stay?.()) return false;
+  if (chosen) chooseComputer(conn, { hello: how });
+  else saveConnection({ ...conn, hello: how });
   location.reload();
+  return true;
 }
 
 /** The note in the bot list for a computer that's on, which this app isn't using. */
@@ -411,8 +419,7 @@ function connectNotice(app, device) {
 /** Connect, tapped: says it's connecting, and why not when it can't. */
 function connecting(app, device) {
   app.emit('toast', { text: tr('Connecting to {name}…', { name: device.name }) });
-  const here = app.remote ? linkedNow?.find((d) => sameComputer(d, whereIs(app))) : null;
-  connectTo(device, 'first', here).catch((err) => {
+  connectTo(device).catch((err) => {
     reach.set(addressOf(device), { ok: false, at: Date.now() });
     app.emit('toast', { text: err.message, error: true });
   });
@@ -459,14 +466,18 @@ async function servedByComputer() {
 /**
  * While the app is open, the account's computers come and go: one starts, or
  * someone signs in on it for the first time. Every ten seconds while the app
- * is in front, and as it comes back, this asks the account which are running
- * and, once one answers at its address, connects to it: by itself when a
- * device connected to it before (or it's the server that comes with a plan
- * and this app runs the bots itself), as soon as nothing's going on here; the
- * first time, by asking (Connect, src/ui/app.js), which is said on the
- * computer too. Not now leaves a note in the bot list instead. When the
- * computer this app uses has stopped, it moves onto another it connects to
- * by itself. It keeps the note, and what the bots here are told about the
+ * is in front, as it comes back, and as a chat opens, this asks the account
+ * which are running. Each bot goes back to the computer it last used
+ * (botComputer): as its chat opens, the app switches to that one once it
+ * answers, before anything's typed there. Elsewhere, the app goes back to the
+ * computer the person was last using (lastComputer) once it answers, as
+ * soon as nothing's going on here. Any other computer that answers at its
+ * address, it connects to when it runs the bots itself: by itself when a
+ * device connected to it before (or it's the server that comes with a
+ * plan); the first time, by asking (Connect, src/ui/app.js), which is said
+ * on the computer too. Not now leaves a note in the bot list instead. When
+ * the computer this app uses has stopped, it moves onto another it connects
+ * to by itself. It keeps the note, and what the bots here are told about the
  * computer (src/core/prompts.js), up to date too. On Holly Computer's own page
  * there's nothing to connect to: it says to tap Connect on the phone, until
  * a phone has.
@@ -474,18 +485,21 @@ async function servedByComputer() {
 async function watchComputers(app) {
   const own = ownPage(app) || await servedByComputer();
   let checking = false;
+  let again = false;
   let asking = false;
   let moving = false;
+  /** The chat and computer last said to be out of reach, so it's said once. */
+  let told = null;
   let lastInput = Date.now();
   for (const type of ['pointerdown', 'keydown', 'input']) {
     addEventListener(type, () => { lastInput = Date.now(); }, { capture: true, passive: true });
   }
   // Moving to another computer reloads the app: not while something's going on.
   const idle = () => !busyHere(app) && Date.now() - lastInput > 5000;
-  const move = async (device) => {
+  const move = async (device, opts) => {
     moving = true;
     try {
-      await connectTo(device, 'auto');
+      if (!(await connectTo(device, 'auto', opts))) moving = false;
     } catch {
       reach.set(addressOf(device), { ok: false, at: Date.now() });
       moving = false;
@@ -499,7 +513,12 @@ async function watchComputers(app) {
     showNotice(app, null);
   });
   const check = async () => {
-    if (checking || asking || moving || document.visibilityState !== 'visible') return;
+    // Asked while checking (a chat just opened): once more straight after.
+    if (checking) {
+      again = true;
+      return;
+    }
+    if (asking || moving || document.visibilityState !== 'visible') return;
     checking = true;
     try {
       const list = await linkedComputers();
@@ -519,6 +538,29 @@ async function watchComputers(app) {
         // Nothing to say while the plan's server is on its way: the app moves onto it by itself.
         showNotice(app, app.awaitingServer ? null : noticeAbout(app, app.linkedComputers, list));
       }
+      // Where this app belongs: on the computer the bots in the chat on
+      // screen last used, or else on the one the person was last using.
+      const chat = chatInView(app);
+      const forChat = chatComputer(chat);
+      const wanted = forChat || lastComputer();
+      const want = runsHere() ? null : list.find((device) => device.id === wanted?.device && !declined(device));
+      if (want && want === here && forChat && lastComputer()?.device !== here.id) useComputer(here);
+      if (want && want !== here) {
+        if (computerConnection(want) && await answers(want)) {
+          // For a chat just opened, straight away, unless something's being
+          // typed or its bot is answering here.
+          const free = forChat ? () => !typingHere(app) && !app.runtime.isThreadBusy(chat.id) && (app.remote || !busyHere(app)) : idle;
+          if (free()) {
+            if (forChat) app.emit('toast', { text: tr('Connecting to {name}…', { name: want.name }) });
+            await move(want, { chosen: true, stay: () => !free() });
+          }
+          return;
+        }
+        if (forChat && here && told !== `${chat.id}|${want.id}`) {
+          told = `${chat.id}|${want.id}`;
+          app.emit('toast', { text: tr("Can't reach {name} right now, so this chat works on {here} until it's back.", { name: want.name, here: here.name }) });
+        }
+      }
       // The computer this app uses hasn't answered for a while (it stopped, or
       // its connection did): another it connects to by itself, if one answers.
       if (here && !app.reachable && Date.now() - (app.unreachableSince || Date.now()) > 120_000) {
@@ -528,9 +570,11 @@ async function watchComputers(app) {
           return;
         }
       }
-      // A server just set up isn't offered: the app moves onto it by itself (watchServerSetup).
+      // A server just set up isn't offered: the app moves onto it by itself
+      // (watchServerSetup). Nor, while on a computer, is one a device
+      // connected to before: the bots that used it go back to it (above).
       const offer = preferred(list).find((device) => device !== here && (!device.server || (!app.remote && !app.awaitingServer))
-        && computerConnection(device) && !declined(device));
+        && !(app.remote && isPaired(device)) && computerConnection(device) && !declined(device));
       if (!offer) {
         if (app.remote && app.computerNotice?.unreachable) showNotice(app, null);
         return;
@@ -542,10 +586,9 @@ async function watchComputers(app) {
         return;
       }
       if (app.computerNotice?.unreachable) showNotice(app, null);
-      // Connected to before: by itself, unless this app is on another of your
-      // own computers, or runs the bots itself because it was told to.
-      const onServer = !!here?.server;
-      if (isPaired(offer) && (!app.remote || onServer) && !runsHere()) {
+      // Connected to before: by itself, unless this app runs the bots itself
+      // because it was told to.
+      if (isPaired(offer) && !runsHere()) {
         if (idle()) await move(offer);
         return;
       }
@@ -553,7 +596,7 @@ async function watchComputers(app) {
       asking = true;
       app.emit('computer-offer', {
         name: offer.name,
-        accept: () => connectTo(offer, 'first', here).catch((err) => {
+        accept: () => connectTo(offer).catch((err) => {
           asking = false;
           reach.set(addressOf(offer), { ok: false, at: Date.now() });
           throw err;
@@ -569,11 +612,32 @@ async function watchComputers(app) {
       });
     } finally {
       checking = false;
+      if (again) {
+        again = false;
+        check();
+      }
     }
   };
   document.addEventListener('visibilitychange', check);
+  // A chat opened: its bots' computer.
+  addEventListener('hashchange', () => {
+    told = null;
+    check();
+  });
   setInterval(check, 10_000);
   check();
+}
+
+/** The chat on screen (src/ui/app.js), or null. */
+function chatInView(app) {
+  const m = location.hash.match(/^#\/chat\/([^/?]+)/);
+  return m ? app.getThread(decodeURIComponent(m[1])) : null;
+}
+
+/** The computer the bots in the chat `thread` last used (botComputer): the
+ * latest of theirs, or null. */
+function chatComputer(thread) {
+  return (thread?.agentIds || []).map(botComputer).filter(Boolean).sort((a, b) => b.at - a.at)[0] || null;
 }
 
 /** The note on Holly Computer's own page until a phone has connected to it. */
@@ -1076,10 +1140,14 @@ function watchServerSetup(app) {
 /** Whether reloading now would cut something short here: a bot replying,
  * something being typed, changes waiting to be saved. */
 function busyHere(app) {
+  return typingHere(app) || app.runtime.activeRuns().length > 0 || (app.db?.pending?.length || 0) > 0;
+}
+
+/** Whether something's being typed here, which reloading would lose. */
+function typingHere(app) {
   const field = document.activeElement;
-  const typing = !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
+  return !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
     || [...(app.drafts?.values() || [])].some((text) => text?.trim());
-  return typing || app.runtime.activeRuns().length > 0 || (app.db?.pending?.length || 0) > 0;
 }
 
 function registerServiceWorker() {
