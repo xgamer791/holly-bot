@@ -90,9 +90,9 @@ function MemoryList({ ownerId, agent, shared = false }) {
 
   const exportMd = () => {
     // A bot's own memory starts with its job and rules, as it reads them.
-    const kept = shared ? [] : [['Job', agent.description], ['Rules', agent.rules]].filter(([, text]) => text?.trim()).map(([title, text]) => `## ${title}\n\n${text.trim()}\n\n`);
+    const kept = shared ? [] : [[tr('Job'), agent.description], [tr('Rules'), agent.rules]].filter(([, text]) => text?.trim()).map(([title, text]) => `## ${title}\n\n${text.trim()}\n\n`);
     const list = all.map((m) => `- (${m.type}, ${new Date(m.createdAt).toISOString().slice(0, 10)}${m.pinned ? ', pinned' : ''}) ${m.text}`).join('\n');
-    const md = `# ${shared ? 'Team' : agent.name} memory\n\n${kept.join('')}${kept.length ? `## Memories\n\n${list}` : list}\n`;
+    const md = `# ${shared ? tr('Team memory') : tr('{name} memory', { name: agent.name })}\n\n${kept.join('')}${kept.length ? `## ${tr('Memories')}\n\n${list}` : list}\n`;
     downloadBlob(new Blob([md], { type: 'text/markdown' }), `${shared ? 'team' : agent.name.toLowerCase().replace(/\W+/g, '-')}-memory.md`);
   };
 

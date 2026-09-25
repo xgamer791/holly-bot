@@ -67,6 +67,9 @@ export default {
   "Messaged {bot}": "Envió un mensaje a {bot}",
   "Delegated to {bot}": "Delegó en {bot}",
   "Create bot “{name}”": "Crear el bot “{name}”",
+  "Create a new bot named “{name}”": "Crear un bot nuevo llamado “{name}”",
+  "Create a new bot named “{name}” ({job})": "Crear un bot nuevo llamado “{name}” ({job})",
+  "Its rules, which come before what you ask it in chat:": "Sus reglas, que van antes de lo que le pidas en el chat:",
   "Ran Python": "Ejecutó Python",
   "Ran JavaScript": "Ejecutó JavaScript",
   "Looked at the screen": "Miró la pantalla",
@@ -497,6 +500,7 @@ export default {
   "{name}'s memory": "Memoria de {name}",
   "Core": "Central",
   "Team memory": "Memoria del equipo",
+  "{name} memory": "Memoria de {name}",
   "Shared notes every bot can read (and write with remember → shared). Good for team rules, project facts and handoffs.": "Notas compartidas que todos los bots pueden leer (y escribir con remember → shared). Útiles para reglas del equipo, datos de proyectos y traspasos.",
   "Merged {n} duplicate memory": "Se fusionó {n} recuerdo duplicado",
   "Merged {n} duplicate memories": "Se fusionaron {n} recuerdos duplicados",
@@ -969,4 +973,5 @@ export default {
   "Upload not found": "No se encontró el archivo subido",
   "There's no subscription to set a computer up for.": "No hay ninguna suscripción para la cual configurar una computadora.",
   "Holly Bot is already on it. Try again in a minute.": "Holly Bot ya se está encargando. Inténtalo de nuevo en un minuto.",
+  "The reply hit the output limit, so it may be cut short.": "La respuesta llegó al límite de longitud, así que puede quedar cortada.",
 };

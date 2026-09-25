@@ -122,10 +122,10 @@ const HOLLY_RULES = [
 export const RULES_PROMPT = `You check the rules a user wrote for one of their AI bots in Holly Bot, a phone app where they chat with their bots. The bot keeps every one of its user's rules, except one that goes against Holly Bot's own rules for every bot, which no rule of the user's can change or lift:
 ${HOLLY_RULES}
 
-List the user's rules that go against these, if any. Only a real conflict counts: a rule that's strict, unusual or inconvenient, or about how the bot writes or works (length, tone, format, language, steps, when to check in), is fine. When only part of a rule goes against them, give that part: the bot keeps the rest.
+List the user's rules that go against these, if any, 12 at most. Only a real conflict counts: a rule that's strict, unusual or inconvenient, or about how the bot writes or works (length, tone, format, language, steps, when to check in), is fine. When only part of a rule goes against them, give that part: the bot keeps the rest.
 
 Reply with JSON only: {"refused":[{"rule":"…","why":"…"}]}
-- rule: the rule (or the part of it), quoted as the user wrote it.
+- rule: the rule (or the part of it), quoted as the user wrote it: its first 40 words, for a long one.
 - why: one plain sentence, in English, on which of Holly Bot's rules it goes against.
 Reply {"refused":[]} when every rule is fine.`;
 
@@ -135,14 +135,19 @@ export function rulesInput(agent) {
 }
 
 /** The rules check's answer: the user's rules the bot won't follow, as
- * [{ rule, why }]; null when it isn't the JSON asked for. */
+ * [{ rule, why }] (a rule given as just its words comes without a why); null
+ * when it isn't the JSON asked for, or lists rules in a way that can't be
+ * read, which is no all clear. */
 export function parseRulesCheck(text) {
   const data = extractJson(text);
   if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.refused)) return null;
-  return data.refused
-    .filter((r) => typeof r?.rule === 'string' && r.rule.trim())
+  const refused = data.refused
+    .map((r) => (typeof r === 'string' ? { rule: r } : r))
+    .filter((r) => typeof r?.rule === 'string' && r.rule.trim());
+  if (data.refused.length && !refused.length) return null;
+  return refused
     .slice(0, 12)
-    .map((r) => ({ rule: truncate(r.rule.replace(/\s+/g, ' ').trim(), 400), why: truncate(String(r.why || '').replace(/\s+/g, ' ').trim(), 300) }));
+    .map((r) => ({ rule: truncate(r.rule.replace(/\s+/g, ' ').trim(), 400), why: truncate(plain(r.why).replace(/\s+/g, ' ').trim(), 300) }));
 }
 
 /** The user's rules a bot won't follow, as its rules are now ([] until they're checked). */
@@ -150,23 +155,43 @@ export function refusedRules(agent) {
   return agent?.rules?.trim() && agent.rulesCheckFor === agent.rules ? agent.rulesRefused || [] : [];
 }
 
-/** Of `refused`, the rules that weren't among `before` (both [{ rule, why }]). */
-export function newlyRefused(refused, before = []) {
+/** Of `refused`, the rules the user newly wrote: not among `before` (both
+ * [{ rule, why }]), nor on a line of `oldRules` (the rules as they were last
+ * checked) that's still in `rules` as it was. All of a bot's rules are
+ * checked again when any of them changes, and the AI can quote a rule
+ * differently each time: one the user didn't touch isn't announced again. */
+export function newlyRefused(refused, before = [], oldRules = '', rules = '') {
   const key = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  const known = new Set(before.map((r) => key(r.rule)));
-  return refused.filter((r) => !known.has(key(r.rule)));
+  const lines = (text) => String(text || '').split('\n').map(key).filter(Boolean);
+  const current = new Set(lines(rules));
+  const kept = lines(oldRules).filter((line) => current.has(line));
+  const known = new Set((before || []).map((r) => key(r.rule)));
+  return refused.filter((r) => {
+    const k = key(r.rule);
+    return !known.has(k) && !(k && kept.some((line) => line.includes(k)));
+  });
 }
 
 /** The AI's answer to BRIEF_PROMPT: { brief, summary }. An answer that isn't
- * the JSON asked for is taken as the briefing, without a summary. */
+ * the JSON asked for is taken as the briefing, without a summary; a briefing
+ * given in parts or as a list, as text. */
 export function parseBrief(text) {
   const raw = String(text || '').trim();
   const data = extractJson(raw);
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     return {
-      brief: truncate(String(data.briefing || data.brief || '').trim(), 3000),
-      summary: truncate(String(data.summary || '').replace(/\s+/g, ' ').trim(), 300),
+      brief: truncate((plain(data.briefing) || plain(data.brief)).trim(), 3000),
+      summary: truncate(plain(data.summary).replace(/\s+/g, ' ').trim(), 300),
     };
   }
   return { brief: /^[{[]/.test(raw) ? '' : truncate(raw, 3000), summary: '' };
+}
+
+/** What the AI wrote as `value`, as text: a string as it is, a list one item
+ * a line, parts each under its name ('' for anything else). */
+function plain(value) {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(plain).filter((s) => s.trim()).map((s) => `- ${s}`).join('\n');
+  if (value && typeof value === 'object') return Object.entries(value).map(([name, v]) => `${name}:\n${plain(v)}`).join('\n\n');
+  return '';
 }

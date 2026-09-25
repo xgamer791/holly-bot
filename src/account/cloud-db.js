@@ -614,11 +614,13 @@ export class CloudDB {
   }
 
   /** Takes on scheduled work (`key` due at `at`) for this device; false when
-   * another device already has, or the server can't be reached. */
-  async claim(key, at) {
+   * another device already has, or the server can't be reached (with
+   * `strict`, that throws instead, for work to try again later). */
+  async claim(key, at, { strict = false } = {}) {
     try {
       return await this.call('mutation', 'data:claim', { key: String(key), at });
     } catch (err) {
+      if (strict) throw err;
       console.warn('claim', err);
       return false;
     }

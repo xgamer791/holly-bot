@@ -148,7 +148,16 @@ export const agentTools = [
       },
       required: ['name'],
     },
-    approval: (a) => `Create a new bot named “${a.name}”${a.description ? ` (${truncate(a.description, 160)})` : ''}`,
+    // A bot given rules always asks, and shows them: they come before what the
+    // user asks it in chat, so they see them before it's made.
+    alwaysAsk: (a) => !!String(a.rules || '').trim(),
+    approval: (a) => {
+      const create = a.description
+        ? phrase('Create a new bot named “{name}” ({job})', { name: a.name, job: truncate(a.description, 160) })
+        : phrase('Create a new bot named “{name}”', { name: a.name });
+      const rules = String(a.rules || '').trim();
+      return rules ? [create, '', phrase('Its rules, which come before what you ask it in chat:'), rules] : create;
+    },
     async run(args, ctx) {
       if (ctx.app.findAgent(args.name)) return { content: `A bot named ${args.name} already exists.`, isError: true };
       const agent = await ctx.app.createAgent({

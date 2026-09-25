@@ -8,7 +8,7 @@ import { MAX_TOOL_STEPS, effortOf } from './constants.js';
 import { CONTENT_NOTE } from './safety.js';
 import { contextWindow, supportsVision } from './providers/index.js';
 import { extractJson } from './util.js';
-import { phrase, spoken } from './i18n.js';
+import { mark, phrase, spoken } from './i18n.js';
 import { jobLine } from './brief.js';
 
 // The agent runtime: builds each bot's context, streams model output, runs
@@ -450,7 +450,11 @@ export class Runtime {
           step.notices.push('The model declined this request.');
           break;
         }
-        if (!step.toolCalls.length) break;
+        if (!step.toolCalls.length) {
+          // Out of room before it finished (its thinking counts too): it says so, rather than just stopping.
+          if (result.stopReason === 'max_tokens') step.notices.push(mark('The reply hit the output limit, so it may be cut short.'));
+          break;
+        }
         if (result.stopReason === 'max_tokens') {
           step.toolCalls = [];
           step.notices.push('The reply hit the output limit before the tool call finished.');

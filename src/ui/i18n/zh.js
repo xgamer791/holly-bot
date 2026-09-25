@@ -67,6 +67,9 @@ export default {
   "Messaged {bot}": "已给 {bot} 发消息",
   "Delegated to {bot}": "已委派给 {bot}",
   "Create bot “{name}”": "创建机器人“{name}”",
+  "Create a new bot named “{name}”": "创建一个名为“{name}”的新机器人",
+  "Create a new bot named “{name}” ({job})": "创建一个名为“{name}”的新机器人（{job}）",
+  "Its rules, which come before what you ask it in chat:": "它的规则（优先于你在聊天中对它的要求）：",
   "Ran Python": "已运行 Python",
   "Ran JavaScript": "已运行 JavaScript",
   "Looked at the screen": "已查看屏幕",
@@ -497,6 +500,7 @@ export default {
   "{name}'s memory": "{name} 的记忆",
   "Core": "核心",
   "Team memory": "团队记忆",
+  "{name} memory": "{name}的记忆",
   "Shared notes every bot can read (and write with remember → shared). Good for team rules, project facts and handoffs.": "所有机器人都能读取的共享笔记（也能用 remember → shared 写入）。适合记录团队规则、项目信息和工作交接。",
   "Merged {n} duplicate memory": "已合并 {n} 条重复记忆",
   "Merged {n} duplicate memories": "已合并 {n} 条重复记忆",
@@ -969,4 +973,5 @@ export default {
   "Upload not found": "找不到上传的文件",
   "There's no subscription to set a computer up for.": "没有订阅，无法设置电脑。",
   "Holly Bot is already on it. Try again in a minute.": "Holly Bot 已经在处理了。请过一分钟再试。",
+  "The reply hit the output limit, so it may be cut short.": "回复达到了输出长度上限，可能不完整。",
 };

@@ -144,7 +144,7 @@ function StepView({ step, msg, streaming }) {
   return html`
     ${step.text && html`<div class="bubble"><${Markdown} text=${step.text} streaming=${streaming} /></div>`}
     ${(step.toolCalls || []).map((c) => html`<${ToolCallView} key=${c.id} call=${c} msg=${msg} />`)}
-    ${(step.notices || []).map((n, i) => html`<div key=${i} class="notice" style="align-self:flex-start;text-align:left">${n}</div>`)}`;
+    ${(step.notices || []).map((n, i) => html`<div key=${i} class="notice" style="align-self:flex-start;text-align:left">${tr(n)}</div>`)}`;
 }
 
 /** Whether ToolCallView draws `call`: cards, what it sent or made, memory notes. */

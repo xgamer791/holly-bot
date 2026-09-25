@@ -76,6 +76,13 @@ function shown(p) {
 /** How long creating a bot waits for its focus options before using the usual ones. */
 const FOCUS_WAIT_MS = 8000;
 
+/** Background work for a bot that didn't come through (its briefing, its
+ * rules check) is tried again, but not before this long, and this many times
+ * at most, until what it's for changes or the app starts again: a request
+ * that keeps failing the same way isn't sent again with every message. */
+const RETRY_AFTER_MS = 5 * 60_000;
+const RETRY_TRIES = 3;
+
 const FOCUS_PROMPT = 'Someone just made an AI assistant bot and named it. From its name (and its job or instructions, when given), '
   + 'work out what they made it for, and write the four things it should offer to help with first, most likely first. '
   + 'Each is a short option on a menu, 2 to 4 words, like "Fix bugs in my code" or "Plan this week\'s meals". '
@@ -514,8 +521,7 @@ export class App {
    * Coordinator has its own instructions (src/core/chief.js). */
   needsBrief(agent) {
     if (!agent || agent.role === 'chief' || !agent.description?.trim()) return false;
-    return agent.briefFor !== agent.description || (agent.briefRules || '') !== (agent.rules || '')
-      || (!shortJob(agent.description) && (agent.briefV || 1) < BRIEF_VERSION);
+    return !briefCurrent(agent) || (!shortJob(agent.description) && (agent.briefV || 1) < BRIEF_VERSION);
   }
 
   /**
@@ -532,18 +538,26 @@ export class App {
     const rules = agent.rules || '';
     const current = this.briefing.get(agentId);
     if (current?.job === job && current.rules === rules) return current.work;
+    // One that didn't come through for this job and rules waits before it's tried again.
+    const tries = `brief:${agentId}`;
+    const version = JSON.stringify([job, rules]);
+    if (this.retryHeld(tries, version)) return null;
     const entry = { job, rules };
     this.briefing.set(agentId, entry);
     entry.work = (async () => {
       try {
-        const { brief, summary } = parseBrief(await this.providers.complete({ agent, purpose: 'memory', system: BRIEF_PROMPT, prompt: briefInput(agent), json: true, maxTokens: 1200 }));
+        const { brief, summary } = parseBrief(await this.providers.complete({ agent, purpose: 'memory', system: BRIEF_PROMPT, prompt: briefInput(agent), json: true, maxTokens: 2000 }));
         // Only if its job and rules are still what was read.
         const fresh = this.getAgent(agentId);
         if (brief && fresh?.description === job && (fresh.rules || '') === rules) {
           await this.updateAgent(agentId, { brief, jobSummary: summary, briefFor: job, briefRules: rules, briefV: BRIEF_VERSION });
         }
+        this.retryNote(tries, version, !!brief);
       } catch (err) {
-        if (err?.kind !== 'no_key') console.warn('briefing', err?.message || err);
+        if (err?.kind !== 'no_key') {
+          console.warn('briefing', err?.message || err);
+          this.retryNote(tries, version, false);
+        }
       } finally {
         if (this.briefing.get(agentId) === entry) this.briefing.delete(agentId);
       }
@@ -561,7 +575,7 @@ export class App {
    * its first reply after a new job or new rules comes with it. One for its
    * job and rules as they are (from before summaries too) is good to reply with. */
   async briefed(agentId, waitMs = 8000) {
-    // Rules whose check didn't come through are checked again.
+    // Rules whose check didn't come through are checked again (after a while: retryHeld).
     this.checkRulesSoon(agentId);
     const work = this.briefSoon(agentId);
     if (!work || briefCurrent(this.getAgent(agentId))) return;
@@ -591,22 +605,34 @@ export class App {
     const rules = agent.rules || '';
     const current = this.rulesChecks.get(agentId);
     if (current?.rules === rules) return current.work;
+    // One that didn't come through for these rules waits before it's tried again.
+    const tries = `rules:${agentId}`;
+    if (this.retryHeld(tries, rules)) return null;
     const entry = { rules };
     this.rulesChecks.set(agentId, entry);
     entry.work = (async () => {
       try {
         const refused = rules.trim()
-          ? parseRulesCheck(await this.providers.complete({ agent, purpose: 'memory', system: RULES_PROMPT, prompt: rulesInput(agent), json: true, maxTokens: 1200 }))
+          ? parseRulesCheck(await this.providers.complete({ agent, purpose: 'memory', system: RULES_PROMPT, prompt: rulesInput(agent), json: true, maxTokens: 4000 }))
           : [];
-        // Checked again later when the answer wasn't usable; not at all when the rules changed meanwhile.
+        // Not at all when the rules changed meanwhile; checked again later when the answer wasn't usable.
         const fresh = this.getAgent(agentId);
-        if (!refused || !fresh || (fresh.rules || '') !== rules) return;
-        const told = newlyRefused(refused, fresh.rulesRefused);
-        await this.updateAgent(agentId, { rulesRefused: refused, rulesCheckFor: rules });
+        if (!fresh || (fresh.rules || '') !== rules) return;
+        if (!refused) throw new Error("the answer wasn't the JSON asked for");
+        const told = newlyRefused(refused, fresh.rulesRefused, fresh.rulesCheckFor, rules);
         // Storage an account's devices share: only one of them tells the user.
-        if (told.length && (!this.db.claim || await this.db.claim(`rules:${agentId}`, fresh.rulesAt || 1))) await this.tellRefused(this.getAgent(agentId), told);
+        // That's settled before the check is kept: when the server can't be
+        // reached (the claim throws), nothing is kept, and the check and the
+        // telling are tried again later.
+        const tell = told.length > 0 && (!this.db.claim || await this.db.claim(`rules:${agentId}`, fresh.rulesAt || 1, { strict: true }));
+        await this.updateAgent(agentId, { rulesRefused: refused, rulesCheckFor: rules });
+        this.retryNote(tries, rules, true);
+        if (tell) await this.tellRefused(this.getAgent(agentId), told);
       } catch (err) {
-        if (err?.kind !== 'no_key') console.warn('rules check', err?.message || err);
+        if (err?.kind !== 'no_key') {
+          console.warn('rules check', err?.message || err);
+          this.retryNote(tries, rules, false);
+        }
       } finally {
         if (this.rulesChecks.get(agentId) === entry) this.rulesChecks.delete(agentId);
       }
@@ -631,6 +657,23 @@ export class App {
     });
     this.runtime.enqueue(thread.id, (halt) => this.runtime.runTurn({ agent: this.getAgent(agent.id) || agent, threadId: thread.id, halt }))
       .catch((err) => console.warn('rules notice', err));
+  }
+
+  // ----- background work for a bot that didn't come through -------------------------
+
+  /** Whether background work `id` for `version` (what it read) didn't come
+   * through lately, or too often, to be tried again now (RETRY_AFTER_MS, RETRY_TRIES). */
+  retryHeld(id, version) {
+    const failed = this.retries?.get(id);
+    return !!failed && failed.version === version && (failed.tries >= RETRY_TRIES || now() - failed.at < RETRY_AFTER_MS);
+  }
+
+  /** Notes how background work `id` for `version` went: done with when `ok`, else tried again later. */
+  retryNote(id, version, ok) {
+    this.retries ||= new Map();
+    const failed = this.retries.get(id);
+    if (ok) this.retries.delete(id);
+    else this.retries.set(id, { version, tries: failed?.version === version ? failed.tries + 1 : 1, at: now() });
   }
 
   async deleteAgent(id) {

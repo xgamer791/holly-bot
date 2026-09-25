@@ -299,13 +299,27 @@ export class ProviderHub {
       // "max" is DeepSeek's (effortMap); an OpenAI-style effort tops out at "high".
       const effort = provider.effortMap ? provider.effortMap[reasoningEffort]
         : provider.reasoningEffort ? (reasoningEffort === 'max' ? 'high' : reasoningEffort) : undefined;
-      return await chatCompletion({
+      let streamed = false;
+      const body = {
         ...req,
         extraBody,
         reasoningEffort: thinking === false ? undefined : effort,
         maxTokens: maxTokens || provider.defaultMaxTokens,
         replayReasoning: !!provider.replayReasoning && !!tools?.length,
-      });
+        onEvent: (e) => {
+          streamed = true;
+          onEvent?.(e);
+        },
+      };
+      try {
+        return await chatCompletion(body);
+      } catch (err) {
+        // Bots think at DeepSeek's max unless their profile says less: should
+        // DeepSeek turn "max" down, the same request goes again at "high"
+        // (a request DeepSeek turns down costs no credits).
+        if (body.reasoningEffort !== 'max' || ![400, 422].includes(err?.status) || streamed || signal?.aborted) throw err;
+        return await chatCompletion({ ...body, reasoningEffort: 'high' });
+      }
     } catch (err) {
       if (provider.credits && err instanceof TypeError) {
         const e = new ProviderError("Couldn't reach Holly Bot's AI. Check your internet connection and try again.", { provider: provider.label, retryable: true });

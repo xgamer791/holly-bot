@@ -363,7 +363,8 @@ button.row:active { background: var(--surface-2); }
 :root[data-theme="light"] .job-box.big { background: var(--surface-2); }
 .job-area { display: block; width: 100%; min-height: 96px; padding: 13px 14px 8px; background: none; border: 0; outline: none; resize: none; overflow: hidden; font-size: 17px; line-height: 1.4; color: var(--text); }
 .job-box.big .job-area { padding: 14px 18px 8px; }
-.job-box.rules .job-area { min-height: 72px; }
+/* a rules box is shorter, but in Create New Bot (big) as tall as the job's: its placeholder takes three lines on a phone */
+.job-box.rules:not(.big) .job-area { min-height: 72px; }
 .job-area::placeholder { color: #8b8b8f; }
 .job-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; padding: 13px 14px 0; font-size: 17px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
 .job-box.big .job-text { padding: 14px 18px 0; }

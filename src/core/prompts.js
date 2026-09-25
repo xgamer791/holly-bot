@@ -95,7 +95,8 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
           ...refused.map((r) => `- “${r.rule}”${r.why ? `: ${r.why}` : ''}`)]
         : []));
   }
-  if (job && chief) lines.push(`Your role: ${job}.`);
+  // A paragraph of its own, not the tail of its rules.
+  if (job && chief) lines.push('', `Your role: ${job}.`);
   else if (job) {
     lines.push('', '## Your job',
       'Your job description, as the user wrote it. It\'s kept in your memory, and you read it in full at the start of every conversation: it\'s what you\'re here for. '
