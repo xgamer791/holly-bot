@@ -1104,7 +1104,14 @@ export class CdpBrowser {
 
   async clickXY(x, y, o = {}) {
     const tab = await this.tabFor(o);
-    const s = tab.shotScale || 1;
+    let s = tab.shotScale || 1;
+    // `imageWidth`: how wide the screenshot x and y are in was, which can be
+    // another size than the last one taken (the app's zoomed-in view).
+    if (o.imageWidth > 0) {
+      const m = await this.cdp.send('Page.getLayoutMetrics', {}, tab.sessionId);
+      const w = (m.cssVisualViewport || m.visualViewport)?.clientWidth;
+      if (w) s = o.imageWidth / w;
+    }
     await this.mouseClick(tab, x / s, y / s);
     await this.settle(tab, 500);
     return this.snapshot(o);
@@ -1115,14 +1122,16 @@ export class CdpBrowser {
     return this.eval(tab, String(expression || 'undefined'));
   }
 
-  /** JPEG of the tab's viewport, at most maxWidth wide; click_xy takes coordinates in it. */
-  async screenshot({ quality = 70, maxWidth = 1280 } = {}, o = {}) {
+  /** JPEG of the tab's viewport, at most maxWidth wide; click_xy takes coordinates in it.
+   * `scaleUp`: the page drawn bigger than it is, up to 3×, when maxWidth has
+   * room, so it stays sharp for someone zoomed in on it (the app's Screen view). */
+  async screenshot({ quality = 70, maxWidth = 1280, scaleUp = false } = {}, o = {}) {
     const tab = await this.tabFor(o);
     const m = await this.cdp.send('Page.getLayoutMetrics', {}, tab.sessionId);
     const vv = m.cssVisualViewport || m.visualViewport;
     const w = vv.clientWidth;
     const h = vv.clientHeight;
-    let scale = Math.min(1, maxWidth / w);
+    let scale = Math.min(scaleUp ? 3 : 1, maxWidth / w);
     const capture = (s) => this.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality, clip: { x: vv.pageX, y: vv.pageY, width: w, height: h, scale: s } }, tab.sessionId, 20000);
     let r = await capture(scale);
     let size = imageSize(Buffer.from(r.data, 'base64'));
@@ -1133,7 +1142,9 @@ export class CdpBrowser {
       size = imageSize(Buffer.from(r.data, 'base64'));
     }
     const width = size?.width || Math.round(w * scale);
-    tab.shotScale = width / w;
+    // A bot's click_xy is in the last screenshot it saw. A zoomed-in view's
+    // bigger one isn't that: its clicks say how wide their screenshot was.
+    if (!scaleUp) tab.shotScale = width / w;
     return { data: r.data, mime: 'image/jpeg', width, height: size?.height || Math.round(h * scale), url: tab.url, title: tab.title, tab: tab.targetId.slice(0, 8) };
   }
 

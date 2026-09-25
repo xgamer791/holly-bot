@@ -1,11 +1,11 @@
-import { html, useState, useEffect, useRef } from '../../vendor/preact.js';
+import { html, useState, useEffect, useLayoutEffect, useRef } from '../../vendor/preact.js';
 import { useApp, useUi, useAsync, useTopics } from './hooks.js';
 import { Sheet, Tabs, downloadBlob, Group, Row } from './components.js';
 import { Icon, fileIcon } from './icons.js';
 import { Markdown } from './markdown.js';
 import { formatBytes, truncate } from '../core/util.js';
 import { fileToBlob, isTextPath } from '../core/files.js';
-import { dateTimeText, mark, phraseOr, shortTime, tr, trn, trx } from './i18n.js';
+import { dateTimeText, mark, number, phraseOr, shortTime, tr, trn, trx } from './i18n.js';
 
 /** The capabilities the computer's About tab lists, by name. */
 const CAPABILITIES = {
@@ -174,6 +174,174 @@ function Terminal() {
     </div>`;
 }
 
+/** How far the screen picture zooms in. */
+const MAX_ZOOM = 6;
+
+const fitZoom = (z) => Math.min(MAX_ZOOM, Math.max(1, z));
+
+/**
+ * Zooming the screen picture inside its frame, not the page: a pinch (or
+ * ctrl + scroll, or a trackpad pinch) zooms it, and zoomed in, a finger, the
+ * mouse or scrolling moves it around. Until it's zoomed in, one finger on it
+ * scrolls the sheet as before.
+ *
+ * The view is { z, x, y }: the zoom, and where the picture's top-left corner
+ * is, as a share of the frame's width and height (from 1 − z to 0). The
+ * picture is laid out at its zoomed size rather than scaled with a
+ * transform, so the browser draws it from the full image at every zoom and
+ * it stays sharp. `onSettle` is called when a gesture has zoomed or moved it.
+ */
+function useZoom(onSettle) {
+  const frame = useRef(null);
+  const picture = useRef(null);
+  const view = useRef({ z: 1, x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const quietUntil = useRef(0); // the click at the end of a pinch or a drag isn't a tap
+  const drag = useRef(null);
+  const settled = useRef(onSettle);
+  settled.current = onSettle;
+
+  const paint = () => {
+    const s = picture.current?.style;
+    if (!s) return;
+    const { z, x, y } = view.current;
+    s.width = `${z * 100}%`;
+    s.height = `${z * 100}%`;
+    s.left = `${x * 100}%`;
+    s.top = `${y * 100}%`;
+  };
+  const place = (z, x, y) => {
+    view.current = { z, x: Math.min(0, Math.max(1 - z, x)), y: Math.min(0, Math.max(1 - z, y)) };
+    paint();
+  };
+  /** Zooms to `z` from `from`, keeping the point of the picture at (fx, fy) of the frame where it is. */
+  const zoomAt = (z, fx, fy, from = view.current) => {
+    const to = fitZoom(z);
+    place(to, fx - ((fx - from.x) / from.z) * to, fy - ((fy - from.y) / from.z) * to);
+  };
+  /** A gesture is over. `fingers`: it was a pinch or a drag, and the click that may follow isn't a tap. */
+  const settle = (fingers = true) => {
+    if (fingers) quietUntil.current = performance.now() + 400;
+    if (view.current.z < 1.05) place(1, 0, 0);
+    setZoom(view.current.z);
+    settled.current?.(view.current.z);
+  };
+  const reset = () => {
+    place(1, 0, 0);
+    setZoom(1);
+  };
+
+  // A picture put in (a new one, after none) starts where the view is.
+  useLayoutEffect(paint);
+
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return undefined;
+    let g = null; // the touches: where they started (p), the view then (v), and whether they've zoomed or moved it
+    let pinch = null; // a trackpad pinch in Safari
+    let wheelEnd = 0;
+    const at = (touches, rect) => {
+      const a = touches[0];
+      const b = touches[1] || a;
+      const cx = (a.clientX + b.clientX) / 2;
+      const cy = (a.clientY + b.clientY) / 2;
+      return { n: touches.length, cx, cy, x: (cx - rect.left) / rect.width, y: (cy - rect.top) / rect.height, d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) };
+    };
+    // Each time a finger lands or lifts, the gesture carries on from where the picture is.
+    const begin = (e) => {
+      const rect = el.getBoundingClientRect();
+      g = { rect, p: at(e.touches, rect), v: view.current, moved: !!g?.moved, pinched: !!g?.pinched || e.touches.length > 1 };
+    };
+    const move = (e) => {
+      if (!g || !e.touches.length || !picture.current) return;
+      if (e.touches.length !== g.p.n) return begin(e);
+      const p = at(e.touches, g.rect);
+      const far = Math.hypot(p.cx - g.p.cx, p.cy - g.p.cy) > 6;
+      if (p.n > 1) {
+        // Two fingers: the picture zooms, and the page doesn't.
+        if (e.cancelable) e.preventDefault();
+        g.moved = true;
+        const z = fitZoom(g.v.z * (g.p.d ? p.d / g.p.d : 1));
+        place(z, p.x - ((g.p.x - g.v.x) / g.v.z) * z, p.y - ((g.p.y - g.v.y) / g.v.z) * z);
+      } else if (g.v.z > 1 && (g.moved || far)) {
+        if (e.cancelable) e.preventDefault();
+        g.moved = true;
+        place(g.v.z, g.v.x + p.x - g.p.x, g.v.y + p.y - g.p.y);
+      } else if (far) g.moved = true; // the sheet scrolls
+    };
+    const end = (e) => {
+      if (!g) return;
+      if (e.touches.length) return begin(e);
+      const done = g;
+      g = null;
+      if (done.pinched || (done.moved && done.v.z > 1)) settle();
+    };
+    const wheel = (e) => {
+      const { z, x, y } = view.current;
+      if (!picture.current || (!e.ctrlKey && z <= 1)) return; // the page scrolls
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.height : 1;
+      // A trackpad pinch comes in small steps; a mouse wheel's are big, and each is held to about 1.5×.
+      if (e.ctrlKey) zoomAt(z * Math.exp(-Math.max(-40, Math.min(40, e.deltaY * unit)) * 0.01), (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+      else place(z, x - (e.deltaX * unit) / rect.width, y - (e.deltaY * unit) / rect.height);
+      clearTimeout(wheelEnd);
+      wheelEnd = setTimeout(() => settle(false), 250);
+    };
+    // Safari's own pinch events: on a phone the touches above do the zooming,
+    // and these would zoom the page; on a Mac they're the trackpad's pinch.
+    const gesture = (e) => {
+      if (!picture.current) return;
+      e.preventDefault();
+      if (g) return;
+      if (e.type === 'gesturestart') {
+        const rect = el.getBoundingClientRect();
+        pinch = { v: view.current, fx: (e.clientX - rect.left) / rect.width, fy: (e.clientY - rect.top) / rect.height };
+      } else if (pinch && e.type === 'gesturechange') zoomAt(pinch.v.z * e.scale, pinch.fx, pinch.fy, pinch.v);
+      else if (pinch && e.type === 'gestureend') {
+        pinch = null;
+        settle(false);
+      }
+    };
+    const listeners = [['touchstart', begin], ['touchmove', move], ['touchend', end], ['touchcancel', end], ['wheel', wheel],
+      ['gesturestart', gesture], ['gesturechange', gesture], ['gestureend', gesture]];
+    for (const [type, fn] of listeners) el.addEventListener(type, fn, { passive: false });
+    return () => {
+      clearTimeout(wheelEnd);
+      for (const [type, fn] of listeners) el.removeEventListener(type, fn);
+    };
+  }, []);
+
+  // Zoomed in, the mouse drags the picture around.
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || view.current.z <= 1) return;
+    drag.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, v: view.current, rect: e.currentTarget.getBoundingClientRect(), moved: false };
+  };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    if (!d.moved) e.currentTarget.setPointerCapture?.(e.pointerId);
+    d.moved = true;
+    place(d.v.z, d.v.x + dx / d.rect.width, d.v.y + dy / d.rect.height);
+  };
+  const onPointerUp = (e) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (d.moved) settle();
+  };
+
+  return {
+    frame, picture, view, zoom, reset,
+    /** Whether a click is the end of a pinch or a drag rather than a tap. */
+    quiet: () => performance.now() < quietUntil.current,
+    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+  };
+}
+
 /** The computer's screen, or with `agentId`, that bot's: on a server each bot
  * has a screen of its own, with its own window of the shared Chrome
  * (computer/src/screens.mjs); elsewhere they share the one. */
@@ -190,39 +358,74 @@ function Screen({ agentId }) {
   const [typing, setTyping] = useState('');
   const [keys, setKeys] = useState('');
   const inflight = useRef(false);
+  const asked = useRef(0); // how wide a picture the last request asked for
+  const sharper = useRef(false); // a sharper picture is wanted once the one on its way is in
+  const allOfIt = useRef(false); // zoomed in, the computer sent all the pixels it has
 
   const [closed, setClosed] = useState(false);
 
-  const show = (r, desktop) => {
-    if (desktop) {
-      const s = r.screenshot || { data: r.base64, mime: r.mime, width: r.width, height: r.height };
-      if (s?.data) setShot({ ...s, mime: s.mime || 'image/jpeg' });
-      return;
+  /** The picture to ask for: at the frame's size what it's always been; zoomed
+   * in, enough pixels for the zoomed picture (the computer sends no more than
+   * its screen has, and draws its browser bigger) at a high quality, so it
+   * stays sharp. */
+  const detail = () => {
+    const z = zoom.view.current.z;
+    if (z <= 1) return { maxWidth: 1280 };
+    const px = (zoom.frame.current?.clientWidth || 400) * z * (globalThis.devicePixelRatio || 1);
+    return { maxWidth: Math.min(3840, Math.max(1280, Math.ceil(px / 256) * 256)), quality: 92, sharp: true };
+  };
+
+  // Zoomed in further than the picture has pixels for: a sharper one, now.
+  const zoom = useZoom(() => {
+    if (detail().maxWidth <= asked.current || allOfIt.current) return;
+    if (inflight.current) sharper.current = true;
+    else latest.current(true);
+  });
+
+  /** Shows what came back (for the picture asked for as `d`). */
+  const show = (r, desktop, d) => {
+    const s = desktop ? r.screenshot || { data: r.base64, mime: r.mime, width: r.width, height: r.height } : null;
+    if (desktop && s?.data) setShot({ ...s, mime: s.mime || 'image/jpeg' });
+    if (!desktop) {
+      setClosed(r.running === false);
+      if (r.screenshot) setShot({ data: r.screenshot, mime: 'image/jpeg', width: r.width, height: r.height, url: r.url, title: r.title, tab: r.tab });
+      if (r.url && document.activeElement?.name !== 'url') setUrl(r.url);
     }
-    setClosed(r.running === false);
-    if (r.screenshot) setShot({ data: r.screenshot, mime: 'image/jpeg', width: r.width, height: r.height, url: r.url, title: r.title, tab: r.tab });
-    if (r.url && document.activeElement?.name !== 'url') setUrl(r.url);
+    // Narrower than a zoomed-in view asked for: that's all the computer has.
+    const width = desktop ? s?.data && s.width : r.screenshot && r.width;
+    if (width) allOfIt.current = !!d.sharp && width < d.maxWidth * 0.9;
   };
 
   const refresh = async (quiet = false) => {
     if (inflight.current) return;
     inflight.current = true;
     if (!quiet) setBusy(true);
+    const d = detail();
+    asked.current = d.maxWidth;
     try {
       // `show`: on a bot's own screen with nothing on it, its browser window opens (local-computer.mjs).
-      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280, agentId, show: own }), true);
-      else show(await app.computer.browser('screenshot', { ifRunning: true, agentId }), false);
+      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { ...d, agentId, show: own }), true, d);
+      else show(await app.computer.browser('screenshot', { ...d, ifRunning: true, agentId }), false, d);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });
       setLive(false);
     } finally {
       inflight.current = false;
       setBusy(false);
+      if (sharper.current) {
+        sharper.current = false;
+        if (detail().maxWidth > asked.current) latest.current(true);
+      }
     }
   };
+  const latest = useRef(refresh);
+  latest.current = refresh;
 
   useEffect(() => {
     setShot(null);
+    zoom.reset();
+    sharper.current = false;
+    allOfIt.current = false;
     refresh();
   }, [mode]);
 
@@ -234,12 +437,15 @@ function Screen({ agentId }) {
 
   const act = async (action, args = {}) => {
     setBusy(true);
+    // x and y are in the picture showing; the one that comes back is as sharp as the view needs.
+    const d = detail();
+    asked.current = d.maxWidth;
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width, agentId }), true);
+      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, ...d, imageWidth: shot?.width, agentId }), true, d);
       else {
         // Act on the tab being shown; after that the view follows whichever tab the bots use.
         const tab = action === 'goto' && closed ? undefined : shot?.tab;
-        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true, agentId }), false);
+        show(await app.computer.browser(action, { ...args, ...d, imageWidth: shot?.width, tab, quick: true, withScreenshot: true, agentId }), false, d);
       }
     } catch (err) {
       ui.toast(err.message, { error: true });
@@ -249,8 +455,10 @@ function Screen({ agentId }) {
   };
 
   const onTap = (e) => {
-    if (!shot?.width) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    if (!shot?.width || zoom.quiet()) return;
+    // Where on the picture, zoomed in or not.
+    const rect = zoom.picture.current?.getBoundingClientRect();
+    if (!rect?.width) return;
     const x = Math.round(((e.clientX - rect.left) / rect.width) * shot.width);
     const y = Math.round(((e.clientY - rect.top) / rect.height) * shot.height);
     if (mode === 'desktop') act('click', { x, y });
@@ -275,12 +483,14 @@ function Screen({ agentId }) {
     ${mode === 'browser' && html`<div style="display:flex;gap:8px;margin-bottom:10px">
       <input class="input" name="url" type="url" inputmode="url" placeholder=${tr('Website or search')} value=${url} onInput=${(e) => setUrl(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && url && act('goto', { url })} autocapitalize="off" autocorrect="off" />
       <button class="btn" onClick=${() => act('goto', { url })}>${tr('Go')}</button></div>`}
-    <div style="position:relative">
-      ${shot?.data ? html`<img class="screen-img" alt=${tr('Computer screen — tap to click')} src=${`data:${shot.mime};base64,${shot.data}`} onClick=${onTap} />`
+    <div ref=${zoom.frame} class=${`screen-view${shot?.data ? '' : ' empty'}${zoom.zoom > 1 ? ' zoomed' : ''}`}
+      style=${shot?.data ? `aspect-ratio:${shot.width || 16} / ${shot.height || 10}` : ''} onClick=${onTap} ...${zoom.handlers}>
+      ${shot?.data ? html`<img ref=${zoom.picture} class="screen-img" alt=${tr('Computer screen — tap to click')} src=${`data:${shot.mime};base64,${shot.data}`} draggable="false" />`
         : html`<div class="notice" style="padding:60px 0">${busy ? tr('Connecting to the screen…') : mode === 'browser' && closed ? tr('The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.') : tr('No picture yet.')}</div>`}
+      ${shot?.data && zoom.zoom > 1 && html`<button class="screen-zoom" aria-label=${tr('Show the whole screen')} onClick=${(e) => { e.stopPropagation(); zoom.reset(); }}>${number(Math.round(zoom.zoom * 10) / 10)}×</button>`}
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
-    <div class="hint" style="margin:8px 4px">${tr('Tap the picture to click there.')} ${own
+    <div class="hint" style="margin:8px 4px">${tr('Tap the picture to click there.')} ${tr('Pinch to zoom.')} ${own
       ? (mode === 'browser' ? tr('Sign in to sites here and every bot is signed in: the browser\'s logins are shared.') : tr('This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.'))
       : (mode === 'browser' ? tr('Sign in to sites here for your bots — logins stay in the bot browser.') : tr('This is the live screen of your computer.'))}</div>
     <div style="display:flex;gap:8px;margin-top:4px">

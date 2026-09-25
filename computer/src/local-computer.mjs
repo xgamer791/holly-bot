@@ -371,7 +371,7 @@ export class LocalComputer {
     const b = await this.browserApi();
     const o = { owner, tab: args.tab || undefined };
     if (action === 'screenshot') {
-      const s = await b.screenshot({ quality: Number(args.quality) || 70, maxWidth: Number(args.maxWidth) || 1280 }, o);
+      const s = await b.screenshot({ quality: Number(args.quality) || 70, maxWidth: Number(args.maxWidth) || 1280, scaleUp: !!args.sharp }, o);
       return { running: true, url: s.url, title: s.title, tab: s.tab, screenshot: s.data, width: s.width, height: s.height };
     }
     if (action === 'close') {
@@ -399,7 +399,7 @@ export class LocalComputer {
       new_tab: () => b.newTab(args.url || 'about:blank', o),
       switch_tab: () => b.switchTab(args.id || args.tab, o),
       close_tab: () => b.closeTab(args.id, o),
-      click_xy: () => b.clickXY(Number(args.x), Number(args.y), o),
+      click_xy: () => b.clickXY(Number(args.x), Number(args.y), { ...o, imageWidth: Number(args.imageWidth) || undefined }),
       evaluate: async () => ({ result: await b.evaluate(args.expression || args.js || '', o) }),
     };
     const fn = map[action];
@@ -411,7 +411,7 @@ export class LocalComputer {
         state = rest;
       }
       if (args.withScreenshot) {
-        const s = await b.screenshot({ quality: 60 }, { owner: o.owner, tab: state?.tab || o.tab });
+        const s = await b.screenshot({ quality: Number(args.quality) || 60, maxWidth: Number(args.maxWidth) || 1280, scaleUp: !!args.sharp }, { owner: o.owner, tab: state?.tab || o.tab });
         return { ...state, screenshot: s.data, width: s.width, height: s.height, tab: s.tab };
       }
       return state;
