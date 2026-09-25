@@ -226,6 +226,7 @@ export class RemoteApp {
   setReachable(reachable) {
     if (this.reachable === reachable) return;
     this.reachable = reachable;
+    this.unreachableSince = reachable ? 0 : Date.now();
     this.emit('reachable');
   }
 

@@ -32,7 +32,7 @@ async function fileB64(blob) {
 export function Composer({ thread, agents, onVoice }) {
   const app = useApp();
   const ui = useUi();
-  useTopics(['runs', 'threads', 'agents', 'computer', 'reachable', `thread:${thread.id}`]);
+  useTopics(['runs', 'threads', 'agents', `thread:${thread.id}`]);
   const [text, setText] = useState(() => app.drafts?.get(thread.id) || '');
   const [atts, setAtts] = useState([]);
   const [menu, setMenu] = useState(null);
@@ -159,8 +159,8 @@ export function Composer({ thread, agents, onVoice }) {
       ui.toast(err.message, { error: true });
     }
   };
-  // The computer button lights up like web search while a Holly Computer is connected, gray when not.
-  const computerOn = !!app.computer?.connected && app.reachable !== false;
+  // The computer in the pill is grayed out and does nothing: the button at the
+  // top right of the chat shows the computer's connection and opens it.
   const ws = (app.getThread(thread.id) || thread).workspace || null;
 
   const hasContent = text.trim() || atts.length;
@@ -193,8 +193,7 @@ export function Composer({ thread, agents, onVoice }) {
           <button ref=${plusRef} class="pbar-btn" aria-label="Add attachment" onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
           <div class="pbar-seg">
             <button class=${`pbar-seg-btn ${webOn ? 'on' : ''}`} aria-pressed=${webOn} aria-label=${webOn ? 'Web search on' : 'Web search off'} onClick=${toggleWeb}><${Icon.search} /></button>
-            <button class=${`pbar-seg-btn ${computerOn ? 'live' : ''}`} aria-label=${computerOn ? 'Computer, connected' : 'Computer, not connected'}
-              onClick=${() => ui.openSheet('computer', { agentId: primary?.id, threadId: thread.id })}><${Icon.botScreen} /></button>
+            <button class="pbar-seg-btn" disabled aria-hidden="true" tabindex="-1"><${Icon.botScreen} /></button>
           </div>
           <button class=${`pbar-pill ${ws ? 'set' : ''}`} aria-label=${ws ? `Workspace: ${workspaceLabel(ws)}` : 'Workspace'} onClick=${() => ui.openSheet('workspace', { threadId: thread.id })}>
             ${ws?.kind === 'github' && html`<${Icon.github} size="15" />`}

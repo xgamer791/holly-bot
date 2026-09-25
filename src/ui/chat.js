@@ -9,6 +9,35 @@ import { formatDayTime } from '../core/util.js';
 import { threadTitle } from './home.js';
 
 const GAP = 60 * 60 * 1000;
+/** How long a lost connection to the computer shows as connecting. The app
+ * keeps trying after that, but the computer is off as far as anyone can tell. */
+const RECONNECT_MS = 30_000;
+
+/** The computer's connection: 'connected', 'connecting' (this app lost it a
+ * moment ago and is getting it back), or 'off' (no computer, or gone a while). */
+function computerStatus(app, now = Date.now()) {
+  if (app.remote && app.reachable === false) return now - (app.unreachableSince || now) < RECONNECT_MS ? 'connecting' : 'off';
+  return app.computer?.connected ? 'connected' : 'off';
+}
+
+const COMPUTER_LABEL = { connected: 'Computer, connected', connecting: 'Computer, connecting', off: 'Computer, not connected' };
+
+/** The button at the top right of a chat: opens the bot's computer, and shows
+ * the connection. Grayed out while there's none, the computer pulsing blue
+ * while it connects, solid green while connected. */
+function ComputerButton({ onClick }) {
+  const app = useApp();
+  useTopics(['computer', 'reachable']);
+  const [, redraw] = useState(0);
+  const status = computerStatus(app);
+  // Connecting goes gray once it has taken a while: look again then.
+  useEffect(() => {
+    if (status !== 'connecting') return undefined;
+    const t = setTimeout(() => redraw((n) => n + 1), Math.max(0, app.unreachableSince + RECONNECT_MS - Date.now()) + 50);
+    return () => clearTimeout(t);
+  }, [status, app.unreachableSince]);
+  return html`<button class=${`circle-btn computer-btn is-${status}`} aria-label=${COMPUTER_LABEL[status]} onClick=${onClick}><${Icon.monitor} /></button>`;
+}
 
 export function ChatScreen({ threadId, wide }) {
   const app = useApp();
@@ -98,7 +127,7 @@ export function ChatScreen({ threadId, wide }) {
           <span class="name">${title}</span>
           ${isGroup && html`<span class="sub">${agents.length}</span>`}
         </button>
-        <button class="circle-btn" aria-label="Bot computer" onClick=${() => ui.openSheet('computer', { agentId: (isChannel ? agents[1] : agent)?.id, threadId })}><${Icon.monitor} /></button>
+        <${ComputerButton} onClick=${() => ui.openSheet('computer', { agentId: (isChannel ? agents[1] : agent)?.id, threadId })} />
       </header>
       <div class="chat-scroll" ref=${scrollRef} onScroll=${onScroll}>
         <div class="chat-inner">

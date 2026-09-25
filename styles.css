@@ -177,6 +177,16 @@ svg { display: block; }
 .circle-btn:active { transform: scale(.94); background: var(--surface-2); }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
+/* The computer button at the top right of a chat (src/ui/chat.js): grayed out
+   while there's no computer, the computer pulsing blue while it connects,
+   solid green while connected. */
+.computer-btn { transition: background .15s, transform .1s, color .3s, opacity .3s; }
+.computer-btn.is-off { color: var(--muted); opacity: .45; }
+.computer-btn.is-connecting { color: var(--blue); }
+.computer-btn.is-connecting svg { animation: computer-pulse 1.2s ease-in-out infinite; }
+.computer-btn.is-connected { color: var(--green-dot); }
+@keyframes computer-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .computer-btn.is-connecting svg { animation: none; } }
 .chat-topbar { display: grid; grid-template-columns: var(--tap) 1fr var(--tap); align-items: center; gap: 10px; padding: calc(10px + var(--safe-top)) 16px 10px; background: var(--bg); flex: none; position: relative; z-index: 3; }
 .name-pill { justify-self: center; display: inline-flex; align-items: center; gap: 10px; height: var(--tap); padding: 0 8px; border: 0; background: none; max-width: 100%; min-width: 0; }
 .name-pill:active { opacity: .6; }
@@ -476,11 +486,11 @@ button.row:active { background: var(--surface-2); }
 .pbar-seg { display: inline-flex; align-items: center; height: 36px; border-radius: 18px; background: var(--pb-btn); flex: none; }
 .pbar-seg-btn { width: 44px; height: 36px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--pb-icon); transition: background .15s, color .15s; }
 .pbar-seg-btn svg { width: 21px; height: 21px; }
-/* Web search on, and the computer while this app is connected to one: its
-   half of the pill lights up. Gray when not. */
-.pbar-seg-btn.on, .pbar-seg-btn.live { background: var(--pb-on); color: var(--text); }
-:root[data-theme="light"] .pbar-seg-btn.on,
-:root[data-theme="light"] .pbar-seg-btn.live { box-shadow: 0 0 0 1px #e3e3df, 0 1px 2px rgba(0, 0, 0, .06); }
+/* Web search on: its half of the pill lights up. */
+.pbar-seg-btn.on { background: var(--pb-on); color: var(--text); }
+:root[data-theme="light"] .pbar-seg-btn.on { box-shadow: 0 0 0 1px #e3e3df, 0 1px 2px rgba(0, 0, 0, .06); }
+/* The computer: grayed out. The button at the top right of a chat shows it. */
+.pbar-seg-btn:disabled { opacity: .45; cursor: default; }
 .pbar-pill { height: 36px; min-width: 0; max-width: 150px; padding: 0 13px; border-radius: 18px; background: var(--pb-btn); color: var(--text-2); font-size: 15px; display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; }
 .pbar-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pbar-pill svg { flex: none; }
