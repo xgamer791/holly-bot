@@ -118,6 +118,9 @@ export default defineSchema({
     state: v.string(),
     verifier: v.string(),
     returnTo: v.string(),
+    /** The client registered for this connection, for a service Holly Bot
+     * registers with as each connection starts (Higgsfield). */
+    clientId: v.optional(v.string()),
     expiresAt: v.number(),
   })
     .index("by_state", ["state"])

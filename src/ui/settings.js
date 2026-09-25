@@ -109,7 +109,7 @@ function MainPage({ go, onClose }) {
   return html`
     <${AccountGroup} acct=${acct} go=${go} />
     <${Group}>
-      <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, tools and skills')} onClick=${() => go('plugins')} />
+      <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
     <//>
     <div class="group-label">${tr('Bot')}</div>
     <${Group}>
@@ -337,6 +337,7 @@ const CONNECTORS = [
   { id: 'gmail', label: 'Gmail', icon: Icon.mail, does: mark('Bots read, send and delete your email') },
   { id: 'outlook', label: 'Outlook', icon: Icon.mail, does: mark('Bots read, send and delete your email') },
   { id: 'github', label: 'GitHub', icon: Icon.code, does: mark('Bots create, edit and delete your repositories') },
+  { id: 'higgsfield', label: 'Higgsfield', icon: Icon.image, does: mark('Bots make images and videos with your Higgsfield credits') },
 ];
 
 /** The server's words from a failed call (a ConvexError's data, in the app's
@@ -346,10 +347,10 @@ function serverSays(err, fallback) {
 }
 
 /**
- * Gmail, Outlook and GitHub, connected to the account for its bots
- * (convex/connectors.ts). Connecting leaves for the service's consent screen,
- * which sends the person back to the app (src/main.js finishes it there).
- * GitHub also takes a token the person made.
+ * Gmail, Outlook, GitHub and Higgsfield, connected to the account for its
+ * bots (convex/connectors.ts). Connecting leaves for the service's consent
+ * screen (Higgsfield's sign-in), which sends the person back to the app
+ * (src/main.js finishes it there). GitHub also takes a token the person made.
  */
 function ConnectedAccounts() {
   const app = useApp();
@@ -360,7 +361,7 @@ function ConnectedAccounts() {
   const [busy, setBusy] = useState('');
   if (!signedIn) {
     return html`<div class="group-label">${tr('Connected accounts')}</div>
-      <div class="group-note" style="margin-top:0">${tr('Connect Gmail, Outlook and GitHub for your bots in Holly Bot at {site}, signed in to your account.', { site: SITE.replace(/^https:\/\//, '') })}</div>`;
+      <div class="group-note" style="margin-top:0">${tr('Connect Gmail, Outlook, GitHub and Higgsfield for your bots in Holly Bot at {site}, signed in to your account.', { site: SITE.replace(/^https:\/\//, '') })}</div>`;
   }
   const changed = () => {
     reload();
@@ -421,7 +422,10 @@ function ConnectedAccounts() {
         const icon = html`<${c.icon} size="20" />`;
         if (busy === c.id) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value="…" />`;
         if (conn) {
-          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr('{account} · {does}', { account: conn.account, does: lowerFirst(tr(c.does)) })} value=${tr('Disconnect')} onClick=${() => disconnect(c, conn)} />
+          // Higgsfield's tools come from its own server (src/core/plugins.js): when they can't be had, it says why.
+          const trouble = app.plugins.list().find((p) => p.key === `connector:${c.id}` && p.status === 'error');
+          const sub = trouble ? tr('Error: {error}', { error: trouble.error }) : tr('{account} · {does}', { account: conn.account, does: lowerFirst(tr(c.does)) });
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${sub} value=${tr('Disconnect')} onClick=${() => disconnect(c, conn)} />
             ${conn.outdated && oauth && html`<${Row} key=${`${c.id}-again`} title=${tr('Connect {service} again', { service: c.label })} sub=${tr('It was connected before bots could delete email. Connecting again lets them.')} onClick=${() => connect(c)} />`}`;
         }
         if ((!ready && readyError) || (!list && listError)) {
