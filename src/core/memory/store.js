@@ -3,9 +3,13 @@ import { BM25, localEmbed, cosine, jaccard } from './text.js';
 import { range } from '../db.js';
 
 // Long-term memory for each agent. Every agent owns a private set of memories;
-// SHARED_ID holds the team notebook all agents can read and write.
+// SHARED_ID holds the team notebook all agents can read and write, and USER_ID
+// what the bots know about the user themself (About you): their name, how to
+// reach them, where they live, what they like and don't, their hobbies and
+// habits. Every bot learns into it and sees it (src/core/prompts.js).
 
 export const SHARED_ID = '__shared__';
+export const USER_ID = '__user__';
 
 export const MEMORY_TYPES = ['fact', 'preference', 'person', 'project', 'event', 'goal', 'instruction', 'reflection', 'note'];
 
@@ -169,12 +173,13 @@ export class MemoryStore {
   }
 
   /**
-   * Hybrid search across an agent's memories (and optionally the shared notebook).
-   * Returns [{ memory, score }].
+   * Hybrid search across an agent's memories (and optionally the shared
+   * notebook, and what the bots know about the user). Returns [{ memory, score }].
    */
-  async search(agentId, query, { limit = 8, includeShared = false, types = null, touch = true, minScore } = {}) {
+  async search(agentId, query, { limit = 8, includeShared = false, includeUser = false, types = null, touch = true, minScore } = {}) {
     let pool = await this.list(agentId);
     if (includeShared && agentId !== SHARED_ID) pool = pool.concat(await this.list(SHARED_ID));
+    if (includeUser && agentId !== USER_ID) pool = pool.concat(await this.list(USER_ID));
     if (types?.length) pool = pool.filter((m) => types.includes(m.type));
     if (!pool.length) return [];
     let queryVec = null;
@@ -259,7 +264,7 @@ export function findDuplicate(existing, text) {
 export function formatMemories(ranked, { withIds = true } = {}) {
   return ranked.map(({ memory: m }) => {
     const when = new Date(m.createdAt).toISOString().slice(0, 10);
-    const scope = m.agentId === SHARED_ID ? 'shared, ' : '';
+    const scope = m.agentId === SHARED_ID ? 'shared, ' : m.agentId === USER_ID ? 'about the user, ' : '';
     return `- ${withIds ? `[${m.id}] ` : ''}(${scope}${m.type}, saved ${when}) ${m.text}`;
   }).join('\n');
 }

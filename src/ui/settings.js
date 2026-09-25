@@ -718,6 +718,9 @@ function MemorySettingsPage() {
   const first = app.listAgents()[0];
   return html`
     <${Group}>
+      <${Row} title=${tr('About you')} sub=${tr('What your bots know about you')} onClick=${() => ui.openSheet('aboutYou', {})} />
+    <//>
+    <${Group}>
       <${Row} title=${tr('Learn automatically')} sub=${tr("After each reply, save durable facts to the bot's long-term memory")} toggle=${mem.auto !== false} onToggle=${(v) => set({ auto: v })} />
       <div class="row"><div class="label"><div class="t">${tr('Memory model')}</div><div class="s">${tr('Extraction, summaries, reflection, group routing')}</div></div>
         <select value=${s.defaults?.memoryModel || 'same'} onChange=${(e) => app.saveSettings({ defaults: { ...s.defaults, memoryModel: e.currentTarget.value } })}>
@@ -814,6 +817,7 @@ function HelpPage() {
     <p>${trx('Every bot has its own name, personality, model, memory, files and routines. Bots can **message each other** (“Ask Nova to review this”), **delegate** longer tasks, and share a **team memory**. Start a **group chat** with + → New Group Chat and @mention bots.')}</p>
     <h3>${tr('Memory')}</h3>
     <p>${tr("Tap a bot's name → Memories to see, edit, pin or delete what it knows. Core memory is always in view; long-term memories are recalled when relevant; older chat is summarized automatically.")}</p>
+    <p>${trx('What you tell your bots about yourself (your name, how to reach you, what you like) they all share, and use only to help you: they call you by name and suggest things that fit your taste. See, change or delete it in Settings → **Memory & Context → About you**, where you can also let them learn from your email.')}</p>
     <h3>${tr('Tools')}</h3>
     <p>${trx('Web search, a Python/JavaScript sandbox, files, routines and plugins (MCP). Connect a **Bot Computer** for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.')}</p>
     <h3>${tr('Email and GitHub')}</h3>

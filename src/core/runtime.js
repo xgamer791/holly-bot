@@ -1,7 +1,8 @@
-import { uid, now, truncate, estimateTokens, errorMessage, isAbort, normalizeName, sleep } from './util.js';
+import { uid, now, truncate, estimateTokens, errorMessage, isAbort, normalizeName, sleep, localTimeContext } from './util.js';
 import { toolsForAgent, validateArgs, coerceArgs } from './tools/index.js';
 import { CONNECTOR_READS } from './tools/connector-tools.js';
-import { buildSystemPrompt, buildMessageContext } from './prompts.js';
+import { buildSystemPrompt, buildMessageContext, userProfile } from './prompts.js';
+import { USER_ID } from './memory/store.js';
 import { extractAndApply, summarizeHistory, synthesizeProfile, reflect } from './memory/extract.js';
 import { MAX_TOOL_STEPS } from './constants.js';
 import { CONTENT_NOTE } from './safety.js';
@@ -810,7 +811,13 @@ export class Runtime {
     let memories = [];
     if (agent.tools?.memory !== false || agent.memoryAuto !== false) {
       try {
-        memories = await app.memory.search(agent.id, query, { limit: 8, includeShared: true });
+        // What the bots know about the user comes too, but not what's always
+        // in view already (About the user, in the system prompt).
+        const inView = userProfile(app.userFacts || []).ids;
+        memories = (await app.memory.search(agent.id, query, { limit: 12 + inView.size, includeShared: true, includeUser: true, touch: false }))
+          .filter((r) => !inView.has(r.memory.id))
+          .slice(0, 12);
+        if (memories.length) app.memory.touch(memories.map((r) => r.memory)).catch(() => {});
       } catch (err) {
         console.warn('memory search failed', err);
       }
@@ -1076,6 +1083,8 @@ export class Runtime {
     if (!agent) return;
     const thread = app.getThread(threadId);
     const auto = agent.memoryAuto !== false && app.settings.memory?.auto !== false;
+    const learnUser = app.settings.memory?.learnUser !== false;
+    const fromEmail = !!app.settings.memory?.fromEmail;
     const llm = (req) => app.providers.complete({ agent, purpose: 'memory', ...req });
 
     if (auto && msg.status === 'done' && thread) {
@@ -1088,23 +1097,32 @@ export class Runtime {
         ...incoming.map((m) => ({ speaker: speakerOf(m), text: messageText(m) })),
         { speaker: agent.name, text: finalText(msg) },
       ].filter((e) => e.text);
+      const fromUser = [...incoming].reverse().find((m) => m.authorType === 'user');
       if (exchange.length >= 2 || (thread.kind === 'dm' && exchange.length)) {
         try {
-          const applied = await extractAndApply({
+          const { applied, name, call } = await extractAndApply({
             llm, store: app.memory, agentId, agentName: agent.name, userName: app.settings.profile?.name,
             exchange, source: { threadId, messageId: msg.id },
+            when: fromUser ? localTimeContext(fromUser.createdAt, app.timeZone()) : '',
+            actions: turnActions(msg, { fromEmail }),
+            learnUser, fromEmail,
           });
           if (applied.length) {
-            msg.memoryOps = applied.map((a) => ({ op: a.op, text: a.memory.text }));
+            msg.memoryOps = applied.map((a) => ({ op: a.op, text: a.memory.text, ...(a.memory.agentId === USER_ID ? { about: true } : {}) }));
             await app.saveMessage(msg);
-            const added = applied.filter((a) => a.op === 'add').length;
+            const added = applied.filter((a) => a.op === 'add' && a.memory.agentId !== USER_ID).length;
             await app.updateAgent(agentId, { memSinceReflection: (agent.memSinceReflection || 0) + added });
           }
+          // Their name, and what to call them: the app's and every bot's from now on (About the user).
+          const profile = app.settings.profile || {};
+          const next = { ...profile, ...(name ? { name } : {}), ...(call !== undefined ? { callMe: call, noName: !call } : {}) };
+          if (next.name !== profile.name || next.callMe !== profile.callMe || next.noName !== profile.noName) await app.saveSettings({ profile: next });
         } catch (err) {
           console.warn('memory extraction failed', err);
           app.logActivity(agentId, { type: 'memory', title: phrase('Memory update failed'), detail: errorMessage(err), isError: true });
         }
       }
+      if (learnUser) await app.reflectOnUser().catch((err) => console.warn('reflection on the user failed', err));
     }
 
     await this.compactIfNeeded(agent, threadId, llm).catch((err) => console.warn('compaction failed', err));
@@ -1122,7 +1140,7 @@ export class Runtime {
         await app.updateAgent(agentId, {
           memSinceReflection: 0,
           lastReflectionAt: now(),
-          ...(profile ? { core: { ...(fresh.core || {}), human: truncate(profile, 2000) } } : {}),
+          ...(profile ? { core: { ...(fresh.core || {}), human: truncate(profile, 3000) } } : {}),
         });
       } catch (err) {
         console.warn('reflection failed', err);
@@ -1165,6 +1183,33 @@ export class Runtime {
 }
 
 // ----- helpers ------------------------------------------------------------
+
+/** What a bot did in a reply that can show what the user is after, for
+ * learning about them (src/core/memory/extract.js): its web searches and the
+ * pages it read, and with `fromEmail` (the user allows it), the user's emails
+ * it read. */
+function turnActions(msg, { fromEmail = false } = {}) {
+  const out = [];
+  let room = 8000;
+  const add = (line) => {
+    if (room <= 0) return;
+    const text = truncate(line, room);
+    out.push(text);
+    room -= text.length;
+  };
+  for (const step of msg.steps || []) {
+    for (const c of step.toolCalls || []) {
+      if (c.result?.isError) continue;
+      const a = c.args || {};
+      if (c.name === 'web_search' && a.query) add(`- Searched the web for "${truncate(a.query, 200)}"`);
+      else if (c.name === 'fetch_url' && a.url) add(`- Read the page ${truncate(a.url, 300)}`);
+      else if (fromEmail && /^(gmail|outlook)_(search|read)$/.test(c.name) && c.result?.content) {
+        add(`- ${c.name.endsWith('_read') ? "Read one of the user's emails" : `Searched the user's email${a.query ? ` for "${truncate(a.query, 120)}"` : ''}`}:\n${truncate(String(c.result.content), 2500)}`);
+      }
+    }
+  }
+  return out;
+}
 
 /** `promise`, or an AbortError as soon as `signal` fires (what it was doing
  * carries on; its outcome is dropped). */

@@ -97,6 +97,7 @@ export function mark(text) {
 const FIRST_WORDS = {
   es: {
     "Hey — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?": 'Hola, soy {name}. Cuando quieras, empezamos.\n\n¿En qué quieres que te ayude más?',
+    "Hey {user} — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?": 'Hola, {user}. Soy {name}. Cuando quieras, empezamos.\n\n¿En qué quieres que te ayude más?',
     'What should I focus on first?': '¿En qué me enfoco primero?',
     "Pick whatever's most useful — we can expand from there.": 'Elige lo que te sea más útil; a partir de ahí podemos ampliar.',
     'Something else': 'Otra cosa',
@@ -109,9 +110,12 @@ const FIRST_WORDS = {
     "Pick one and I'll suggest the bots for it.": 'Elige una y te sugeriré los bots para ello.',
     "Hi, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?":
       'Hola, soy {name}, tu jefe de gabinete. Tú hablas conmigo y yo dirijo tu equipo de bots: le paso cada tarea al bot indicado, te sugiero bots nuevos cuando los necesites y te consulto las decisiones.\n\nCuéntame un poco sobre ti y tu trabajo. ¿Por dónde empezamos?',
+    "Hi {user}, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?":
+      'Hola, {user}. Soy {name}, tu jefe de gabinete. Tú hablas conmigo y yo dirijo tu equipo de bots: le paso cada tarea al bot indicado, te sugiero bots nuevos cuando los necesites y te consulto las decisiones.\n\nCuéntame un poco sobre ti y tu trabajo. ¿Por dónde empezamos?',
   },
   zh: {
     "Hey — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?": '你好，我是{name}。随时准备为你效劳。\n\n你最希望我帮你做什么？',
+    "Hey {user} — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?": '你好，{user}，我是{name}。随时准备为你效劳。\n\n你最希望我帮你做什么？',
     'What should I focus on first?': '我应该先专注于什么？',
     "Pick whatever's most useful — we can expand from there.": '选一个最有用的，之后我们可以再扩展。',
     'Something else': '其他',
@@ -124,6 +128,8 @@ const FIRST_WORDS = {
     "Pick one and I'll suggest the bots for it.": '选一个，我会为它推荐合适的机器人。',
     "Hi, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?":
       '你好，我是{name}，你的幕僚长。你只需要和我对话，我来管理你的机器人团队：把每项工作交给合适的机器人，在你需要时推荐新的机器人，并在需要决定时回来问你。\n\n先跟我说说你自己和你的工作吧。我们从哪里开始？',
+    "Hi {user}, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?":
+      '你好，{user}，我是{name}，你的幕僚长。你只需要和我对话，我来管理你的机器人团队：把每项工作交给合适的机器人，在你需要时推荐新的机器人，并在需要决定时回来问你。\n\n先跟我说说你自己和你的工作吧。我们从哪里开始？',
   },
 };
 

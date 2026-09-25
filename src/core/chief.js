@@ -27,8 +27,11 @@ export function chiefOf(app) {
 }
 
 /** Its hello, as its first message, in `lang`. */
-export function chiefGreeting(name, lang = 'en') {
-  return firstWords(lang, "Hi, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?", { name });
+/** `user`: what to call the user, when the bots know (callName). */
+export function chiefGreeting(name, lang = 'en', user = '') {
+  return user
+    ? firstWords(lang, "Hi {user}, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?", { name, user })
+    : firstWords(lang, "Hi, I'm {name}, your chief of staff. You talk to me, and I run your team of bots: I hand each job to the right bot, suggest new ones when you need them, and come back to you for decisions.\n\nTell me a bit about you and your work. Where should we start?", { name });
 }
 
 /** Its instructions (src/core/prompts.js). `alone`: no other bots yet. */

@@ -93,7 +93,7 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
         ${citations.length > 0 && html`<${Sources} items=${citations} />`}
         ${msg.status === 'error' && html`<${ErrorCard} msg=${msg} />`}
         ${msg.status === 'stopped' && html`<${Stopped} thread=${thread} agent=${agent} text=${text} isLast=${isLast} />`}
-        ${msg.memoryOps?.length > 0 && html`<button class="memory-note" onClick=${() => ui.openSheet('memory', { agentId: msg.authorId })}>
+        ${msg.memoryOps?.length > 0 && html`<button class="memory-note" onClick=${() => (msg.memoryOps.every((o) => o.about) ? ui.openSheet('aboutYou', {}) : ui.openSheet('memory', { agentId: msg.authorId }))}>
           <${Icon.brain} /> ${memorySummary(msg.memoryOps)}</button>`}
       </div>
       ${!streaming && text && msg.status !== 'error' && html`<div class="msg-actions">
@@ -164,8 +164,10 @@ export function ToolCallView({ call, msg }) {
   if (d?.kind === 'file') return html`<${FileChip} name=${d.name} size=${d.size} mime=${d.mime} fileId=${d.fileId} />`;
   if (d?.kind === 'image') return html`<${GeneratedImage} fileId=${d.fileId} />`;
   if (d?.kind === 'memory' && !call.result?.isError) {
-    const label = d.op === 'delete' ? tr('Forgot') : d.op === 'core' ? tr('Updated core memory') : d.op === 'update' ? tr('Updated memory') : d.shared ? tr('Saved to team memory') : tr('Saved to memory');
-    return html`<button class="memory-note" onClick=${() => ui.openSheet('memory', { agentId: msg.authorId })}><${Icon.brain} /> ${d.op !== 'core' ? tr('{label}: {text}', { label, text: truncate(d.text, 90) }) : label}</button>`;
+    const label = d.op === 'delete' ? tr('Forgot') : d.op === 'core' ? tr('Updated core memory') : d.op === 'update' ? tr('Updated memory')
+      : d.about ? tr('Remembered about you') : d.shared ? tr('Saved to team memory') : tr('Saved to memory');
+    const open = () => (d.about ? ui.openSheet('aboutYou', {}) : ui.openSheet('memory', { agentId: msg.authorId }));
+    return html`<button class="memory-note" onClick=${open}><${Icon.brain} /> ${d.op !== 'core' ? tr('{label}: {text}', { label, text: truncate(d.text, 90) }) : label}</button>`;
   }
   if (d?.kind === 'routine') {
     return html`<div class="agent-card"><div class="who"><${Icon.clock} size="16" /> ${tr('Routine scheduled')}</div>

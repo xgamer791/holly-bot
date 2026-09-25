@@ -5,7 +5,7 @@ import { ChatScreen } from './chat.js';
 import { CreateBotSheet, NewGroupSheet } from './create-bot.js';
 import { SettingsSheet } from './settings.js';
 import { BotProfileSheet, ModelPickerSheet } from './bot-profile.js';
-import { MemorySheet } from './memory.js';
+import { MemorySheet, AboutYouSheet } from './memory.js';
 import { ComputerSheet } from './computer.js';
 import { WorkspaceSheet } from './workspace.js';
 import { RoutinesSheet } from './routines.js';
@@ -22,6 +22,7 @@ const SHEETS = {
   botProfile: BotProfileSheet,
   modelPicker: ModelPickerSheet,
   memory: MemorySheet,
+  aboutYou: AboutYouSheet,
   computer: ComputerSheet,
   workspace: WorkspaceSheet,
   routines: RoutinesSheet,

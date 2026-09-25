@@ -1,4 +1,4 @@
-import { isoDate, localTimeContext, truncate } from './util.js';
+import { callName, isoDate, localTimeContext, truncate } from './util.js';
 import { formatMemories } from './memory/store.js';
 import { chiefInstructions } from './chief.js';
 import { CONTENT_RULES } from './safety.js';
@@ -21,6 +21,32 @@ const COMPUTER_AWAY = {
 
 /** A computer's system, for the commands a bot writes (Node's process.platform). */
 const OS_NAMES = { linux: 'Linux', darwin: 'macOS', win32: 'Windows' };
+
+/** How much of the system prompt what the bots know about the user may take (characters). */
+const PROFILE_ROOM = 6000;
+
+/**
+ * What the bots know about the user that's always in view (About the user):
+ * the pinned facts and the ones that matter (importance 5 and up), most
+ * important first, as far as PROFILE_ROOM goes. `ids`: those facts, which the
+ * memories recalled for a message leave out (src/core/runtime.js).
+ */
+export function userProfile(facts) {
+  const lines = [];
+  const ids = new Set();
+  let room = PROFILE_ROOM;
+  const shown = facts
+    .filter((m) => !m.archived && (m.pinned || (m.importance || 5) >= 5))
+    .sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (b.importance || 5) - (a.importance || 5) || (b.updatedAt || 0) - (a.updatedAt || 0));
+  for (const m of shown) {
+    const line = `- ${m.text}`;
+    if (line.length > room) continue;
+    lines.push(line);
+    ids.add(m.id);
+    room -= line.length + 1;
+  }
+  return { lines, ids };
+}
 
 export function buildSystemPrompt({ app, agent, thread, tools }) {
   const s = app.settings;
@@ -53,7 +79,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
   lines.push('', '## Your memory',
     'You remember things across conversations. Your core memory below is always visible. Relevant long-term memories are attached to incoming messages inside <context>. '
     + (toolNames.has('remember')
-      ? 'Use the memory tools to save durable facts (preferences, personal details, projects, decisions, promises), update facts that changed and forget wrong ones, quietly, without announcing it unless asked. Use recall or search_history when something seems familiar but is not in view. '
+      ? 'Use the memory tools to save durable facts (about the user themself with about_user=true, which all their bots share; projects, decisions and promises in your own memory), update facts that changed and forget wrong ones, quietly, without announcing it unless asked. Use recall or search_history when something seems familiar but is not in view. '
       : '')
     + 'Never invent memories; if you are unsure, say so.',
     '<core_memory>',
@@ -62,11 +88,37 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
     `<notes>${core.notes?.trim() || '(empty)'}</notes>`,
     '</core_memory>');
 
-  if (profile.name || profile.about) {
-    lines.push('', '## About the user (from their profile)');
-    if (profile.name) lines.push(`Name: ${profile.name}`);
-    if (profile.about) lines.push(truncate(profile.about, 1500));
-  }
+  // What the bots know about the user (src/core/memory/store.js USER_ID),
+  // learned from their chats, and their email when they allow it.
+  const known = userProfile(app.userFacts || []).lines;
+  const learnUser = s.memory?.learnUser !== false;
+  const email = [...toolNames].some((name) => /^(gmail|outlook)_/.test(name));
+  lines.push('', '## About the user',
+    ...(profile.name ? [`Their name: ${profile.name}`] : []),
+    ...(profile.about ? [truncate(profile.about, 1500)] : []),
+    ...(known.length
+      ? ['What their bots know about them (all their bots share it; more comes with their messages when it\'s relevant):', ...known]
+      : [profile.name ? '' : 'You don\'t know much about them yet.'].filter(Boolean)),
+    (profile.noName
+      ? 'They asked not to be called by name: don\'t use their name when you talk to them.'
+      : callName(profile)
+        ? `Call them "${callName(profile)}" now and then, the way a friend would (not in every message), unless they ask to be called something else, or not by name.`
+        : 'Once they tell you their name, call them by it now and then, unless they ask you not to.')
+    + ' Don\'t ask for personal details they haven\'t offered unless a task needs them.',
+    'Use what you know to help them: fit your answers and ideas to their tastes and their life, and when it fits what they\'re doing, offer something they\'d like '
+    + '(a restaurant that suits their taste near where they live, a gift idea for someone in their life), briefly and now and then.',
+    'It\'s theirs, and only for helping them: don\'t share it with anyone else or put it in emails, forms or posts unless what they asked you to do needs it '
+    + '(their address on an order they asked you to place), and don\'t bring up sensitive things (health, money, family matters) unless they\'re relevant.',
+    learnUser
+      ? 'When they tell you something lasting about themselves (their name, how to reach them, where they live, what they like or don\'t, their hobbies), it\'s remembered for all their bots after your reply'
+        + (toolNames.has('remember') ? '; to be sure, save it yourself with remember and about_user=true' : '') + '. Never guess or make things up about them.'
+      : 'They turned off learning about them: don\'t save new things about them. You may still use what\'s above, and forget what they ask you to.',
+    ...(email && learnUser
+      ? [s.memory?.fromEmail
+        ? 'They allowed their bots to learn about them from their email: lasting facts about them in the emails you read for them (an address from an order, a trip they booked, places they go) are remembered too'
+          + (toolNames.has('remember') ? '; save one yourself with remember and about_user=true when it matters' : '') + '.'
+        : 'Don\'t save things about them from their email: they haven\'t allowed it (they can, in Settings → Memory & Context → About you).']
+      : []));
 
   if (others.length && toolNames.has('message_agent')) {
     lines.push('', '## Your team (other bots)');

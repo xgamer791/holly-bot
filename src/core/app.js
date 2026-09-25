@@ -1,6 +1,6 @@
 import { DB, range } from './db.js';
-import { uid, now, nextSeq, Emitter, normalizeName, truncate, extractJson } from './util.js';
-import { MemoryStore, SHARED_ID } from './memory/store.js';
+import { uid, now, nextSeq, Emitter, normalizeName, truncate, extractJson, callName } from './util.js';
+import { MemoryStore, SHARED_ID, USER_ID } from './memory/store.js';
 import { FileStore, isTextPath } from './files.js';
 import { RoutineStore, deviceTimeZone } from './routines.js';
 import { ProviderHub } from './providers/index.js';
@@ -20,12 +20,16 @@ import { BUILTIN_TOOLS } from './tools/index.js';
 //   'thread:<id>' | 'messages:<threadId>' | 'memory:<agentId>' | 'files:<agentId>' | 'routines'
 
 export const DEFAULT_SETTINGS = {
-  profile: { name: '', email: '', about: '' },
+  // The user: their name, and what the bots call them (callMe; noName: not by
+  // name), learned as they chat (src/core/runtime.js) or set in About you.
+  profile: { name: '', email: '', about: '', callMe: '', noName: false },
   providers: {},
   defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same', effort: '' },
   // Retry once with this provider/model when the main one fails (outage, rate limit, no credit).
   backup: { provider: '', model: '' },
-  memory: { auto: true, embeddings: 'auto', contextBudget: 'auto' },
+  // learnUser: bots learn about the user (About you, src/core/memory/store.js
+  // USER_ID); fromEmail: from the emails they read for them too.
+  memory: { auto: true, embeddings: 'auto', contextBudget: 'auto', learnUser: true, fromEmail: false },
   services: {},
   computer: { url: '', token: '' },
   mcpServers: [],
@@ -129,7 +133,16 @@ export class App {
     this.pendingTouches = new Set();
     this.touchScheduled = false;
 
-    this.memory = new MemoryStore({ db, getEmbedder: () => this.providers.embedder(), onChange: (id) => this.emit(`memory:${id}`) });
+    this.memory = new MemoryStore({
+      db,
+      getEmbedder: () => this.providers.embedder(),
+      onChange: (id) => {
+        if (id === USER_ID) this.loadUserFacts().catch(() => {});
+        this.emit(`memory:${id}`);
+      },
+    });
+    /** What the bots know about the user (USER_ID), for their prompts (src/core/prompts.js). */
+    this.userFacts = [];
     this.files = new FileStore({ db, onChange: (id) => this.emit(`files:${id}`) });
     this.routines = new RoutineStore({ db, getTimeZone: () => this.timeZone(), onChange: () => this.emit('routines') });
     this.providers = new ProviderHub(this);
@@ -153,6 +166,7 @@ export class App {
     for (const a of await this.db.all('agents')) this.agents.set(a.id, a);
     for (const t of await this.db.all('threads')) this.threads.set(t.id, t);
     for (const t of await this.db.all('tasks')) this.tasks.set(t.id, t);
+    await this.loadUserFacts();
     // Anything that was mid-stream when the app closed is no longer running.
     for (const t of this.threads.values()) {
       if (t.status === 'working') {
@@ -169,6 +183,7 @@ export class App {
     this.plugins.refresh().catch((err) => console.warn('plugins', err));
     this.refreshConnections();
     this.refreshCredits();
+    this.moveUserFacts().catch((err) => console.warn('about you', err));
     await this.repairInterruptedMessages();
   }
 
@@ -390,7 +405,11 @@ export class App {
     const chief = agent.role === 'chief';
     const lang = this.settings.uiLanguage || 'en';
     const say = (text, vars) => firstWords(lang, text, vars);
-    const text = chief ? chiefGreeting(agent.name, lang) : say("Hey — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?", { name: agent.name });
+    // By name, when the bots know what to call the user (About you).
+    const user = callName(this.settings.profile);
+    const text = chief ? chiefGreeting(agent.name, lang, user)
+      : user ? say("Hey {user} — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?", { name: agent.name, user })
+      : say("Hey — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?", { name: agent.name });
     const question = say(chief ? CHIEF.question : 'What should I focus on first?');
     const subtitle = say(chief ? CHIEF.subtitle : "Pick whatever's most useful — we can expand from there.");
     const options = chief ? CHIEF.focus.map((o) => say(o)) : await this.focusOptions(agent);
@@ -650,6 +669,98 @@ export class App {
       }
     }
     return out;
+  }
+
+  // ----- what the bots know about the user (About you) ------------------------
+
+  /** Loads what the bots know about the user, for their prompts. */
+  async loadUserFacts() {
+    this.userFacts = await this.memory.list(USER_ID);
+    return this.userFacts;
+  }
+
+  /** The state of the notebook about the user in this storage: when it was
+   * filled from the bots' own memories, and last reflected on. */
+  async userNotebook(patch) {
+    const state = (await this.db.get('kv', 'aboutUser'))?.value || {};
+    if (!patch) return state;
+    const next = { ...state, ...patch };
+    await this.db.put('kv', { key: 'aboutUser', value: next });
+    return next;
+  }
+
+  /**
+   * Once per storage: what each bot had learned about the user themself
+   * before the bots shared it (its facts, preferences and people that are
+   * about the user: "User's…") moves to what they all know, so every bot
+   * knows it. Returns how many moved.
+   */
+  async moveUserFacts() {
+    if ((await this.userNotebook()).movedAt) return 0;
+    let moved = 0;
+    for (const agent of [...this.agents.values()]) {
+      for (const m of await this.memory.list(agent.id)) {
+        if (!['fact', 'preference', 'person'].includes(m.type) || !/^(the )?user(['’]s)?\b/i.test(m.text)) continue;
+        await this.memory.add(USER_ID, { text: m.text, type: m.type, importance: m.importance, tags: m.tags || [], pinned: !!m.pinned, source: { kind: 'moved', agentId: agent.id } });
+        await this.memory.remove(m.id);
+        moved++;
+      }
+    }
+    await this.userNotebook({ movedAt: now() });
+    return moved;
+  }
+
+  /**
+   * After a dozen new facts about the user, a reflection on them: patterns
+   * that several facts show (tastes, habits, routines), saved as insights
+   * every bot sees. Returns how many.
+   */
+  async reflectOnUser() {
+    if (this.reflectingOnUser) return 0;
+    this.reflectingOnUser = true;
+    try {
+      const facts = (await this.memory.list(USER_ID)).filter((m) => m.type !== 'reflection');
+      const state = await this.userNotebook();
+      if (facts.filter((m) => m.createdAt > (state.reflectedAt || 0)).length < 12) return 0;
+      await this.userNotebook({ reflectedAt: now() });
+      const { reflect } = await import('./memory/extract.js');
+      const llm = (req) => this.providers.complete({ agent: null, purpose: 'memory', ...req });
+      const top = facts.sort((a, b) => (b.importance || 5) - (a.importance || 5) || b.updatedAt - a.updatedAt).slice(0, 40);
+      const insights = await reflect({ llm, agentName: 'Holly Bot', memories: top.map((m) => ({ memory: m })) });
+      for (const ins of insights) await this.memory.add(USER_ID, { text: ins.text, type: 'reflection', importance: ins.importance, source: { kind: 'reflection' } });
+      return insights.length;
+    } finally {
+      this.reflectingOnUser = false;
+    }
+  }
+
+  /**
+   * About you → Learn from my recent email (with Learn from my email on): what
+   * the newest emails, and the latest orders, bookings and receipts, in the
+   * user's connected mailboxes show about them. Returns how many new things
+   * the bots learned.
+   */
+  async learnFromEmail({ signal } = {}) {
+    const mem = this.settings.memory || {};
+    if (mem.learnUser === false || !mem.fromEmail) throw new Error('Learning from your email is off.');
+    await this.refreshConnections({ maxAge: 60 * 1000 });
+    const services = ['gmail', 'outlook'].filter((service) => this.connection(service));
+    if (!services.length) throw new Error('Connect Gmail or Outlook first, in Settings → Plugins.');
+    const searches = {
+      gmail: ['', 'subject:(order OR receipt OR reservation OR booking OR confirmation OR ticket) newer_than:1y'],
+      outlook: ['', 'confirmation'],
+    };
+    const emails = new Map();
+    for (const service of services) {
+      for (const query of searches[service]) {
+        for (const m of await this.connector(service, 'search', { query, max: 25 }, { signal })) emails.set(`${service}:${m.id}`, m);
+      }
+    }
+    if (!emails.size) return 0;
+    const { learnFromEmails } = await import('./memory/extract.js');
+    const llm = (req) => this.providers.complete({ agent: null, purpose: 'memory', signal, ...req });
+    const { applied } = await learnFromEmails({ llm, store: this.memory, emails: [...emails.values()], userName: this.settings.profile?.name, signal });
+    return applied.filter((a) => a.op === 'add').length;
   }
 
   /** Run memory reflection + profile refresh for a bot now. Returns the number of new insights. */

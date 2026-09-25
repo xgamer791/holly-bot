@@ -61,6 +61,14 @@ export function truncateMiddle(text, max) {
   return `${text.slice(0, half)}\n\n…[${text.length - 2 * half} characters omitted]…\n\n${text.slice(-half)}`;
 }
 
+/** What the bots call the user (settings.profile): what they asked to be
+ * called, else their first name; '' when they asked not to be called by name,
+ * or haven't said their name. */
+export function callName(profile) {
+  if (!profile || profile.noName) return '';
+  return String(profile.callMe || '').trim() || String(profile.name || '').trim().split(/\s+/)[0] || '';
+}
+
 export function initials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
