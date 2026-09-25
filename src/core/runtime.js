@@ -4,6 +4,7 @@ import { CONNECTOR_READS } from './tools/connector-tools.js';
 import { buildSystemPrompt, buildMessageContext } from './prompts.js';
 import { extractAndApply, summarizeHistory, synthesizeProfile, reflect } from './memory/extract.js';
 import { MAX_TOOL_STEPS } from './constants.js';
+import { CONTENT_NOTE } from './safety.js';
 import { contextWindow, supportsVision } from './providers/index.js';
 import { extractJson } from './util.js';
 
@@ -846,6 +847,7 @@ export class Runtime {
         const ctx = m.contexts?.[agent.id];
         if (group && parts[0]?.type === 'text') parts[0] = { ...parts[0], text: `[${userName}]: ${parts[0].text}` };
         const note = m !== lastFromUser ? [] : [
+          { type: 'text', text: CONTENT_NOTE },
           { type: 'text', text: SELF_NOTE },
           ...(m.interrupts ? [{ type: 'text', text: INTERRUPTED_NOTE }] : []),
           ...(stoppedBefore ? [{ type: 'text', text: STOPPED_NOTE }] : []),
