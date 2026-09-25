@@ -76,19 +76,17 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
   }
 
   const lastStep = msg.steps[msg.steps.length - 1];
-  // A bot's steps (thoughts, commands, the screen, the browser, searches)
-  // aren't listed in the chat. While it's busy, its face shows it below what
-  // it has said so far: thinking, or working on a task.
-  const working = (lastStep?.toolCalls || []).some((c) => !c.result) || (lastStep?.serverTools || []).some((st) => st.status === 'running');
-  const writing = !!lastStep?.text && !lastStep.toolCalls?.length;
-  const busyNow = streaming && !writing;
+  // Its steps don't show, so a reply that hasn't said or sent anything (yet,
+  // or before a new message cut it short) takes no room.
+  const shown = citations.length || msg.memoryOps?.length || ['error', 'stopped'].includes(msg.status)
+    || msg.steps.some((s) => s.text || s.notices?.length || (s.toolCalls || []).some(showsInChat));
+  if (!shown) return null;
 
   return html`
     <div class="msg bot">
       ${showAuthor && agent && html`<div class="author"><${Avatar} shape=${agent.shape} color=${agent.color} size=${20} /> ${agent.name}</div>`}
       <div class="steps">
         ${msg.steps.map((step, i) => html`<${StepView} key=${step.id || i} step=${step} msg=${msg} streaming=${streaming && step === lastStep} />`)}
-        ${busyNow && html`<${Typing} agent=${agent} activity=${working ? 'working' : 'thinking'} />`}
         ${citations.length > 0 && html`<${Sources} items=${citations} />`}
         ${msg.status === 'error' && html`<${ErrorCard} msg=${msg} />`}
         ${msg.status === 'stopped' && !text && html`<div class="notice" style="align-self:flex-start">Stopped.</div>`}
@@ -119,6 +117,15 @@ function StepView({ step, msg, streaming }) {
     ${step.text && html`<div class="bubble"><${Markdown} text=${step.text} streaming=${streaming} /></div>`}
     ${(step.toolCalls || []).map((c) => html`<${ToolCallView} key=${c.id} call=${c} msg=${msg} />`)}
     ${(step.notices || []).map((n, i) => html`<div key=${i} class="notice" style="align-self:flex-start;text-align:left">${n}</div>`)}`;
+}
+
+/** Whether ToolCallView draws `call`: cards, what it sent or made, memory notes. */
+function showsInChat(call) {
+  const d = call.display;
+  if (call.name === 'ask_user' || (call.approval?.status === 'pending' && !call.result)) return true;
+  if (['agent_chat', 'file', 'image', 'routine', 'delegation'].includes(d?.kind)) return true;
+  if (d?.kind === 'memory') return !call.result?.isError;
+  return d?.kind === 'code' && !!call.result?.images?.length;
 }
 
 export function ToolCallView({ call, msg }) {
@@ -290,10 +297,6 @@ function ErrorCard({ msg }) {
         <button class="btn small" onClick=${() => app.runtime.retry(msg.id)}><${Icon.retry} size="16" /> Retry</button>
       </div>
     </div>`;
-}
-
-function Typing({ agent, activity = 'thinking' }) {
-  return html`<div class="typing">${agent && html`<${Avatar} shape=${agent.shape} color=${agent.color} size=${34} activity=${activity} anim=${thinkingOf(agent)} />`}</div>`;
 }
 
 export function Sources({ items }) {

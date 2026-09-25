@@ -7,7 +7,7 @@ import { THINKING_KEYS } from '../core/constants.js';
 // thinking or writing it plays its own thinking animation (body motion + eyes
 // + little extras); while it's doing a task (tools: searching, code, the
 // computer, other bots) it plays the working animation, the same for every
-// bot: a busy rock, eyes on the task and a spinning gear. A `live` one idles:
+// bot: a busy rock and eyes on the task. A `live` one idles:
 // it glances around and bobs gently. All of them blink every few seconds.
 // With Reduce Motion on, a busy bot fades gently instead of moving and an idle
 // one holds still (styles.css); both still blink.
@@ -121,19 +121,6 @@ export const THINKING = {
 /** Doing a task: eyes on the work, now and then checking around. */
 const WORKING_EYES = cycle(['focused', 'down', 'focused', 'right', 'focused', 'left'], 480);
 
-/** A small eight-toothed gear centered on 0,0. */
-const GEAR = (() => {
-  const teeth = 8;
-  const step = (Math.PI * 2) / teeth;
-  const at = (r, a) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
-  let d = '';
-  for (let i = 0; i < teeth; i++) {
-    const a = i * step;
-    d += `${i ? 'L' : 'M'}${at(7.4, a - step * 0.3)}L${at(10.5, a - step * 0.16)}L${at(10.5, a + step * 0.16)}L${at(7.4, a + step * 0.3)}`;
-  }
-  return `${d}Z`;
-})();
-
 /**
  * What `agent` is doing right now, for its face: 'thinking' (its AI is
  * thinking or writing), 'working' (doing a task: tools, the computer, another
@@ -174,10 +161,6 @@ let clipSeq = 0;
 
 function Extras({ anim, def, clipId }) {
   switch (anim) {
-    case 'working':
-      return html`<g transform="translate(86 13)"><g class="av-gear">
-        <path d=${GEAR} fill="#FFD60A" stroke="#121212" stroke-width="1.8" stroke-linejoin="round" />
-        <circle r="2.9" fill="#121212" /></g></g>`;
     case 'ponder':
       return html`<g class="av-extra" fill="#fff" stroke="#121212" stroke-width="2.4">
         <circle class="av-thought" cx="77" cy="16" r="4.2" />

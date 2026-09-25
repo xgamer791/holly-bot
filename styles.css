@@ -106,7 +106,7 @@ svg { display: block; }
 .avatar.is-thinking.think-float .av-body { animation: av-float 2s ease-in-out infinite; }
 .avatar.is-thinking.think-nod .av-body { animation: av-nod .8s ease-in-out infinite; transform-origin: 50px 95px; }
 .avatar.is-thinking.think-twirl .av-body { animation: av-twirl 2.2s cubic-bezier(.55, 0, .3, 1) infinite; }
-/* Doing a task (every bot the same): a busy rock, and a gear turning beside it. */
+/* Doing a task (every bot the same): a busy rock. */
 .avatar.is-working .av-body { animation: av-work .9s ease-in-out infinite; transform-origin: 50px 95px; }
 @keyframes av-work {
   0%, 100% { transform: rotate(-4deg) translateY(0); }
@@ -114,7 +114,6 @@ svg { display: block; }
   50% { transform: rotate(4deg) translateY(0); }
   75% { transform: rotate(0deg) translateY(-3px); }
 }
-.av-gear { transform-box: fill-box; transform-origin: center; animation: av-spin 1.8s linear infinite; }
 /* Idle (a `live` avatar that isn't busy): a slow, gentle bob. */
 .avatar.is-live .av-body { animation: av-idle 3.6s ease-in-out infinite; transform-origin: 50px 92px; }
 @keyframes av-idle { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3.5px) scale(1.015, 1.03); } }
@@ -154,7 +153,7 @@ svg { display: block; }
 @keyframes av-twinkle { 0% { opacity: 0; transform: scale(.2) rotate(0); } 40% { opacity: 1; transform: scale(1) rotate(45deg); } 80%, 100% { opacity: 0; transform: scale(.3) rotate(90deg); } }
 @keyframes av-shadow { 0%, 100% { transform: scale(1); opacity: .28; } 50% { transform: scale(.7); opacity: .12; } }
 @media (prefers-reduced-motion: reduce) {
-  .avatar .av-body, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow, .av-gear { animation: none !important; }
+  .avatar .av-body, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow { animation: none !important; }
   .av-thought, .av-star { opacity: 1; }
   /* Still plainly busy without moving about: a thinking or working bot fades gently. */
   .avatar.is-thinking .av-body, .avatar.is-working .av-body { animation: av-fade 1.6s ease-in-out infinite !important; }

@@ -14,6 +14,9 @@ import { extractJson } from './util.js';
 
 const PARALLEL_SAFE = new Set(['recall', 'search_history', 'web_search', 'fetch_url', 'message_agent', 'list_files', 'read_file', 'list_agents', ...CONNECTOR_READS]);
 const GROUP_MAX_HOPS = 8;
+/** For the bot, on the newest message when it came in while the bot was busy
+ * with a task (Runtime.send, interrupt). */
+const INTERRUPTED_NOTE = '[This message came in while you were in the middle of a task, which is paused. Answer it first. Then, unless it tells you to stop or do something else, carry on with that task from where you left off.]';
 
 export class Runtime {
   constructor(app) {
@@ -56,6 +59,16 @@ export class Runtime {
     for (const r of this.runs.values()) r.controller.abort(new DOMException('Stopped', 'AbortError'));
   }
 
+  /** A new message came in while the bot works in this thread: its turn ends
+   * at the next step, so the next turn can answer. A reply it's writing is
+   * cut off; a tool that's running finishes first, so nothing is left half done. */
+  interrupt(threadId) {
+    const run = this.runs.get(threadId);
+    if (!run) return;
+    run.interrupted = true;
+    run.stepController?.abort(new DOMException('Interrupted', 'AbortError'));
+  }
+
   /** Serialize work per thread so turns never interleave. */
   enqueue(threadId, fn) {
     const prev = this.queues.get(threadId) || Promise.resolve();
@@ -85,9 +98,14 @@ export class Runtime {
       await this.closeLocalQuestion(waiting.message, waiting.call, text.trim(), { inChat: true });
       waiting = null;
     }
+    // The bot is busy with a task in this chat: it stops at its next step
+    // (interrupt), answers this, then picks the task back up (the note this
+    // message carries says so: buildHistory).
+    const busy = !waiting && thread.kind !== 'group' ? this.runs.get(threadId) : null;
     const userMsg = await app.addMessage({
       threadId, authorType: 'user', authorId: 'user', parts,
       ...(waiting ? { answerTo: { messageId: waiting.message.id, callId: waiting.call.id } } : {}),
+      ...(busy ? { interrupts: busy.messageId } : {}),
     });
     if (waiting) {
       const answer = text.trim() || '(sent an attachment)';
@@ -98,6 +116,7 @@ export class Runtime {
     if (thread.kind === 'group') return this.enqueue(threadId, () => this.runGroup(thread, userMsg));
     const agent = app.getAgent(thread.agentIds[0]);
     if (!agent) throw new Error('This bot no longer exists');
+    if (busy) this.interrupt(threadId);
     return this.enqueue(threadId, () => this.runTurn({ agent, threadId }));
   }
 
@@ -295,13 +314,27 @@ export class Runtime {
         }
       }
 
+      let cutShort = false; // by a new message (interrupt)
       for (let i = 0; i < MAX_TOOL_STEPS; i++) {
+        if (this.runs.get(threadId)?.interrupted) {
+          cutShort = true;
+          break;
+        }
         let history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
         const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
         msg.steps.push(step);
         app.touchMessage(msg);
         this.setPhase(threadId, 'thinking');
 
+        // The model's part of this step can be cut off by a new message
+        // (interrupt) without stopping the turn's tools.
+        const stepController = new AbortController();
+        const unlinkStep = linkSignal(controller.signal, stepController);
+        const run = this.runs.get(threadId);
+        if (run) {
+          run.stepController = stepController;
+          if (run.interrupted) stepController.abort(new DOMException('Interrupted', 'AbortError'));
+        }
         const ask = (c) => app.providers.chat({
           cfg: c,
           system: msg.turn.system,
@@ -310,24 +343,40 @@ export class Runtime {
           serverTools: app.providers.serverToolsFor(c, agent),
           reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
           maxTokens: agent.maxTokens || undefined,
-          signal: controller.signal,
+          signal: stepController.signal,
           onEvent: (e) => this.onStreamEvent(msg, step, e),
         });
         let result;
         try {
-          result = await ask(cfg);
+          try {
+            result = await ask(cfg);
+          } catch (err) {
+            // Main provider down, rate limited or out of credit: retry this step once on the backup.
+            const backup = stepController.signal.aborted ? null : app.providers.backupFor(cfg, err);
+            if (!backup) throw err;
+            Object.assign(step, { text: '', thinking: '', toolCalls: [], serverTools: [], citations: [] });
+            step.notices.push(`${cfg.provider.label} failed (${truncate(errorMessage(err), 140)}) — switched to ${backup.provider.label} for this reply.`);
+            app.touchMessage(msg);
+            cfg = backup;
+            msg.steps.pop();
+            history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
+            msg.steps.push(step);
+            result = await ask(cfg);
+          }
         } catch (err) {
-          // Main provider down, rate limited or out of credit: retry this step once on the backup.
-          const backup = controller.signal.aborted ? null : app.providers.backupFor(cfg, err);
-          if (!backup) throw err;
-          Object.assign(step, { text: '', thinking: '', toolCalls: [], serverTools: [], citations: [] });
-          step.notices.push(`${cfg.provider.label} failed (${truncate(errorMessage(err), 140)}) — switched to ${backup.provider.label} for this reply.`);
-          app.touchMessage(msg);
-          cfg = backup;
-          msg.steps.pop();
-          history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
-          msg.steps.push(step);
-          result = await ask(cfg);
+          if (!stepController.signal.aborted || controller.signal.aborted) throw err;
+          cutShort = true;
+        } finally {
+          unlinkStep();
+          if (run) run.stepController = null;
+        }
+        if (cutShort) {
+          // Interrupted: keep what it had written, drop tool calls it hadn't finished asking for.
+          step.toolCalls = [];
+          step.serverTools = (step.serverTools || []).filter((st) => st.status !== 'running');
+          step.endedAt = now();
+          if (!step.text) msg.steps.pop();
+          break;
         }
 
         step.text = result.text;
@@ -364,8 +413,12 @@ export class Runtime {
       msg.status = 'done';
       await app.saveMessage(msg);
       const text = finalText(msg);
-      await this.finishThread(threadId, msg, agent);
-      this.afterTurn(agent, threadId, msg).catch((err) => console.warn('post-turn memory work failed', err));
+      // Cut short, the turn isn't over: the next one answers the new message
+      // and carries on, and wraps up the chat (still busy until then).
+      if (!cutShort) {
+        await this.finishThread(threadId, msg, agent);
+        this.afterTurn(agent, threadId, msg).catch((err) => console.warn('post-turn memory work failed', err));
+      }
       return { status: 'done', text, messageId: msg.id };
     } catch (err) {
       const stopped = isAbort(err) || controller.signal.aborted;
@@ -644,6 +697,7 @@ export class Runtime {
       return m.seq < cutoff && m.seq > (thread.summaryUpToSeq || 0);
     });
 
+    const lastFromUser = [...visible].reverse().find((m) => m.authorType === 'user');
     for (const m of visible) {
       if (m.authorType === 'system') {
         if (m.forModel) out.push({ role: 'user', parts: [{ type: 'text', text: messageText(m) }] });
@@ -653,7 +707,8 @@ export class Runtime {
         const parts = await app.partsForModel(m, agent);
         const ctx = m.contexts?.[agent.id];
         if (group && parts[0]?.type === 'text') parts[0] = { ...parts[0], text: `[${userName}]: ${parts[0].text}` };
-        out.push({ role: 'user', parts: ctx ? [{ type: 'text', text: ctx }, ...parts] : parts });
+        const note = m === lastFromUser && m.interrupts ? [{ type: 'text', text: INTERRUPTED_NOTE }] : [];
+        out.push({ role: 'user', parts: [...(ctx ? [{ type: 'text', text: ctx }] : []), ...note, ...parts] });
         continue;
       }
       if (m.authorId !== agent.id) {

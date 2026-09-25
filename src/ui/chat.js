@@ -46,6 +46,8 @@ export function ChatScreen({ threadId, wide }) {
 
   const agents = thread.agentIds.map((id) => app.getAgent(id)).filter(Boolean);
   const agent = agents[0];
+  // While a bot is busy, its face sits under the whole chat (below any message
+  // sent meanwhile), thinking or working.
   const busy = app.runtime.isThreadBusy(threadId);
   const runAgent = busy ? app.getAgent(app.runtime.runs.get(threadId)?.agentId) : null;
   const title = threadTitle(app, thread);
@@ -103,7 +105,7 @@ export function ChatScreen({ threadId, wide }) {
           ${messages === null && html`<div class="notice">Loading…</div>`}
           ${isChannel && html`<div class="notice">Private channel between ${agents.map((a) => a.name).join(' and ')}. Bots use it when they message each other.</div>`}
           ${items}
-          ${busy && runAgent && !list.some((m) => m.status === 'streaming') && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
+          ${busy && runAgent && html`<div class="typing"><${Avatar} shape=${runAgent.shape} color=${runAgent.color} size=${34} activity=${botActivity(app, runAgent, threadId) || 'thinking'} anim=${thinkingOf(runAgent)} /></div>`}
         </div>
       </div>
       ${!isChannel && html`<${Composer} thread=${thread} agents=${agents} onVoice=${() => setVoice(true)} />`}
