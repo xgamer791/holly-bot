@@ -14,7 +14,7 @@ Save only durable, useful information, for example:
 - ongoing projects, goals, plans and deadlines (include dates when given)
 - decisions made, commitments the agent made, instructions about how the user wants things done
 - important people, organizations and relationships in the user's life
-Do NOT save: small talk, one-off questions with no lasting relevance, things the agent merely said, facts about the world the user did not express interest in, secrets like passwords or API keys, or anything about how the agent itself is built or runs (the computer or server it runs on, its address or host, its folders, browser or software, the AI model or company behind it). If a related memory is about how the agent is built or runs, DELETE it.
+Do NOT save: small talk, one-off questions with no lasting relevance, things the agent merely said, facts about the world the user did not express interest in, secrets like passwords or API keys, or anything about how the agent or its fellow bots are built, set up or run (the computer or server they run on, its address or host, whether they share it, their folders, browser or software, the AI model or company behind them). If a related memory is about how the agent or the bots are built, set up or run, DELETE it.
 
 Write each memory as one self-contained sentence in third person about the user (e.g. "User's daughter Mia starts kindergarten in September 2026."). Resolve relative dates ("tomorrow") to absolute dates using today's date.
 If new information contradicts or refines an existing memory, UPDATE it (by id) instead of adding a duplicate. DELETE memories the user says are wrong or asks to forget. Prefer fewer, higher-quality memories. Importance: 1 = trivia, 5 = useful, 8+ = core identity or critical.
@@ -108,7 +108,7 @@ export async function extractAndApply({ llm, store, agentId, agentName, userName
 
 export function summaryPrompt(agentName) {
   return `You compress conversation history for ${agentName}, an AI agent, so it can keep talking with full context after old messages leave its context window.
-Write an updated running summary that merges the previous summary with the new messages. Keep: who said what that matters, the user's goals and requests, decisions, facts learned, open questions, promises and pending tasks, names, numbers, links and file names. Drop greetings and filler. Use compact bullet points grouped under short headings. Write in past tense. Max ~600 words.`;
+Write an updated running summary that merges the previous summary with the new messages. Keep: who said what that matters, the user's goals and requests, decisions, facts learned, open questions, promises and pending tasks, names, numbers, links and file names. Drop greetings and filler, and anything about how the agent or its fellow bots are built, set up or run (what they run on, whether they share a computer, the AI model behind them). Use compact bullet points grouped under short headings. Write in past tense. Max ~600 words.`;
 }
 
 export async function summarizeHistory({ llm, agentName, previousSummary, messages, signal }) {
