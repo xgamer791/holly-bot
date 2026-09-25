@@ -3,6 +3,7 @@ import { useApp, useUi, useTopics } from './hooks.js';
 import { Avatar, AvatarStack } from './avatar.js';
 import { Sheet, Group, Row, Segmented } from './components.js';
 import { tr } from './i18n.js';
+import { jobLine } from '../core/brief.js';
 
 export function GroupInfoSheet({ threadId, onClose }) {
   const app = useApp();
@@ -21,7 +22,7 @@ export function GroupInfoSheet({ threadId, onClose }) {
           <${Segmented} value=${t.mode || 'auto'} onChange=${(mode) => app.updateThread(t.id, { mode })} options=${[{ value: 'auto', label: tr('Smart') }, { value: 'all', label: tr('Everyone') }, { value: 'mention', label: tr('@Mentions') }]} /></div>
       <//>
       <${Group} label=${tr('Members')}>
-        ${members.map((a) => html`<${Row} key=${a.id} icon=${html`<${Avatar} shape=${a.shape} color=${a.color} size=${32} />`} title=${a.name} sub=${a.description}
+        ${members.map((a) => html`<${Row} key=${a.id} icon=${html`<${Avatar} shape=${a.shape} color=${a.color} size=${32} />`} title=${a.name} sub=${jobLine(a, 90)}
           value=${members.length > 2 ? tr('Remove') : ''} onClick=${members.length > 2 ? () => app.updateThread(t.id, { agentIds: t.agentIds.filter((id) => id !== a.id) }) : () => ui.openSheet('botProfile', { agentId: a.id })} />`)}
         ${others.map((a) => html`<${Row} key=${a.id} icon=${html`<${Avatar} shape=${a.shape} color=${a.color} size=${32} />`} title=${tr('Add {name}', { name: a.name })}
           onClick=${() => app.updateThread(t.id, { agentIds: [...t.agentIds, a.id] })} />`)}

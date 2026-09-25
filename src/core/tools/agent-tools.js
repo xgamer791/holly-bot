@@ -1,6 +1,7 @@
 import { truncate } from '../util.js';
 import { SHAPE_KEYS_CORE, COLOR_KEYS_CORE } from '../constants.js';
 import { phrase } from '../i18n.js';
+import { jobLine } from '../brief.js';
 
 // Tools for talking to the user (question cards, files) and to other bots.
 
@@ -70,7 +71,7 @@ export const agentTools = [
         };
       }
       return {
-        content: others.map((a) => `- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${truncate(a.description.replace(/\s+/g, ' ').trim(), 400)}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
+        content: others.map((a) => `- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${jobLine(a, 400) ? ` — ${jobLine(a, 400)}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
       };
     },
   },
@@ -139,19 +140,21 @@ export const agentTools = [
       type: 'object',
       properties: {
         name: { type: 'string' },
-        description: { type: 'string', description: 'One-line role, e.g. "Research specialist".' },
+        description: { type: 'string', description: 'Its job: what it\'s for, in a sentence or a few, e.g. "Research specialist: finds and checks sources for my questions".' },
+        rules: { type: 'string', description: 'Hard rules it must always keep, one per line: only ones the user gave for it.' },
         persona: { type: 'string', description: 'Personality and instructions for the new bot.' },
         shape: { type: 'string', enum: SHAPE_KEYS_CORE },
         color: { type: 'string', enum: COLOR_KEYS_CORE },
       },
       required: ['name'],
     },
-    approval: (a) => `Create a new bot named “${a.name}”${a.description ? ` (${a.description})` : ''}`,
+    approval: (a) => `Create a new bot named “${a.name}”${a.description ? ` (${truncate(a.description, 160)})` : ''}`,
     async run(args, ctx) {
       if (ctx.app.findAgent(args.name)) return { content: `A bot named ${args.name} already exists.`, isError: true };
       const agent = await ctx.app.createAgent({
         name: args.name,
         description: args.description || '',
+        rules: args.rules || '',
         persona: args.persona || '',
         shape: SHAPE_KEYS_CORE.includes(args.shape) ? args.shape : undefined,
         color: COLOR_KEYS_CORE.includes(args.color) ? args.color : undefined,

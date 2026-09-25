@@ -13,7 +13,9 @@ import { CHIEF, chiefGreeting, chiefOf } from './chief.js';
 import { firstWords, languageName, phrase, spoken } from './i18n.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
-import { BRIEF_PROMPT, briefInput } from './brief.js';
+import {
+  BRIEF_PROMPT, BRIEF_VERSION, RULES_PROMPT, briefCurrent, briefInput, clipJob, newlyRefused, parseBrief, parseRulesCheck, rulesInput, shortJob,
+} from './brief.js';
 
 // App state: the single source of truth the UI renders from. Persists to
 // IndexedDB and emits change topics:
@@ -186,8 +188,11 @@ export class App {
     this.refreshConnections();
     this.refreshCredits();
     this.moveUserFacts().catch((err) => console.warn('about you', err));
-    // Bots given a job before briefings (or whose briefing didn't come through) get one now, once the AI is ready.
-    setTimeout(() => this.briefAll().catch((err) => console.warn('briefing', err)), 10000);
+    // Bots given a job before briefings (or whose briefing, or rules check, didn't come through) get one now, once the AI is ready.
+    setTimeout(() => {
+      this.briefAll().catch((err) => console.warn('briefing', err));
+      for (const agent of this.listAgents()) this.checkRulesSoon(agent.id);
+    }, 10000);
     await this.repairInterruptedMessages();
   }
 
@@ -376,7 +381,10 @@ export class App {
       shape: SHAPE_KEYS_CORE.includes(data.shape) ? data.shape : SHAPE_KEYS_CORE[Math.floor(Math.random() * SHAPE_KEYS_CORE.length)],
       color: COLOR_KEYS_CORE.includes(data.color) ? data.color : 'green',
       thinking: THINKING_KEYS.includes(data.thinking) ? data.thinking : THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)],
-      description: data.description || '',
+      // Its job, and the hard rules it must keep, in the user's words (src/core/brief.js).
+      description: clipJob(data.description),
+      rules: clipJob(data.rules),
+      rulesAt: t,
       persona: data.persona || '',
       provider: data.provider || '',
       model: data.model || '',
@@ -394,10 +402,12 @@ export class App {
     };
     this.agents.set(agent.id, agent);
     await this.db.put('agents', agent);
-    // Its briefing, from the job the user gave it, while it says hello.
+    // Its briefing, from the job (and rules) the user gave it, while it says hello.
     this.briefSoon(agent.id);
     const thread = await this.ensureDmThread(agent.id);
     if (data.greet !== false) await this.greet(agent, thread);
+    // After its hello: any of its rules it won't follow, it says so there.
+    this.checkRulesSoon(agent.id);
     this.emit('agents');
     return agent;
   }
@@ -481,6 +491,9 @@ export class App {
   async updateAgent(id, patch) {
     const a = this.agents.get(id);
     if (!a) throw new Error('Bot not found');
+    // Its job and rules, as they're kept (src/core/brief.js), and when its rules last changed (checkRulesSoon).
+    for (const key of ['description', 'rules']) if (key in patch) patch = { ...patch, [key]: clipJob(patch[key]) };
+    if ('rules' in patch && patch.rules !== (a.rules || '')) patch = { ...patch, rulesAt: now() };
     const next = { ...a, ...patch, updatedAt: now() };
     this.agents.set(id, next);
     await this.db.put('agents', next);
@@ -488,38 +501,47 @@ export class App {
     this.emit(`agent:${id}`);
     const dm = this.threads.get(`dm_${id}`);
     if (dm && patch.name) await this.updateThread(dm.id, { title: patch.name });
-    // A new job: a new briefing.
-    if ('description' in patch && patch.description !== a.description) this.briefSoon(id);
+    // A new job, or new rules: a new briefing. New rules are checked against Holly Bot's own too.
+    if (next.description !== a.description || (next.rules || '') !== (a.rules || '')) this.briefSoon(id);
+    if ((next.rules || '') !== (a.rules || '')) this.checkRulesSoon(id);
     return next;
   }
 
   // ----- a bot's briefing on its job (src/core/brief.js) -------------------------
 
   /** Whether a bot's briefing is missing, or was written for another version
-   * of its job. The Chief Coordinator has its own instructions (src/core/chief.js). */
+   * of its job or rules (or, for a long job, before summaries). The Chief
+   * Coordinator has its own instructions (src/core/chief.js). */
   needsBrief(agent) {
-    return !!agent && agent.role !== 'chief' && !!agent.description?.trim() && agent.briefFor !== agent.description;
+    if (!agent || agent.role === 'chief' || !agent.description?.trim()) return false;
+    return agent.briefFor !== agent.description || (agent.briefRules || '') !== (agent.rules || '')
+      || (!shortJob(agent.description) && (agent.briefV || 1) < BRIEF_VERSION);
   }
 
   /**
-   * Has Holly Bot's AI read a bot's job (its description, in the user's
-   * words) and write it a briefing, in the background. Returns the work in
-   * progress for the job as it is now (null when there's none to do).
+   * Has Holly Bot's AI read a bot's job (its description) and rules, in the
+   * user's words, and write it a briefing and a summary of the job, in the
+   * background. Returns the work in progress for the job and rules as they
+   * are now (null when there's none to do).
    */
   briefSoon(agentId) {
     const agent = this.getAgent(agentId);
     if (!this.needsBrief(agent)) return null;
     this.briefing ||= new Map();
     const job = agent.description;
+    const rules = agent.rules || '';
     const current = this.briefing.get(agentId);
-    if (current?.job === job) return current.work;
-    const entry = { job };
+    if (current?.job === job && current.rules === rules) return current.work;
+    const entry = { job, rules };
     this.briefing.set(agentId, entry);
     entry.work = (async () => {
       try {
-        const brief = (await this.providers.complete({ agent, purpose: 'memory', system: BRIEF_PROMPT, prompt: briefInput(agent), maxTokens: 900 })).trim();
-        // Only if its job is still what was read.
-        if (brief && this.getAgent(agentId)?.description === job) await this.updateAgent(agentId, { brief: truncate(brief, 3000), briefFor: job });
+        const { brief, summary } = parseBrief(await this.providers.complete({ agent, purpose: 'memory', system: BRIEF_PROMPT, prompt: briefInput(agent), json: true, maxTokens: 1200 }));
+        // Only if its job and rules are still what was read.
+        const fresh = this.getAgent(agentId);
+        if (brief && fresh?.description === job && (fresh.rules || '') === rules) {
+          await this.updateAgent(agentId, { brief, jobSummary: summary, briefFor: job, briefRules: rules, briefV: BRIEF_VERSION });
+        }
       } catch (err) {
         if (err?.kind !== 'no_key') console.warn('briefing', err?.message || err);
       } finally {
@@ -530,19 +552,85 @@ export class App {
   }
 
   /** Briefs, one at a time, the bots whose briefing is missing or was
-   * written for an older version of their job. */
+   * written for an older version of their job or rules. */
   async briefAll() {
     for (const agent of this.listAgents()) if (this.needsBrief(agent)) await this.briefSoon(agent.id);
   }
 
   /** Waits (up to `waitMs`) for a bot's briefing, starting it if it's due:
-   * its first reply after a new job comes with it. */
+   * its first reply after a new job or new rules comes with it. One for its
+   * job and rules as they are (from before summaries too) is good to reply with. */
   async briefed(agentId, waitMs = 8000) {
+    // Rules whose check didn't come through are checked again.
+    this.checkRulesSoon(agentId);
     const work = this.briefSoon(agentId);
-    if (!work) return;
+    if (!work || briefCurrent(this.getAgent(agentId))) return;
     let timer;
     await Promise.race([work, new Promise((resolve) => { timer = setTimeout(resolve, waitMs); })]);
     clearTimeout(timer);
+  }
+
+  // ----- a bot's rules, against Holly Bot's own (src/core/brief.js) ----------------
+
+  /** Whether a bot's rules, as they are now, are yet to be checked. */
+  needsRulesCheck(agent) {
+    return !!agent && (agent.rules || '') !== (agent.rulesCheckFor ?? '');
+  }
+
+  /**
+   * Has Holly Bot's AI check a bot's rules against Holly Bot's own safety and
+   * behavior rules for every bot, in the background. The bot ignores a rule
+   * that goes against them (src/core/prompts.js Your rules), and when one
+   * newly does, it types in its chat, flat out, that it won't follow it and
+   * why (tellRefused). Returns the work in progress (null when there's none).
+   */
+  checkRulesSoon(agentId) {
+    const agent = this.getAgent(agentId);
+    if (!this.needsRulesCheck(agent)) return null;
+    this.rulesChecks ||= new Map();
+    const rules = agent.rules || '';
+    const current = this.rulesChecks.get(agentId);
+    if (current?.rules === rules) return current.work;
+    const entry = { rules };
+    this.rulesChecks.set(agentId, entry);
+    entry.work = (async () => {
+      try {
+        const refused = rules.trim()
+          ? parseRulesCheck(await this.providers.complete({ agent, purpose: 'memory', system: RULES_PROMPT, prompt: rulesInput(agent), json: true, maxTokens: 1200 }))
+          : [];
+        // Checked again later when the answer wasn't usable; not at all when the rules changed meanwhile.
+        const fresh = this.getAgent(agentId);
+        if (!refused || !fresh || (fresh.rules || '') !== rules) return;
+        const told = newlyRefused(refused, fresh.rulesRefused);
+        await this.updateAgent(agentId, { rulesRefused: refused, rulesCheckFor: rules });
+        // Storage an account's devices share: only one of them tells the user.
+        if (told.length && (!this.db.claim || await this.db.claim(`rules:${agentId}`, fresh.rulesAt || 1))) await this.tellRefused(this.getAgent(agentId), told);
+      } catch (err) {
+        if (err?.kind !== 'no_key') console.warn('rules check', err?.message || err);
+      } finally {
+        if (this.rulesChecks.get(agentId) === entry) this.rulesChecks.delete(agentId);
+      }
+    })();
+    return entry.work;
+  }
+
+  /** The bot types in its chat with the user, flat out, that it won't follow
+   * these of their rules ([{ rule, why }]), and why: a note only it sees
+   * (quiet), then a turn of its own, as a routine's is. */
+  async tellRefused(agent, refused) {
+    const thread = await this.ensureDmThread(agent.id);
+    const one = refused.length === 1;
+    await this.addMessage({
+      threadId: thread.id, authorType: 'system', authorId: 'rules', forModel: true, quiet: true,
+      parts: [{
+        type: 'text',
+        text: `[Note to you, not from the user: the user just wrote your rules, and ${one ? 'this one goes' : 'these go'} against Holly Bot's own rules for every bot, so you won't follow ${one ? 'it' : 'them'}:\n`
+          + `${refused.map((r) => `- “${r.rule}”${r.why ? `: ${r.why}` : ''}`).join('\n')}\n`
+          + `Tell the user now, in a few short sentences: flat out, that you won't follow ${one ? 'that rule' : 'those rules'}, and why, and that you'll keep the rest of your rules. Don't do anything else.]`,
+      }],
+    });
+    this.runtime.enqueue(thread.id, (halt) => this.runtime.runTurn({ agent: this.getAgent(agent.id) || agent, threadId: thread.id, halt }))
+      .catch((err) => console.warn('rules notice', err));
   }
 
   async deleteAgent(id) {

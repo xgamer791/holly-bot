@@ -1,7 +1,8 @@
 import { html, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Avatar, botActivity, thinkingOf } from './avatar.js';
-import { JOB_MAX, LookPicker, usePreview } from './create-bot.js';
+import { AgentText, LookPicker, usePreview } from './create-bot.js';
+import { briefCurrent, jobSummary } from '../core/brief.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { AI_MODELS } from '../core/providers/index.js';
@@ -35,11 +36,15 @@ export function BotProfileSheet({ agentId, onClose }) {
         <div class="row"><div class="label"><div class="t">${tr('Name')}</div></div>
           <input type="text" value=${agent.name} maxlength="40" aria-label=${tr('Name')} onChange=${(e) => e.currentTarget.value.trim() && save({ name: e.currentTarget.value.trim() })} /></div>
       <//>
-      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. Holly Bot's AI reads it and briefs the bot, so it knows exactly what its role is.")}>
-        <textarea class="textarea job" maxlength=${JOB_MAX} aria-label=${tr("Bot's job")} placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} value=${agent.description || ''}
-          onChange=${(e) => save({ description: e.currentTarget.value.trim() })}></textarea>
+      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. It keeps this in its memory and reads it before every chat, and Holly Bot's AI briefs it on it.")}>
+        <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr("Bot's job")}
+          placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} />
       <//>
       ${!chief && agent.description?.trim() && html`<${Briefing} agent=${agent} />`}
+      <${Field} label=${tr('Rules')} hint=${tr("Hard rules it must always follow, in your words. It keeps them in its memory and reads them before every chat. If one goes against Holly Bot's own safety and behavior rules, it won't follow that one, and it will tell you why in your chat.")}>
+        <${AgentText} key=${`rules_${agent.id}`} agent=${agent} field="rules" rules label=${tr("Bot's rules")}
+          placeholder=${tr('e.g. Never send an email without my OK')} />
+      <//>
       <${Field} label=${tr('Personality & instructions')} hint=${tr('How this bot should think, talk and work. Other bots see only its name and job.')}>
         <textarea class="textarea" placeholder=${tr('e.g. You are my coding partner. Be direct, suggest tests, prefer TypeScript.')} value=${agent.persona || ''}
           onChange=${(e) => save({ persona: e.currentTarget.value })}></textarea>
@@ -94,10 +99,11 @@ export function BotProfileSheet({ agentId, onClose }) {
     <//>`;
 }
 
-/** The briefing Holly Bot's AI wrote the bot from its job (src/core/brief.js),
- * folded away until it's opened; while it's being written, a note saying so. */
+/** The briefing Holly Bot's AI wrote the bot from its job and rules
+ * (src/core/brief.js), folded away until it's opened; while it's being
+ * written, a note saying so. */
 function Briefing({ agent }) {
-  if (!agent.brief || agent.briefFor !== agent.description) return html`<div class="brief-note">${tr('Writing its briefing…')}</div>`;
+  if (!briefCurrent(agent)) return html`<div class="brief-note">${tr('Writing its briefing…')}</div>`;
   return html`
     <details class="brief">
       <summary>${tr('Its briefing')}<${Icon.down} size="18" /></summary>

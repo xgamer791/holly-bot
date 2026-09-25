@@ -12,6 +12,8 @@ export const Icon = {
   back: I(html`<path d="M15 5l-7 7 7 7" />`, { sw: 2.4 }),
   chevron: I(html`<path d="M9 5l7 7-7 7" />`),
   down: I(html`<path d="M6 9l6 6 6-6" />`),
+  expand: I(html`<path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" />`),
+  collapse: I(html`<path d="M4 14h6v6M20 10h-6V4M14 10l6.5-6.5M10 14l-6.5 6.5" />`),
   plus: I(html`<path d="M12 5v14M5 12h14" />`, { sw: 2.2 }),
   search: I(html`<circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />`, { sw: 2.2 }),
   x: I(html`<path d="M6 6l12 12M18 6L6 18" />`, { sw: 2.4 }),
