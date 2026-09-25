@@ -92,6 +92,9 @@ function whitePages(on) {
 /** The latest billing:status (convex/billing.ts). */
 let billing = null;
 let watchingSubscription = false;
+/** The server that comes with the plan was just set up (the setup page): the
+ * app opens onto it (openComputer). */
+let serverJustSetUp = false;
 
 /**
  * Holly Bot opens only for an account with an active subscription
@@ -159,6 +162,7 @@ function showSetup(status) {
   show(html`<${SetupScreen} status=${status}
     onReady=${(next) => {
       billing = next;
+      serverJustSetUp = true;
       openApp();
     }}
     onSignOut=${() => signOut()} />`);
@@ -295,16 +299,22 @@ async function openComputer() {
   // A saved computer that was linked to the account and isn't any more (a
   // subscriber's server replaced by a smaller one) counts as none saved.
   const gone = !!(saved?.device && linked && !mine);
-  // The saved computer first, then where the account says a linked one is
-  // now: the saved one at a new address, or, with none saved, any, your own
+  // Just set up, the server that comes with the plan first: it's what the
+  // person subscribed for. Then the saved computer, and where the account
+  // says it is now if it moved. Then, with none saved, or when the saved one
+  // is linked to the account but can't be reached, any running, your own
   // computer before the server that comes with a plan, and none this device
-  // was told to leave alone (Not now, Disconnect this device).
-  const tries = saved && !gone ? [saved] : [];
-  const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device));
-  for (const device of saved && !gone ? [mine] : others) {
-    const conn = computerConnection(device);
+  // was told to leave alone (Not now, Disconnect this device). A saved
+  // computer that isn't linked to the account is the only one tried: its
+  // bots may be only there.
+  const tries = [];
+  const add = (conn) => {
     if (conn && !tries.some((t) => t.url === conn.url && t.token === conn.token)) tries.push(conn);
-  }
+  };
+  if (serverJustSetUp) (linked || []).filter((device) => device.server).forEach((device) => add(computerConnection(device)));
+  if (saved && !gone) add(saved);
+  const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device));
+  for (const device of saved && !gone ? [mine, ...(mine ? others : [])] : others) add(computerConnection(device));
   let problem = null;
   for (const conn of tries) {
     const app = new RemoteApp(conn);
