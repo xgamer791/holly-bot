@@ -171,7 +171,8 @@ EOF
 
 # HTTP/1.1 and HTTP/2 only. Caddy would also offer HTTP/3, which runs over
 # UDP 443, and the firewall below opens TCP only: Safari, told to use it,
-# keeps trying and the app's live updates fail.
+# keeps trying and the app's live updates fail. Alt-Svc: clear makes a
+# browser forget an offer it kept from an earlier server at this address.
 cat > /etc/caddy/Caddyfile <<EOF
 {
   servers {
@@ -180,6 +181,7 @@ cat > /etc/caddy/Caddyfile <<EOF
 }
 
 $HOST {
+  header Alt-Svc clear
   reverse_proxy 127.0.0.1:8787
 }
 EOF
