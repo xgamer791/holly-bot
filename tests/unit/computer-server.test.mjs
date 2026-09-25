@@ -105,7 +105,8 @@ test('shell and files on the computer', async () => {
 });
 
 test('phone creates a bot, chats, bot runs a shell command on the computer; events stream back', async () => {
-  await rpc('settings.save', { providers: { custom: { baseURL: modelUrl, apiKey: 'test', noKey: true } }, defaults: { provider: 'custom', model: 'fake-flash', memoryModel: 'same' }, askFirst: false });
+  // Holly Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
+  await rpc('settings.save', { providers: { deepseek: { baseURL: modelUrl, apiKey: 'test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, askFirst: false });
   const events = [];
   const state = await (await fetch(`${base()}/api/state`, { headers: auth() })).json();
   let since = state.seq;

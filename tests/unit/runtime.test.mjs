@@ -12,11 +12,12 @@ let n = 0;
  */
 async function makeApp(script) {
   const app = await App.create({ dbName: `rt-${process.pid}-${n++}` });
-  await app.saveSettings({ providers: { openai: { apiKey: 'sk-test' } }, defaults: { provider: 'openai', model: 'gpt-test', memoryModel: 'same' }, memory: { auto: true, embeddings: 'off', contextBudget: 24000 } });
+  // Bots run on Holly Bot's AI: DeepSeek, here on a saved key (src/core/providers).
+  await app.saveSettings({ providers: { deepseek: { apiKey: 'sk-test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, memory: { auto: true, embeddings: 'off', contextBudget: 24000 } });
   const calls = [];
   app.providers.chat = async (req) => {
     const last = [...req.messages].reverse().find((m) => m.role === 'user' || m.role === 'tool');
-    const lastUserText = last?.role === 'user' ? last.parts.filter((p) => p.type === 'text').map((p) => p.text).filter((t) => !t.startsWith('<context>')).join('\n') : '';
+    const lastUserText = last?.role === 'user' ? last.parts.filter((p) => p.type === 'text').map((p) => p.text).filter((t) => !t.startsWith('<context>') && !t.startsWith('[Note to you')).join('\n') : '';
     const lastTool = last?.role === 'tool' ? last.results : null;
     const ctx = { lastUserText, lastTool, system: req.system, isMemoryJob: /long-term memory of|compress conversation|route messages/.test(req.system || '') };
     calls.push({ req, ctx });
@@ -111,6 +112,7 @@ test('Auto-review pauses risky tools until approved, then resumes', async () => 
     if (ctx.lastTool?.[0]?.name === 'create_agent') return { text: ctx.lastTool[0].isError ? 'Okay, I will not.' : 'Scout is ready.' };
     return { text: 'ok' };
   });
+  await app.saveSettings({ askFirst: true }); // Auto-review is off unless turned on
   const holly = await app.createAgent({ name: 'Holly', greet: false });
   const tid = `dm_${holly.id}`;
   const res = await app.runtime.send(tid, { text: 'Please make a bot for research' });
@@ -175,16 +177,16 @@ test('group chat routes to picked speakers and hides [PASS]', async () => {
   assert.ok(msgs.some((m) => m.hidden && m.authorId === bo.id));
 });
 
-test('provider errors mark the message and missing keys are explained', async () => {
+test('provider errors mark the message, and a bot without Holly Bot\'s AI is told why', async () => {
   const { app } = await makeApp(async () => {
-    throw Object.assign(new Error('Anthropic error 500: boom'), { status: 500 });
+    throw Object.assign(new Error('DeepSeek error 500: boom'), { status: 500 });
   });
   const holly = await app.createAgent({ name: 'Holly', greet: false });
   const r = await app.runtime.send(`dm_${holly.id}`, { text: 'hi' });
   assert.equal(r.status, 'error');
   assert.match(r.error, /boom/);
   await app.saveSettings({ providers: {} });
-  await assert.rejects(async () => app.providers.resolve(holly), /API key/);
+  await assert.rejects(async () => app.providers.resolve(holly), /Holly Bot account/);
 });
 
 test('delegate_task runs in the background and reports back', async () => {
@@ -216,40 +218,28 @@ test('delegate_task runs in the background and reports back', async () => {
   assert.equal(task.status, 'done');
 });
 
-test('backup provider: a failed step is retried once on the backup; bad requests are not', async () => {
+test('no backup AI: an outage shows on the reply, never goes to another AI, and the next turn tries again', async () => {
   const { ProviderError } = await import('../../src/core/providers/common.js');
   let outage = true;
   const { app, calls } = await makeApp(async (req, ctx) => {
     if (ctx.isMemoryJob) return { text: '{"operations":[]}' };
-    if (req.cfg.provider.id === 'openai' && outage) throw new ProviderError('OpenAI error 503: overloaded', { status: 503, provider: 'OpenAI' });
-    if (req.cfg.provider.id === 'openai' && /bad/.test(ctx.lastUserText)) throw new ProviderError('OpenAI error 400: bad request', { status: 400, provider: 'OpenAI' });
-    return { text: `answer from ${req.cfg.provider.id}`, model: req.cfg.model };
+    if (outage) throw new ProviderError('DeepSeek had a problem answering. Try again in a moment.', { status: 502, provider: "Holly Bot's AI" });
+    return { text: 'back again', model: req.cfg.model };
   });
-  await app.saveSettings({ providers: { ...app.settings.providers, deepseek: { apiKey: 'sk-ds' } }, backup: { provider: 'deepseek', model: '' } });
+  // A backup chosen before bots ran on Holly Bot's AI is left alone.
+  await app.saveSettings({ providers: { ...app.settings.providers, openai: { apiKey: 'sk-o' } }, backup: { provider: 'openai', model: 'gpt-5' } });
   const bot = await app.createAgent({ name: 'Holly', greet: false });
   const threadId = `dm_${bot.id}`;
 
   await app.runtime.send(threadId, { text: 'hello' });
   let reply = (await app.loadMessages(threadId)).at(-1);
-  assert.equal(reply.status, 'done');
-  assert.equal(finalText(reply), 'answer from deepseek');
-  assert.equal(reply.provider, 'deepseek');
-  assert.match(reply.steps[0].notices[0], /OpenAI failed .*switched to DeepSeek/);
-  assert.equal(calls.filter((c) => !c.ctx.isMemoryJob).at(-1).req.cfg.model, 'deepseek-flash');
+  assert.equal(reply.status, 'error');
+  assert.match(reply.error, /DeepSeek had a problem/);
+  assert.ok(calls.every((c) => c.req.cfg.provider.id === 'deepseek'), 'only Holly Bot\'s AI is asked');
 
   outage = false;
   await app.runtime.send(threadId, { text: 'hello again' });
   reply = (await app.loadMessages(threadId)).at(-1);
-  assert.equal(finalText(reply), 'answer from openai', 'next turn tries the main provider first');
-
-  await app.runtime.send(threadId, { text: 'a bad request' });
-  reply = (await app.loadMessages(threadId)).at(-1);
-  assert.equal(reply.status, 'error', 'invalid requests are not retried elsewhere');
-
-  await app.saveSettings({ backup: { provider: '', model: '' } });
-  outage = true;
-  await app.runtime.send(threadId, { text: 'no backup set' });
-  reply = (await app.loadMessages(threadId)).at(-1);
-  assert.equal(reply.status, 'error');
+  assert.equal(finalText(reply), 'back again');
   await settle(app);
 });

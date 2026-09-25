@@ -90,7 +90,8 @@ const OPS = {
 
 async function makeApp(script, { connections = [{ service: 'gmail', account: 'me@gmail.com', via: 'oauth', connectedAt: 1 }, { service: 'github', account: 'octo', via: 'token', connectedAt: 1 }] } = {}) {
   const app = await App.create({ dbName: `ct-${process.pid}-${n++}` });
-  await app.saveSettings({ providers: { openai: { apiKey: 'sk-test' } }, defaults: { provider: 'openai', model: 'gpt-test', memoryModel: 'same' }, memory: { auto: false, embeddings: 'off', contextBudget: 24000 } });
+  // Auto-review on (it's off unless turned on), for the approvals these check.
+  await app.saveSettings({ askFirst: true, providers: { deepseek: { apiKey: 'sk-test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, memory: { auto: false, embeddings: 'off', contextBudget: 24000 } });
   const svc = services();
   const server = { connections, runs: [], fail: null };
   // Storage that is the account's: the server answers for the connections.
@@ -111,7 +112,7 @@ async function makeApp(script, { connections = [{ service: 'gmail', account: 'me
   app.providers.chat = async (req) => {
     const last = [...req.messages].reverse().find((m) => m.role === 'user' || m.role === 'tool');
     const ctx = {
-      lastUserText: last?.role === 'user' ? last.parts.filter((p) => p.type === 'text').map((p) => p.text).filter((t) => !t.startsWith('<context>')).join('\n') : '',
+      lastUserText: last?.role === 'user' ? last.parts.filter((p) => p.type === 'text').map((p) => p.text).filter((t) => !t.startsWith('<context>') && !t.startsWith('[Note to you')).join('\n') : '',
       lastTool: last?.role === 'tool' ? last.results : null,
       isMemoryJob: /long-term memory of|compress conversation/.test(req.system || ''),
     };

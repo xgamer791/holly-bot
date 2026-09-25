@@ -63,8 +63,14 @@ export const preflight = httpAction(async () => new Response(null, { status: 204
 export const chat = httpAction(async (ctx, request) => {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) return refuse(503, "not_set_up", "Holly Bot's AI isn't set up on its server yet.");
-  const userId = await getAuthUserId(ctx);
-  const sessionId = await getAuthSessionId(ctx);
+  // A token Convex can't verify (expired, or not one of its own) throws here:
+  // that's "not signed in" too, so the app renews its session and asks again.
+  let userId: Awaited<ReturnType<typeof getAuthUserId>> = null;
+  let sessionId: Awaited<ReturnType<typeof getAuthSessionId>> = null;
+  try {
+    userId = await getAuthUserId(ctx);
+    sessionId = await getAuthSessionId(ctx);
+  } catch { /* below */ }
   if (!userId || !sessionId) return refuse(401, "not_signed_in", "Sign in to Holly Bot to use its AI.");
 
   let body: Record<string, any>;
@@ -86,7 +92,13 @@ export const chat = httpAction(async (ctx, request) => {
   // DeepSeek, and all the output it may ask for).
   const prompt = promptTokens(out);
   const hold = costOf(model, { cached: 0, fresh: prompt, output: out.max_tokens as number }, Date.now());
-  const admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, hold });
+  let admitted;
+  try {
+    admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, hold });
+  } catch (err) {
+    console.error(`Letting ${userId}'s request in failed: ${err instanceof Error ? err.message : err}`);
+    return refuse(503, "unavailable", "Holly Bot's AI couldn't take that request. Try again in a moment.");
+  }
   if (!admitted.ok) return refuse(admitted.status, admitted.code, admitted.message);
   const { held } = admitted;
   const charge = (used: Usage | null, output = 0) =>
