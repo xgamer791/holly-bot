@@ -1,17 +1,16 @@
 /// <reference types="vite/client" />
 // Holly Bot's AI and AI credits (convex/ai.ts, convex/credits.ts,
 // convex/lib/credits.ts) on convex-test's stand-in for the Convex backend,
-// with DeepSeek and OpenRouter answering the way their APIs do: a streamed
-// answer passed through and charged exactly what it cost, OpenRouter's form
-// turned into DeepSeek's, holds, refusals (at zero, signed out, no plan, not
-// set up), refills and plan changes, and the month and price maths.
-// npm run test:convex.
+// with DeepSeek answering the way its API does: a streamed answer passed
+// through and charged exactly what DeepSeek says it used, holds, refusals
+// (at zero, signed out, no plan, not set up), refills and plan changes, and
+// the month and price maths. npm run test:convex.
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import schema from "../../convex/schema";
-import { addMonths, anchorFor, costOf, deepseekPeak, effortFor, periodOf, refillIn, settle, usageOf } from "../../convex/lib/credits";
+import { addMonths, anchorFor, costOf, deepseekPeak, periodOf, refillIn, settle, usageOf } from "../../convex/lib/credits";
 
 const modules = import.meta.glob("../../convex/**/*.*s");
 
@@ -45,7 +44,7 @@ async function signIn(t: T, { plan = "starter", status = "active" } = {}) {
   return { userId, sessionId, as: t.withIdentity({ subject: `${userId}|${sessionId}` }) };
 }
 
-/** DeepSeek or OpenRouter: `answer` handles each request; all are kept. */
+/** DeepSeek: `answer` handles each request; all are kept. */
 function deepseek(answer: (body: any) => Response) {
   const calls: { url: string; headers: Headers; body: any }[] = [];
   vi.stubGlobal("fetch", async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -110,7 +109,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(SATURDAY);
   vi.stubEnv("DEEPSEEK_API_KEY", "sk-holly");
-  vi.stubEnv("OPENROUTER_API_KEY", "");
 });
 
 afterEach(() => {
@@ -279,136 +277,6 @@ describe("Holly Bot's AI", () => {
   });
 });
 
-describe("Holly Bot's AI on OpenRouter", () => {
-  beforeEach(() => vi.stubEnv("OPENROUTER_API_KEY", "sk-or-holly"));
-
-  /** OpenRouter's streamed answer: a keep-alive comment, its reasoning as
-   * `reasoning`, its name for the model, and what the request cost last. */
-  function openrouterStream(cost: unknown = 0.000421) {
-    const said = { model: "deepseek/deepseek-v4.1-flash", provider: "DeepSeek" };
-    return new Response(
-      `: OPENROUTER PROCESSING\n\n${sse([
-        { ...said, choices: [{ index: 0, delta: { role: "assistant", content: "", reasoning: "Thinking it over", reasoning_details: [{ type: "reasoning.text", text: "Thinking it over" }] } }] },
-        { ...said, choices: [{ index: 0, delta: { content: "Hello" } }] },
-        { ...said, choices: [{ index: 0, delta: { content: " there" }, finish_reason: "stop" }] },
-        { ...said, choices: [], usage: { prompt_tokens: 12_000, completion_tokens: 500, prompt_tokens_details: { cached_tokens: 10_000 }, cost } },
-      ])}`,
-      { headers: { "content-type": "text/event-stream" } },
-    );
-  }
-
-  const eventsOf = (text: string) => text.split("\n").filter((l) => l.startsWith("data: {")).map((l) => JSON.parse(l.slice(6)));
-
-  test("it goes to OpenRouter in its form, comes back in DeepSeek's, and costs what OpenRouter says", async () => {
-    const t = convexTest(schema, modules);
-    const { userId, as } = await signIn(t);
-    const calls = deepseek(() => openrouterStream());
-    const res = await as.fetch("/ai/chat/completions", ask({ thinking: { type: "enabled" }, reasoning_effort: "max", stream_options: { include_usage: true } }));
-    expect(res.status).toBe(200);
-    const text = await res.text();
-
-    expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe("https://openrouter.ai/api/v1/chat/completions");
-    expect(calls[0].headers.get("authorization")).toBe("Bearer sk-or-holly");
-    expect(calls[0].headers.get("x-title")).toBe("Holly Bot");
-    expect(calls[0].body).toMatchObject({ model: "deepseek/deepseek-v4.1-flash", stream: true, reasoning: { enabled: true, effort: "max" }, max_tokens: 32_768 });
-    // Only providers that don't keep or train on requests, and one per account, where its input is cached.
-    expect(calls[0].body.provider).toEqual({ data_collection: "deny" });
-    expect(calls[0].body.session_id).toMatch(/^[0-9a-f]{32}$/);
-    expect(calls[0].body.session_id).not.toContain(userId);
-    expect(calls[0].body.thinking).toBeUndefined();
-    expect(calls[0].body.reasoning_effort).toBeUndefined();
-    expect(calls[0].body.stream_options).toBeUndefined();
-
-    // Back in DeepSeek's form: the reasoning as reasoning_content, the app's name for the model.
-    const events = eventsOf(text);
-    expect(events).toHaveLength(4);
-    expect(events[0].choices[0].delta).toEqual({ role: "assistant", content: "", reasoning_content: "Thinking it over" });
-    expect(events.every((e) => e.model === "deepseek-flash")).toBe(true);
-    expect(events.map((e) => e.choices[0]?.delta?.content ?? "").join("")).toBe("Hello there");
-    expect(text).toContain(": OPENROUTER PROCESSING");
-    expect(text).toContain("data: [DONE]");
-
-    // Charged exactly what OpenRouter says it cost: $0.000421.
-    expect(await ledger(t, userId)).toMatchObject({ spent: 421, balance: STARTER - 421, requests: 1, cachedTokens: 10_000, freshTokens: 2_000, outputTokens: 500 });
-  });
-
-  test("thinking off, Pro and its reasoning efforts, and one session an account", async () => {
-    const t = convexTest(schema, modules);
-    const { as } = await signIn(t);
-    const calls = deepseek(() => openrouterStream());
-    await (await as.fetch("/ai/chat/completions", ask({ thinking: { type: "disabled" } }))).text();
-    expect(calls[0].body.reasoning).toEqual({ enabled: false });
-    await (await as.fetch("/ai/chat/completions", ask({ model: "deepseek-v4-pro", thinking: { type: "enabled" }, reasoning_effort: "max" }))).text();
-    expect(calls[1].body).toMatchObject({ model: "deepseek/deepseek-v4-pro-0813", reasoning: { enabled: true, effort: "max" } });
-    await (await as.fetch("/ai/chat/completions", ask({ model: "deepseek-v4-pro", reasoning_effort: "low" }))).text();
-    expect(calls[2].body.reasoning).toEqual({ enabled: true, effort: "low" });
-    await (await as.fetch("/ai/chat/completions", ask())).text();
-    expect(calls[3].body.reasoning).toEqual({ enabled: true });
-    expect(new Set(calls.map((c) => c.body.session_id)).size).toBe(1);
-
-    const other = await signIn(t);
-    await (await other.as.fetch("/ai/chat/completions", ask())).text();
-    expect(calls[4].body.session_id).not.toBe(calls[0].body.session_id);
-  });
-
-  test("an earlier answer's reasoning goes back as it is", async () => {
-    const t = convexTest(schema, modules);
-    const { as } = await signIn(t);
-    const calls = deepseek(() => openrouterStream());
-    const messages = [
-      { role: "user", content: "List my repos" },
-      { role: "assistant", content: null, reasoning_content: "I should call the tool", tool_calls: [{ id: "c1", type: "function", function: { name: "github_list_repos", arguments: "{}" } }] },
-      { role: "tool", tool_call_id: "c1", content: "holly-bot" },
-    ];
-    await (await as.fetch("/ai/chat/completions", ask({ messages, tools: [{ type: "function", function: { name: "github_list_repos", parameters: { type: "object" } } }] }))).text();
-    expect(calls[0].body.messages[1]).toMatchObject({ reasoning_content: "I should call the tool" });
-    expect(calls[0].body.tools).toHaveLength(1);
-  });
-
-  test("an answer asked for whole comes back in DeepSeek's form, charged OpenRouter's cost", async () => {
-    const t = convexTest(schema, modules);
-    const { userId, as } = await signIn(t);
-    deepseek(() => new Response(JSON.stringify({
-      model: "deepseek/deepseek-v4.1-flash",
-      choices: [{ message: { role: "assistant", content: "Hi", reasoning: "Hmm" } }],
-      usage: { prompt_tokens: 10, completion_tokens: 2, cost: 0.00001 },
-    }), { headers: { "content-type": "application/json" } }));
-    const res = await as.fetch("/ai/chat/completions", ask({ stream: false }));
-    const data = await res.json();
-    expect(data.model).toBe("deepseek-flash");
-    expect(data.choices[0].message).toEqual({ role: "assistant", content: "Hi", reasoning_content: "Hmm" });
-    expect((await ledger(t, userId))?.spent).toBe(10);
-  });
-
-  test("a cut-off answer is estimated at DeepSeek's list prices, with no off-peak discount", async () => {
-    const t = convexTest(schema, modules);
-    const { userId, as } = await signIn(t);
-    deepseek(() => streamed(null));
-    await (await as.fetch("/ai/chat/completions", ask({ model: "deepseek-v4-pro" }))).text();
-    const row = await ledger(t, userId);
-    expect(row?.requests).toBe(1);
-    expect(row?.spent).toBeGreaterThan(0);
-  });
-
-  test("OpenRouter out of credits reads as unavailable, and costs nothing", async () => {
-    const t = convexTest(schema, modules);
-    const { userId, as } = await signIn(t);
-    deepseek(() => new Response(JSON.stringify({ error: { code: 402, message: "Insufficient credits" } }), { status: 402 }));
-    const res = await as.fetch("/ai/chat/completions", ask());
-    expect(res.status).toBe(503);
-    expect((await res.json()).error.code).toBe("unavailable");
-    expect((await ledger(t, userId))?.balance).toBe(STARTER);
-  });
-
-  test("with OpenRouter's key alone, the AI is ready", async () => {
-    vi.stubEnv("DEEPSEEK_API_KEY", "");
-    const t = convexTest(schema, modules);
-    const { as } = await signIn(t);
-    expect(await as.query(api.credits.mine, {})).toMatchObject({ ready: true });
-  });
-});
-
 describe("AI credits", () => {
   test("a new month refills them, and what was left doesn't carry over", async () => {
     const t = convexTest(schema, modules);
@@ -498,22 +366,6 @@ describe("the maths", () => {
     const used = { cached: 1_000_000, fresh: 1_000_000, output: 1_000_000 };
     expect(costOf("deepseek-flash", used, at("2026-09-28T02:00:00Z"))).toBe(1_506_000); // $0.006 + $0.30 + $1.20
     expect(costOf("deepseek-flash", used, at("2026-09-26T02:00:00Z"))).toBe(753_000);
-  });
-
-  test("OpenRouter's reasoning efforts and prices", () => {
-    expect(effortFor("deepseek-flash", "max")).toBe("max");
-    expect(effortFor("deepseek-flash", "medium")).toBe("high");
-    expect(effortFor("deepseek-v4-pro", "max")).toBe("max");
-    expect(effortFor("deepseek-v4-pro", "xhigh")).toBe("max");
-    expect(effortFor("deepseek-v4-pro", "low")).toBe("low");
-    expect(effortFor("deepseek-v4-pro", "minimal")).toBe("low");
-    const million = { cached: 0, fresh: 1_000_000, output: 0 };
-    // Before OpenRouter says (a cut-off answer, a hold): DeepSeek's list prices, off-peak too.
-    expect(costOf("deepseek-flash", million, at("2026-09-26T02:00:00Z"), "openrouter")).toBe(300_000);
-    expect(costOf("deepseek-v4-pro", million, at("2026-09-26T02:00:00Z"), "openrouter")).toBe(1_320_000);
-    expect(costOf("deepseek-flash", million, at("2026-09-26T02:00:00Z"), "deepseek")).toBe(150_000);
-    expect(costOf("deepseek-flash", { ...million, cost: 42 }, at("2026-09-28T02:00:00Z"), "openrouter")).toBe(42);
-    expect(usageOf({ prompt_tokens: 1, completion_tokens: 1, cost: 0.0000005 })).toEqual({ cached: 0, fresh: 1, output: 1, cost: 1 });
   });
 
   test("reading DeepSeek's usage", () => {

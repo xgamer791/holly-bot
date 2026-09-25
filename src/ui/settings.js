@@ -292,7 +292,8 @@ function UsagePage() {
       <div class="credits-sub">${asCredits(credits.balance)} of ${asCredits(credits.allowance)} left · Refills ${refill}</div>
     </div>
     ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">Holly Bot's AI isn't switched on yet, so your bots aren't using these credits.</p>`}
-    <p class="hint" style="font-size:14px;margin:4px">Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.</p>`;
+    <p class="hint" style="font-size:14px;margin:4px">Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.</p>
+    <p class="hint" style="font-size:14px;margin:10px 4px 4px">Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).</p>`;
 }
 
 function PluginsPage() {

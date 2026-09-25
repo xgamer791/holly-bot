@@ -1,68 +1,62 @@
-// AI credits (convex/credits.ts, convex/ai.ts): what a request to Holly Bot's
-// AI costs, and each account's month of credits. Amounts are millionths of a
-// US dollar; plans give credits in cents (convex/lib/plans.ts), and the app
-// shows 1 credit per cent. The AI runs on OpenRouter, which says exactly what
-// each request cost. No imports: plain functions.
+// AI credits (convex/credits.ts, convex/ai.ts): what a request to DeepSeek
+// costs, and each account's month of credits. Amounts are millionths of a US
+// dollar at DeepSeek's list prices; plans give credits in cents
+// (convex/lib/plans.ts), and the app shows 1 credit per cent. No imports:
+// plain functions.
 
 /** Millionths of a dollar in a cent. */
 export const MICROS_PER_CENT = 10_000;
 
 /**
- * The models Holly Bot's AI runs, by the app's names for them: OpenRouter's
- * name for each (the releases DeepSeek's own API serves), the reasoning
- * efforts it takes (lowest first), and DeepSeek's list prices in US dollars
- * per million tokens (input it had cached, other input, output), which size
- * holds and price an answer cut off before OpenRouter said what it cost. A
- * price per million tokens is also a price in millionths of a dollar per token.
+ * DeepSeek's list prices in US dollars per million tokens at peak hours
+ * (off-peak is half price: deepseekPeak): input it had cached, other input,
+ * and output. A price per million tokens is also a price in millionths of a
+ * dollar per token. Keep them in step with DeepSeek's pricing page (and
+ * src/core/pricing.js).
  */
-export const AI: Record<string, { id: string; efforts: string[]; prices: { cached: number; input: number; output: number } }> = {
-  "deepseek-flash": { id: "deepseek/deepseek-v4.1-flash", efforts: ["low", "high", "max"], prices: { cached: 0.006, input: 0.3, output: 1.2 } },
-  "deepseek-v4-pro": { id: "deepseek/deepseek-v4-pro-0813", efforts: ["low", "high", "max"], prices: { cached: 0.044, input: 1.32, output: 3.96 } },
+export const PRICES: Record<string, { cached: number; input: number; output: number }> = {
+  "deepseek-flash": { cached: 0.006, input: 0.3, output: 1.2 },
+  "deepseek-v4-pro": { cached: 0.044, input: 1.32, output: 3.96 },
 };
 
-/** The models' names in the app. */
-export const MODELS = Object.keys(AI);
+/** The models Holly Bot's AI runs. */
+export const MODELS = Object.keys(PRICES);
 
 /** 1.25.0's name for Flash, when it ran GLM 5.3 Flash: requests that still
  * ask for it get DeepSeek V4.1 Flash. */
 export const RENAMED: Record<string, string> = { "glm-flash": "deepseek-flash" };
 
-/** The reasoning effort OpenRouter takes for `model` nearest the app's (low, high or max). */
-export function effortFor(model: string, effort: string): string {
-  const efforts = AI[model]?.efforts ?? ["high"];
-  if (efforts.includes(effort)) return effort;
-  if (effort === "max" || effort === "xhigh") return efforts[efforts.length - 1];
-  if (effort === "low" || effort === "minimal") return efforts[0];
-  return efforts.includes("high") ? "high" : efforts[efforts.length - 1];
+/** DeepSeek's peak hours: 01:00–04:00 and 06:00–10:00 UTC, Monday to Friday. */
+export function deepseekPeak(at: number): boolean {
+  const d = new Date(at);
+  const day = d.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const h = d.getUTCHours();
+  return (h >= 1 && h < 4) || (h >= 6 && h < 10);
 }
 
-/** Tokens a request used: input the model had cached, other input, and
- * output; and `cost`, what it came to in millionths of a dollar, when
- * OpenRouter said. */
+/** Tokens a request used: input DeepSeek had cached, other input, and output. */
 export interface Usage {
   cached: number;
   fresh: number;
   output: number;
-  cost?: number;
 }
 
-/** A response's `usage`, or null when it has none. */
+/** DeepSeek's `usage`, or null when it has none. */
 export function usageOf(u: any): Usage | null {
   if (!u || typeof u !== "object" || u.completion_tokens == null) return null;
   const prompt = Number(u.prompt_tokens) || 0;
   const cached = Number(u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens) || 0;
   const fresh = Number(u.prompt_cache_miss_tokens ?? Math.max(0, prompt - cached)) || 0;
-  const dollars = u.cost == null || u.cost === "" ? NaN : Number(u.cost);
-  return { cached, fresh, output: Number(u.completion_tokens) || 0, ...(Number.isFinite(dollars) && dollars >= 0 ? { cost: Math.ceil(dollars * 1_000_000) } : {}) };
+  return { cached, fresh, output: Number(u.completion_tokens) || 0 };
 }
 
-/** What `usage` of `model` costs, in millionths of a dollar: what OpenRouter
- * said, or else the model's list price. An unknown model is charged at the
- * dearest one's. */
-export function costOf(model: string, usage: Usage): number {
-  if (usage.cost != null) return usage.cost;
-  const p = (AI[model] ?? AI["deepseek-v4-pro"]).prices;
-  return Math.ceil(usage.cached * p.cached + usage.fresh * p.input + usage.output * p.output);
+/** What `usage` of `model` costs at time `at`, in millionths of a dollar. An
+ * unknown model is charged at the dearest one's prices. */
+export function costOf(model: string, usage: Usage, at: number): number {
+  const p = PRICES[model] ?? PRICES["deepseek-v4-pro"];
+  const full = usage.cached * p.cached + usage.fresh * p.input + usage.output * p.output;
+  return Math.ceil(deepseekPeak(at) ? full : full / 2);
 }
 
 /** A rough count of the tokens in a chat request's input: about 4 characters
@@ -159,7 +153,7 @@ export function settle(row: Ledger | null, allowance: number, anchor: number, no
   return row;
 }
 
-/** A request's use when OpenRouter never said (the answer was cut off): its
+/** A request's use when DeepSeek never said (the answer was cut off): its
  * input split the way the account's own was cached this month. */
 export function estimateUsage(prompt: number, output: number, ledger: Ledger): Usage {
   const seen = ledger.cachedTokens + ledger.freshTokens;
