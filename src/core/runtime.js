@@ -358,8 +358,10 @@ export class Runtime {
       tools = toolsForAgent(app, agent, { nativeSearch: serverTools.includes('web_search'), thread: app.getThread(threadId) });
       if (!msg.turn) {
         if (!resumeFrom) await untilAborted(this.attachContext(agent, thread, msg, controller.signal), controller.signal);
+        // A new or changed job: its briefing first, when it comes quickly (src/core/brief.js).
+        await untilAborted(app.briefed(agent.id), controller.signal);
         msg.turn = {
-          system: buildSystemPrompt({ app, agent, thread: app.getThread(threadId), tools }),
+          system: buildSystemPrompt({ app, agent: app.getAgent(agent.id) || agent, thread: app.getThread(threadId), tools }),
           provider: cfg.provider.id,
           model: cfg.model,
           startedAt: now(),

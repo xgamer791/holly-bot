@@ -5,6 +5,10 @@ import { THINKING_KEYS } from '../core/constants.js';
 import { Sheet, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { tr } from './i18n.js';
+import { truncate } from '../core/util.js';
+
+/** How long a bot's job can be, in its words (Create New Bot, its profile). */
+export const JOB_MAX = 1000;
 
 /** Shape, color and thinking-style pickers used by "Create New Bot" and the bot profile. */
 export function LookPicker({ shape, color, thinking, onShape, onColor, onThinking }) {
@@ -53,6 +57,7 @@ export function CreateBotSheet({ onClose }) {
   const app = useApp();
   const ui = useUi();
   const [name, setName] = useState('');
+  const [job, setJob] = useState('');
   const [shape, setShape] = useState('squircle');
   const [color, setColor] = useState('green');
   const [thinking, setThinking] = useState(() => THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)]);
@@ -68,7 +73,8 @@ export function CreateBotSheet({ onClose }) {
     }
     setBusy(true);
     haptic(app, 'heavy');
-    const agent = await app.createAgent({ name: name.trim(), shape, color, thinking });
+    // Its job: Holly Bot's AI reads it and briefs the bot on it (src/core/brief.js).
+    const agent = await app.createAgent({ name: name.trim(), description: job.trim(), shape, color, thinking });
     onClose();
     ui.navigate(`#/chat/dm_${agent.id}`);
   };
@@ -79,6 +85,10 @@ export function CreateBotSheet({ onClose }) {
       <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live working=${preview || busy} anim=${thinking} /></div>
       <input class="name-input" placeholder=${tr('Name your Bot')} maxlength="40" value=${name} aria-label=${tr('Bot name')}
         onInput=${(e) => setName(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && create()} />
+      <textarea class="job-input" rows="3" maxlength=${JOB_MAX} value=${job} aria-label=${tr("Bot's job")}
+        placeholder=${tr("What's its job? e.g. Plan my meals for the week and make the shopping list")}
+        onInput=${(e) => setJob(e.currentTarget.value)}></textarea>
+      <div class="hint job-hint">${tr('It gets a briefing on this, so it knows exactly what its role is.')}</div>
       <${LookPicker} shape=${shape} color=${color} thinking=${thinking}
         onShape=${(s) => { setShape(s); haptic(app); }} onColor=${(c) => { setColor(c); haptic(app); }}
         onThinking=${(k) => { setThinking(k); play(); haptic(app); }} />
@@ -114,7 +124,7 @@ export function NewGroupSheet({ onClose }) {
         ${agents.map((a) => html`
           <button key=${a.id} class="row" onClick=${() => toggle(a.id)}>
             <${Avatar} shape=${a.shape} color=${a.color} size=${36} />
-            <div class="label"><div class="t">${a.name}</div>${a.description && html`<div class="s">${a.description}</div>`}</div>
+            <div class="label"><div class="t">${a.name}</div>${a.description && html`<div class="s">${truncate(a.description.replace(/\s+/g, ' ').trim(), 90)}</div>`}</div>
             <span class=${`ok-check`} style=${picked.includes(a.id) ? '' : 'visibility:hidden'}><${Icon.check} /></span>
           </button>`)}
       </div>

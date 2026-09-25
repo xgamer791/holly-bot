@@ -13,6 +13,7 @@ import { CHIEF, chiefGreeting, chiefOf } from './chief.js';
 import { firstWords, languageName, phrase, spoken } from './i18n.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
+import { BRIEF_PROMPT, briefInput } from './brief.js';
 
 // App state: the single source of truth the UI renders from. Persists to
 // IndexedDB and emits change topics:
@@ -73,7 +74,7 @@ function shown(p) {
 /** How long creating a bot waits for its focus options before using the usual ones. */
 const FOCUS_WAIT_MS = 8000;
 
-const FOCUS_PROMPT = 'Someone just made an AI assistant bot and named it. From its name (and its role or instructions, when given), '
+const FOCUS_PROMPT = 'Someone just made an AI assistant bot and named it. From its name (and its job or instructions, when given), '
   + 'work out what they made it for, and write the four things it should offer to help with first, most likely first. '
   + 'Each is a short option on a menu, 2 to 4 words, like "Fix bugs in my code" or "Plan this week\'s meals". '
   + 'When the name doesn\'t point anywhere in particular (a person\'s name, a made-up word), give four broadly useful options. '
@@ -185,6 +186,8 @@ export class App {
     this.refreshConnections();
     this.refreshCredits();
     this.moveUserFacts().catch((err) => console.warn('about you', err));
+    // Bots given a job before briefings (or whose briefing didn't come through) get one now, once the AI is ready.
+    setTimeout(() => this.briefAll().catch((err) => console.warn('briefing', err)), 10000);
     await this.repairInterruptedMessages();
   }
 
@@ -391,6 +394,8 @@ export class App {
     };
     this.agents.set(agent.id, agent);
     await this.db.put('agents', agent);
+    // Its briefing, from the job the user gave it, while it says hello.
+    this.briefSoon(agent.id);
     const thread = await this.ensureDmThread(agent.id);
     if (data.greet !== false) await this.greet(agent, thread);
     this.emit('agents');
@@ -440,7 +445,7 @@ export class App {
 
   /**
    * What a new bot offers to start on: four options the AI picks from its
-   * name (and its role, when a bot made it with one), then "Something else",
+   * name (and its job, when it has one), then "Something else",
    * in the app's language. The usual FOCUS_OPTIONS without an API key, or
    * without a usable answer within a few seconds.
    */
@@ -455,7 +460,7 @@ export class App {
         system: lang === 'en' ? FOCUS_PROMPT : `${FOCUS_PROMPT} Write the options in ${languageName(lang)}.`,
         prompt: [
           `Name: ${agent.name}`,
-          agent.description && `Role: ${agent.description}`,
+          agent.description && `Job: ${truncate(agent.description, 1000)}`,
           agent.persona && `Instructions: ${truncate(agent.persona, 600)}`,
         ].filter(Boolean).join('\n'),
         json: true,
@@ -483,7 +488,61 @@ export class App {
     this.emit(`agent:${id}`);
     const dm = this.threads.get(`dm_${id}`);
     if (dm && patch.name) await this.updateThread(dm.id, { title: patch.name });
+    // A new job: a new briefing.
+    if ('description' in patch && patch.description !== a.description) this.briefSoon(id);
     return next;
+  }
+
+  // ----- a bot's briefing on its job (src/core/brief.js) -------------------------
+
+  /** Whether a bot's briefing is missing, or was written for another version
+   * of its job. The Chief Coordinator has its own instructions (src/core/chief.js). */
+  needsBrief(agent) {
+    return !!agent && agent.role !== 'chief' && !!agent.description?.trim() && agent.briefFor !== agent.description;
+  }
+
+  /**
+   * Has Holly Bot's AI read a bot's job (its description, in the user's
+   * words) and write it a briefing, in the background. Returns the work in
+   * progress for the job as it is now (null when there's none to do).
+   */
+  briefSoon(agentId) {
+    const agent = this.getAgent(agentId);
+    if (!this.needsBrief(agent)) return null;
+    this.briefing ||= new Map();
+    const job = agent.description;
+    const current = this.briefing.get(agentId);
+    if (current?.job === job) return current.work;
+    const entry = { job };
+    this.briefing.set(agentId, entry);
+    entry.work = (async () => {
+      try {
+        const brief = (await this.providers.complete({ agent, purpose: 'memory', system: BRIEF_PROMPT, prompt: briefInput(agent), maxTokens: 900 })).trim();
+        // Only if its job is still what was read.
+        if (brief && this.getAgent(agentId)?.description === job) await this.updateAgent(agentId, { brief: truncate(brief, 3000), briefFor: job });
+      } catch (err) {
+        if (err?.kind !== 'no_key') console.warn('briefing', err?.message || err);
+      } finally {
+        if (this.briefing.get(agentId) === entry) this.briefing.delete(agentId);
+      }
+    })();
+    return entry.work;
+  }
+
+  /** Briefs, one at a time, the bots whose briefing is missing or was
+   * written for an older version of their job. */
+  async briefAll() {
+    for (const agent of this.listAgents()) if (this.needsBrief(agent)) await this.briefSoon(agent.id);
+  }
+
+  /** Waits (up to `waitMs`) for a bot's briefing, starting it if it's due:
+   * its first reply after a new job comes with it. */
+  async briefed(agentId, waitMs = 8000) {
+    const work = this.briefSoon(agentId);
+    if (!work) return;
+    let timer;
+    await Promise.race([work, new Promise((resolve) => { timer = setTimeout(resolve, waitMs); })]);
+    clearTimeout(timer);
   }
 
   async deleteAgent(id) {

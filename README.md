@@ -88,7 +88,8 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 ## What bots can do
 
 - **Personality and look:** name, shape, color, instructions. Each bot also has its own thinking animation (Ponder, Hop, Jelly, Orbit, Scan, Sparkle, Float, Nod or Twirl) that plays while it works.
-- **First hello:** a new bot reads its own name and asks what to focus on first, with choices that fit it (a bot called Holly Bot Debug offers to hunt bugs, not to go shopping). Without an API key yet, it offers the usual everyday ones. The Chief Coordinator asks what your team should take on first instead.
+- **Its job and briefing:** under its name in Create New Bot (and in its profile), you say in your own words what the bot is for. Holly Bot's AI reads it, with the bot's instructions, and writes the bot a briefing (`src/core/brief.js`): its role, what it does, how it works and with which of its tools, what to keep an eye on, and what to ask you first. The bot has its job and briefing in view in every chat, and a changed job gets a new briefing, before the bot's next reply if it's quick. You can read the briefing in the bot's profile. Other bots see the job, shortened, next to the bot's name. Bots that already had a role get briefed on it too.
+- **First hello:** a new bot reads its own name and job and asks what to focus on first, with choices that fit it (a bot called Holly Bot Debug offers to hunt bugs, not to go shopping). Without an API key yet, it offers the usual everyday ones. The Chief Coordinator asks what your team should take on first instead.
 - **Deep memory:**
   - Core memory blocks about itself and about you.
   - Long-term memories with hybrid search (keywords, embeddings, recency, importance).

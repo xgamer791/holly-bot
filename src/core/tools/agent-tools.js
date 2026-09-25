@@ -70,7 +70,7 @@ export const agentTools = [
         };
       }
       return {
-        content: others.map((a) => `- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${a.description}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
+        content: others.map((a) => `- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${truncate(a.description.replace(/\s+/g, ' ').trim(), 400)}` : ''}${ctx.runtime.isAgentBusy(a.id) ? ' (busy)' : ''}`).join('\n'),
       };
     },
   },

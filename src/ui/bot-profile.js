@@ -1,7 +1,7 @@
 import { html, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Avatar, botActivity, thinkingOf } from './avatar.js';
-import { LookPicker, usePreview } from './create-bot.js';
+import { JOB_MAX, LookPicker, usePreview } from './create-bot.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { AI_MODELS } from '../core/providers/index.js';
@@ -21,6 +21,7 @@ export function BotProfileSheet({ agentId, onClose }) {
   const save = (patch) => app.updateAgent(agent.id, patch);
   const channels = app.listThreads({ includeAgentChannels: true }).filter((t) => t.kind === 'agents' && t.agentIds.includes(agent.id));
   const cfgLabel = modelLabel(app, agent);
+  const chief = agent.role === 'chief';
 
   return html`
     <${Sheet} title=${agent.name} onClose=${onClose}>
@@ -33,10 +34,13 @@ export function BotProfileSheet({ agentId, onClose }) {
       <${Group}>
         <div class="row"><div class="label"><div class="t">${tr('Name')}</div></div>
           <input type="text" value=${agent.name} maxlength="40" aria-label=${tr('Name')} onChange=${(e) => e.currentTarget.value.trim() && save({ name: e.currentTarget.value.trim() })} /></div>
-        <div class="row"><div class="label"><div class="t">${tr('Role')}</div></div>
-          <input type="text" value=${agent.description || ''} placeholder=${tr('e.g. Research specialist')} aria-label=${tr('Role')} onChange=${(e) => save({ description: e.currentTarget.value.trim() })} /></div>
       <//>
-      <${Field} label=${tr('Personality & instructions')} hint=${tr('How this bot should think, talk and work. Other bots see only its name and role.')}>
+      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. Holly Bot's AI reads it and briefs the bot, so it knows exactly what its role is.")}>
+        <textarea class="textarea job" maxlength=${JOB_MAX} aria-label=${tr("Bot's job")} placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} value=${agent.description || ''}
+          onChange=${(e) => save({ description: e.currentTarget.value.trim() })}></textarea>
+      <//>
+      ${!chief && agent.description?.trim() && html`<${Briefing} agent=${agent} />`}
+      <${Field} label=${tr('Personality & instructions')} hint=${tr('How this bot should think, talk and work. Other bots see only its name and job.')}>
         <textarea class="textarea" placeholder=${tr('e.g. You are my coding partner. Be direct, suggest tests, prefer TypeScript.')} value=${agent.persona || ''}
           onChange=${(e) => save({ persona: e.currentTarget.value })}></textarea>
       <//>
@@ -88,6 +92,17 @@ export function BotProfileSheet({ agentId, onClose }) {
         }} />
       <//>
     <//>`;
+}
+
+/** The briefing Holly Bot's AI wrote the bot from its job (src/core/brief.js),
+ * folded away until it's opened; while it's being written, a note saying so. */
+function Briefing({ agent }) {
+  if (!agent.brief || agent.briefFor !== agent.description) return html`<div class="brief-note">${tr('Writing its briefing…')}</div>`;
+  return html`
+    <details class="brief">
+      <summary>${tr('Its briefing')}<${Icon.down} size="18" /></summary>
+      <div class="brief-text">${agent.brief}</div>
+    </details>`;
 }
 
 function toolSub(app, key, g) {

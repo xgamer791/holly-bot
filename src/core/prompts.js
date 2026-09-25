@@ -59,7 +59,12 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
   lines.push(`You are ${agent.name}, one of the user's personal AI bots in Holly Bot.`);
   // First, so nothing that follows (the user's own instructions for the bot included) comes before it.
   lines.push('', '## Content rules (strict, always)', CONTENT_RULES);
-  if (agent.description) lines.push(`Your role: ${agent.description}.`);
+  // Its job, as it was given, and the briefing Holly Bot's AI wrote from it (src/core/brief.js).
+  // The Chief Coordinator's is in its own instructions below.
+  const job = agent.description?.trim();
+  const brief = agent.brief && agent.briefFor === agent.description ? agent.brief.trim() : '';
+  if (job && agent.role === 'chief') lines.push(`Your role: ${job}.`);
+  else if (job) lines.push('', '## Your job', job, ...(brief ? ['', '### Your briefing on it', brief] : []));
   if (agent.role === 'chief') lines.push('', '## You run the team', chiefInstructions({ alone: !others.length }));
   if (agent.persona?.trim()) lines.push('', '## Personality and instructions from the user', agent.persona.trim());
 
@@ -123,7 +128,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
 
   if (others.length && toolNames.has('message_agent')) {
     lines.push('', '## Your team (other bots)');
-    for (const a of others.slice(0, 30)) lines.push(`- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${a.description}` : ''}`);
+    for (const a of others.slice(0, 30)) lines.push(`- ${a.name}${a.role === 'chief' ? ' (the Chief Coordinator, who runs the team)' : ''}${a.description ? ` — ${truncate(a.description.replace(/\s+/g, ' ').trim(), 200)}` : ''}`);
     lines.push('Use message_agent for quick questions, opinions or reviews (they reply right away) and delegate_task for longer work that should run in the background. Other bots only see what you send them.');
   }
 
