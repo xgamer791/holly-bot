@@ -305,14 +305,20 @@ export function Avatar({
   const shut = blink === 1 && expr !== 'wink' && expr !== 'sleepy';
   const fill = colorHex(color);
   // The status dot: a quarter of the avatar (12 px on the chat list's 48 px
-  // ones), centered on the shape's bottom-right edge (SHAPES `dot`).
-  const dotSize = Math.max(8, Math.round(size * 0.25));
+  // ones) in a 2.5 px ring of the page's color, centered on the shape's
+  // bottom-right edge (SHAPES `dot`); in the viewBox's units.
+  const unit = 100 / size;
+  const dotR = (Math.max(8, Math.round(size * 0.25)) / 2) * unit;
   const [dotX, dotY] = def.dot || [85, 85];
-  const dotAt = (v) => `${Math.round(((v * size) / 100 - dotSize / 2) * 10) / 10}px`;
   const idle = live && !mode && !expression;
   const busyClass = mode === 'thinking' ? `is-thinking think-${style}` : mode === 'working' ? 'is-working' : '';
   const cls = `avatar ${busyClass} ${idle ? 'is-live' : ''} ${blink ? 'blinking' : ''} ${className}`;
 
+  // The dot's layer is a second .av-body: it plays the body's animation, so the
+  // dot moves as the bot does, and it's drawn over the extras. Where the body
+  // squashes and stretches, .av-dot-keep scales the other way, so the dot stays
+  // round. Both are always there, so they start with the body even when the
+  // dot comes later.
   return html`
     <span class=${cls} style=${`width:${size}px;height:${size}px`}
       title=${title} onClick=${onClick} role=${onClick ? 'button' : undefined}>
@@ -326,8 +332,13 @@ export function Avatar({
             </g>`)}
         </g>
         ${mode && html`<${Extras} anim=${mode === 'working' ? 'working' : style} def=${def} clipId=${clipId.current} />`}
+        <g class="av-body av-dot-layer"><g class="av-dot-keep">
+          ${status && html`<g class=${`av-dot dot-${status}`}>
+            <circle class="av-dot-ring" cx=${dotX} cy=${dotY} r=${dotR + 2.5 * unit} />
+            <circle class="av-dot-fill" cx=${dotX} cy=${dotY} r=${dotR} />
+          </g>`}
+        </g></g>
       </svg>
-      ${status ? html`<span class=${`avatar-dot dot-${status}`} style=${`width:${dotSize}px;height:${dotSize}px;left:${dotAt(dotX)};top:${dotAt(dotY)}`}></span>` : null}
     </span>`;
 }
 

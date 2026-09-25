@@ -153,18 +153,48 @@ svg { display: block; }
 @keyframes av-twinkle { 0% { opacity: 0; transform: scale(.2) rotate(0); } 40% { opacity: 1; transform: scale(1) rotate(45deg); } 80%, 100% { opacity: 0; transform: scale(.3) rotate(90deg); } }
 @keyframes av-shadow { 0%, 100% { transform: scale(1); opacity: .28; } 50% { transform: scale(.7); opacity: .12; } }
 @media (prefers-reduced-motion: reduce) {
-  .avatar .av-body, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow { animation: none !important; }
+  .avatar .av-body, .av-dot-keep, .av-thought, .av-orbit, .av-shine, .av-star, .av-shadow { animation: none !important; }
   .av-thought, .av-star { opacity: 1; }
   /* Still plainly busy without moving about: a thinking or working bot fades gently. */
   .avatar.is-thinking .av-body, .avatar.is-working .av-body { animation: av-fade 1.6s ease-in-out infinite !important; }
 }
 @keyframes av-fade { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
-/* Placed by src/ui/avatar.js on the shape's own bottom-right edge. */
-.avatar-dot { position: absolute; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 2.5px var(--bg); }
-.avatar-dot.dot-working { background: var(--green-dot); animation: pulse 1.4s ease-in-out infinite; }
-.avatar-dot.dot-waiting { background: var(--orange); }
-.avatar-dot.dot-error { background: var(--red-strong); }
+/* The status dot, on the shape's own bottom-right edge, in a layer that moves as the body does (src/ui/avatar.js),
+   with a ring of the page's color around it. */
+.av-dot-ring { fill: var(--bg); }
+.av-dot-fill { fill: var(--green-dot); }
+.av-dot.dot-working { animation: pulse 1.4s ease-in-out infinite; }
+.av-dot.dot-waiting .av-dot-fill { fill: var(--orange); }
+.av-dot.dot-error .av-dot-fill { fill: var(--red-strong); }
+/* It moves with the body, and where the body squashes and stretches, its own group scales the other way around its
+   center so it stays round: each of these is the inverse of the body's animation above (keep them in step). */
+.av-dot-keep { transform-box: fill-box; transform-origin: center; }
+.avatar.is-thinking.think-hop .av-dot-keep { animation: av-hop-keep .9s cubic-bezier(.3, .7, .4, 1) infinite; }
+.avatar.is-thinking.think-jelly .av-dot-keep { animation: av-jelly-keep 1.2s ease-in-out infinite; }
+.avatar.is-thinking.think-nod .av-dot-keep { animation: av-nod-keep .8s ease-in-out infinite; }
+.avatar.is-thinking.think-orbit .av-dot-keep,
+.avatar.is-thinking.think-scan .av-dot-keep { animation: av-breathe-keep 2.4s ease-in-out infinite; }
+.avatar.is-thinking.think-sparkle .av-dot-keep { animation: av-breathe-keep 1.5s ease-in-out infinite; }
+.avatar.is-live .av-dot-keep { animation: av-idle-keep 3.6s ease-in-out infinite; }
+@keyframes av-hop-keep {
+  0%, 100% { transform: scale(.926, 1.087); }
+  30% { transform: scale(1.064, .935); }
+  50% { transform: scale(1, 1); }
+  75% { transform: scale(.909, 1.111); }
+  88% { transform: scale(1.031, .971); }
+}
+@keyframes av-jelly-keep {
+  0%, 100% { transform: scale(1, 1); }
+  15% { transform: scale(.893, 1.136); }
+  30% { transform: scale(1.111, .909); }
+  45% { transform: scale(.943, 1.064); }
+  60% { transform: scale(1.031, .971); }
+  75% { transform: scale(.98, 1.02); }
+}
+@keyframes av-nod-keep { 0%, 100% { transform: scale(1, 1); } 45% { transform: scale(.971, 1.053); } }
+@keyframes av-breathe-keep { 0%, 100% { transform: scale(1); } 50% { transform: scale(.962); } }
+@keyframes av-idle-keep { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(.985, .971); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 .avatar-stack { position: relative; display: inline-block; flex: none; }
 .avatar-stack-item { position: absolute; }
