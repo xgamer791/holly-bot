@@ -432,49 +432,29 @@ function newerVersion(a, b) {
  * The app runs the latest build each time it opens, but iPhone keeps a Home
  * Screen app running in the background, so a phone can go on running an old
  * one for days. As the app comes back to the front, and every half hour, this
- * asks the site which version it serves, and when that's newer, reloads as
- * soon as nothing would be lost.
+ * asks the site which version it serves, and when that's newer, a banner
+ * offers it. It never reloads by itself: leaving the app and coming back
+ * shouldn't land on the loading screen.
  */
-function watchUpdates(app) {
+function watchUpdates() {
   let checking = false;
+  let offered = false;
   const check = async () => {
-    if (checking || document.visibilityState !== 'visible') return;
+    if (offered || checking || document.visibilityState !== 'visible') return;
     checking = true;
     try {
       const res = await fetch(new URL('./src/core/constants.js', location.href), { cache: 'no-cache' });
       const latest = /APP_VERSION = '(\d+\.\d+\.\d+)'/.exec(res.ok ? await res.text() : '')?.[1];
-      if (latest && newerVersion(latest, APP_VERSION)) reloadWhenQuiet(app);
+      if (latest && newerVersion(latest, APP_VERSION)) {
+        offered = true;
+        banner('New version of Holly Bot · Tap to update', () => location.reload());
+      }
     } catch { /* offline: next time */ } finally {
       checking = false;
     }
   };
   document.addEventListener('visibilitychange', check);
   setInterval(check, 30 * 60_000);
-}
-
-let reloadWaiting = false;
-
-/** Reloads as soon as nothing would be lost: right away when nothing is going
- * on, otherwise once the app is in the background or has been left alone for
- * two minutes. Never while a bot is replying in this app, changes are waiting
- * to be saved, or something is being typed. */
-function reloadWhenQuiet(app) {
-  if (reloadWaiting) return;
-  reloadWaiting = true;
-  let lastInput = 0;
-  for (const type of ['pointerdown', 'keydown', 'input']) {
-    addEventListener(type, () => { lastInput = Date.now(); }, { capture: true, passive: true });
-  }
-  const attempt = () => {
-    const field = document.activeElement;
-    const typing = !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
-      || [...(app.drafts?.values() || [])].some((text) => text?.trim());
-    const busy = typing || (!app.remote && app.runtime.activeRuns().length > 0) || (app.db?.pending?.length || 0) > 0;
-    if (!busy && (document.visibilityState === 'hidden' || Date.now() - lastInput > 120_000)) location.reload();
-  };
-  document.addEventListener('visibilitychange', attempt);
-  setInterval(attempt, 5000);
-  attempt();
 }
 
 /** How to set up, update or start Holly Computer (the README). */
@@ -675,10 +655,11 @@ async function bootLocal(db) {
 
 /**
  * Another device changed this account after it loaded here, so what this one
- * shows is out of date. It reloads as soon as that loses nothing: straight
- * away while the app is in the background, otherwise after two quiet minutes,
- * and a banner offers to do it now. Never while a bot is replying, changes are
- * waiting to be saved, or something is being typed.
+ * shows is out of date. A banner offers to reload now, and it reloads by
+ * itself once the app has sat open and untouched for two minutes. Never in
+ * the background or as the app comes back to the front (that would land on
+ * the loading screen), and never while a bot is replying, changes are waiting
+ * to be saved, or something is being typed.
  */
 function watchOtherDevices(app, db) {
   db.onStale = () => {
@@ -686,18 +667,20 @@ function watchOtherDevices(app, db) {
     for (const type of ['pointerdown', 'keydown', 'input']) {
       addEventListener(type, () => { lastInput = Date.now(); }, { capture: true, passive: true });
     }
+    // Coming back to the front counts as a touch.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') lastInput = Date.now();
+    });
     const reloadIfQuiet = () => {
+      if (document.visibilityState !== 'visible') return;
       const field = document.activeElement;
       const typing = !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
         || [...(app.drafts?.values() || [])].some((text) => text?.trim());
       const busy = typing || app.runtime.activeRuns().length > 0 || db.pending.length > 0;
-      const away = document.visibilityState === 'hidden';
-      if (!busy && (away || Date.now() - lastInput > 120_000)) location.reload();
+      if (!busy && Date.now() - lastInput > 120_000) location.reload();
     };
     banner('Changed on another device · Tap to refresh', () => location.reload());
-    document.addEventListener('visibilitychange', reloadIfQuiet);
     setInterval(reloadIfQuiet, 5000);
-    reloadIfQuiet();
   };
   if (db.stale) db.onStale();
 }
@@ -773,7 +756,7 @@ function mount(app) {
     watchSubscription();
     watchComputers(app);
   }
-  if (signInWorksHere()) watchUpdates(app);
+  if (signInWorksHere()) watchUpdates();
 }
 
 function registerServiceWorker() {

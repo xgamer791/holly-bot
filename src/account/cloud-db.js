@@ -21,7 +21,7 @@ import { SCHEMA, DB } from '../core/db.js';
 // Another device signed in to the same account can change it meanwhile. The
 // server counts every write, so this one notices (at each write, when the app
 // comes back to the front, and every minute while it's open) and reports it
-// through `onStale`; the app then reloads (src/main.js). Routines check first
+// through `onStale`; the app then offers to reload (src/main.js). Routines check first
 // and claim each run, so two devices never both run one.
 
 /** Stores loaded a group at a time, and the field that names the group. */
