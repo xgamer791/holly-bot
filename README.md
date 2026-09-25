@@ -18,7 +18,7 @@ Holly Bot is a subscription, and every plan comes with a dedicated server of you
 - Settings → Subscription opens Stripe's billing portal: change plan, update your card, see invoices or cancel. A cancelled plan runs to the end of the period you've paid for; then the server and the files on it are deleted, and your bots, chats and memories stay in your account.
 - If a renewal doesn't go through, everything keeps working while Stripe tries your card again, and the app asks you to update it.
 - Bring your own key still applies: bots call AI providers with your own keys (below), so AI isn't part of the price.
-- Setting up Stripe and Vultr takes two keys, added as repository secrets, and one run of the **Set up Stripe and Vultr** workflow, which makes the prices, webhook and billing portal at Stripe and checks Vultr: [CONVEX.md](CONVEX.md#5-stripe-and-vultr-for-subscriptions).
+- Setting up Stripe and Vultr (prices, keys, webhook) is in [CONVEX.md](CONVEX.md#5-stripe-and-vultr-for-subscriptions).
 
 ## Your account
 

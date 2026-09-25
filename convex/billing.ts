@@ -26,10 +26,8 @@ import { planServer, serverView } from "./servers";
 // back from Checkout or the portal (`sync`), so the subscription page knows
 // straight away; that never touches servers.
 //
-// Variables (CONVEX.md): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, each
-// plan's price ids, STRIPE_PRICE_<PLAN>_MONTHLY and _YEARLY (convex/lib/plans.ts),
-// and STRIPE_PORTAL_CONFIGURATION. scripts/convex-billing-setup.mjs sets them
-// all from the secret key.
+// Variables (CONVEX.md): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and each
+// plan's price ids, STRIPE_PRICE_<PLAN>_MONTHLY and _YEARLY (convex/lib/plans.ts).
 
 const NOT_SET_UP = "Subscriptions aren't set up on Holly Bot's server yet.";
 /** Deleting a customer is retried this long after an account is deleted. */
@@ -38,9 +36,6 @@ const RETRY_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 3_600_000, 12 * 3_600_000
 const EVENT_DAYS = 30;
 
 const secretKey = () => process.env.STRIPE_SECRET_KEY?.trim() || undefined;
-/** The billing portal's setup (scripts/convex-billing-setup.mjs makes it);
- * without one, Stripe uses the default saved in its dashboard. */
-const portalConfiguration = () => process.env.STRIPE_PORTAL_CONFIGURATION?.trim() || undefined;
 const modeOf = (key: string) => (/_live_/.test(key) ? "live" : "test");
 const interval = v.union(v.literal("month"), v.literal("year"));
 const INTERVALS: Interval[] = ["month", "year"];
@@ -470,11 +465,7 @@ export const portal = action({
     if (!me.customerId) throw new ConvexError("There's no subscription to manage yet.");
     if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holly Bot can't come back to that address.");
     try {
-      const session = await call(key, "POST", "/billing_portal/sessions", {
-        customer: me.customerId,
-        return_url: backTo(returnTo, { billing: "done" }),
-        configuration: portalConfiguration(),
-      });
+      const session = await call(key, "POST", "/billing_portal/sessions", { customer: me.customerId, return_url: backTo(returnTo, { billing: "done" }) });
       return session.url;
     } catch (err) {
       if (!missingCustomer(err)) throw asError(err, "Couldn't open billing. Try again in a minute.");
