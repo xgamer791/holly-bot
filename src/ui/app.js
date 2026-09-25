@@ -14,6 +14,7 @@ import { Dialog, Toasts } from './components.js';
 import { Avatar, avatarSvgString } from './avatar.js';
 import { threadTitle } from './home.js';
 import { phraseOr, tr } from './i18n.js';
+import { deviceName } from '../remote/remote-app.js';
 
 const SHEETS = {
   createBot: CreateBotSheet,
@@ -139,6 +140,7 @@ export function Root({ app }) {
 
   // A computer linked to the account came on (watchComputers in src/main.js):
   // ask whether this app should use it. Not while another question is open.
+  // Connecting reloads the app on it; if it doesn't answer, this says why.
   const asking = useRef(false);
   asking.current = !!dialog;
   useEffect(() => app.on('computer-offer', async (offer) => {
@@ -150,8 +152,33 @@ export function Root({ app }) {
       confirmText: tr('Connect'),
       cancelText: tr('Not now'),
     });
-    if (yes) offer.accept();
-    else offer.decline();
+    if (!yes) return offer.decline();
+    ui.toast(tr('Connecting to {name}…', { name: offer.name }));
+    offer.accept().catch((err) => ui.toast(err?.message || tr("Couldn't connect to {name}.", { name: offer.name }), { error: true }));
+    return undefined;
+  }), []);
+
+  // What src/main.js has to say while the app is open (connecting to a computer).
+  useEffect(() => app.on('toast', ({ text, error }) => ui.toast(text, { error: !!error })), []);
+
+  // On Holly Computer's own page: a phone just connected to this computer
+  // (computer/src/server.mjs hello). The first time (Connect), a word to
+  // confirm it; after that, when it connects by itself, a quieter one.
+  useEffect(() => app.on('hello', (hello) => {
+    if (!app.ownPage || !hello || hello.clientId === app.clientId) return;
+    const device = deviceName(hello.kind);
+    const name = app.server?.name || tr('this computer');
+    if (!hello.first) {
+      ui.toast(tr('Holly Bot on your {device} connected to {name}.', { device, name }));
+      return;
+    }
+    haptic(app);
+    ui.confirm({
+      title: tr('Connected to your {device}', { device }),
+      message: tr('Holly Bot on your {device} is connected to {name}. Your bots run here, and you can use them from your {device}.', { device, name }),
+      confirmText: tr('OK'),
+      cancelText: null,
+    });
   }), []);
 
   // Routine scheduler for bots that run in this app (one tab at a time when Web Locks exist).

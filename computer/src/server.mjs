@@ -262,6 +262,13 @@ class Jobs {
   }
 }
 
+/** The devices Holly Bot says it's on (src/remote/remote-app.js deviceKind),
+ * as this computer's own window says them. */
+const DEVICE_WORDS = {
+  iphone: 'iPhone', ipad: 'iPad', 'android-phone': 'Android phone', 'android-tablet': 'Android tablet',
+  mac: 'Mac', windows: 'Windows PC', linux: 'Linux computer', chromebook: 'Chromebook',
+};
+
 /** Linking this computer to a Holly Bot account (computer/src/home.mjs). */
 const ACCOUNT_RPC = {
   'account.link': (home, [code]) => home.link(code),
@@ -384,6 +391,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
     }
     if (p === '/api/rpc' && req.method === 'POST') {
       const { method, args = [], clientId } = await readBody(req);
+      if (method === 'devices.hello') return json(res, 200, { result: hello(args[0], clientId) });
       const own = home && ACCOUNT_RPC[method];
       const fn = RPC[method];
       if (!own && !fn) return json(res, 404, { error: `Unknown method ${method}` });
@@ -431,6 +439,21 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
       return undefined;
     }
     return json(res, 404, { error: `Unknown endpoint ${p}` });
+  }
+
+  /**
+   * Holly Bot on a phone (or any device) has just connected to this computer,
+   * with Connect the first time (`first`), or by itself after that: this
+   * computer's own window says so, and so does its own page (src/ui/app.js),
+   * through the live updates every device gets.
+   */
+  function hello(info, clientId) {
+    const kind = DEVICE_WORDS[info?.kind] ? info.kind : 'other';
+    const first = info?.first === true;
+    const what = `Holly Bot on your ${DEVICE_WORDS[kind] || 'phone'}`;
+    log.log?.(first ? `\n  ${what} is connected to this computer. Your bots run here, and you control them from it.\n` : `  ${what} connected.`);
+    hub.push('hello', { kind, first, clientId: String(clientId || '').slice(0, 80), at: Date.now() });
+    return { ok: true };
   }
 
   function serialize(topic, payload) {

@@ -153,22 +153,33 @@ export class RemoteApp {
     }
   }
 
-  async connect({ timeoutMs = 12000 } = {}) {
+  /** Loads everything from the computer and starts live updates. Fails with
+   * `code` 'unreachable' (nothing answered at its address: a browser only
+   * says "Load failed" or "Failed to fetch"), 'timeout', 'unauthorized' or 'http'. */
+  async connect({ timeoutMs = 12000, live = true } = {}) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const name = this.name;
+    const fail = (code, message) => Object.assign(new Error(message), { code });
     let res;
     try {
       res = await fetch(this.url('/api/state'), { headers: this.headers(false), signal: ctrl.signal });
     } catch (err) {
-      throw new Error(err.name === 'AbortError' ? tr('Timed out reaching your Holly Computer.') : tr("Can't reach your Holly Computer: {error}", { error: err.message }));
+      if (err.name === 'AbortError') {
+        throw fail('timeout', name ? tr("{name} didn't answer in time. Make sure it's on and online.", { name }) : tr("Your Holly Computer didn't answer in time. Make sure it's on and online."));
+      }
+      throw fail('unreachable', name
+        ? tr("{name} didn't answer at its address. Make sure it's on and Holly Computer is running there.", { name })
+        : tr("Your Holly Computer didn't answer at its address. Make sure it's on and Holly Computer is running there."));
     } finally {
       clearTimeout(t);
     }
-    if (res.status === 401) throw new Error(tr('This pairing link is no longer valid. Open the latest link printed by Holly Computer.'));
-    if (!res.ok) throw new Error(tr('Holly Computer error {status}', { status: res.status }));
+    if (res.status === 401) throw fail('unauthorized', tr('This pairing link is no longer valid. Open the latest link printed by Holly Computer.'));
+    if (!res.ok) throw fail('http', tr('Holly Computer error {status}', { status: res.status }));
     this.applyState(await res.json());
     this.reachable = true;
-    this.startEvents();
+    // Only a check that it can be reached: no live updates.
+    if (live) this.startEvents();
     return this;
   }
 
@@ -390,6 +401,7 @@ export class RemoteApp {
 
   close() {
     this.closed = true;
+    this.polling?.abort();
   }
 
   // ----- same surface as App -----------------------------------------------------
@@ -635,6 +647,110 @@ export function computerConnection(device) {
  * or put away): a quick tunnel's changes each time the computer restarts. */
 export function addressOf(device) {
   return device ? `${device.id}|${device.url || ''}` : '';
+}
+
+/**
+ * Whether Holly Computer answers at `url` (its /v1/health, which needs no
+ * key, so this is a plain request a browser sends straight away). An
+ * address the account has for a computer can still be dead, and then only
+ * Cloudflare answers there, with a page a browser won't show to the app.
+ */
+export async function probeComputer(url, { timeoutMs = 6000 } = {}) {
+  if (!url) return false;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${String(url).replace(/\/+$/, '')}/v1/health`, { signal: ctrl.signal, cache: 'no-store' });
+    return res.ok && (await res.json())?.app === 'holly-computer';
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Connects to the linked computer `device` to check it can be used from
+ * here, and gives back how to reach it: its address, or the one the account
+ * has for it now (`latest`, which asks the account again) when the first
+ * doesn't answer, as happens right after its tunnel changed. Throws with a
+ * message to show when neither works.
+ */
+export async function reachComputer(device, { latest = null } = {}) {
+  let conn = computerConnection(device);
+  let failure = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!conn) break;
+    const remote = new RemoteApp(conn);
+    try {
+      await remote.connect({ timeoutMs: 10_000, live: false });
+      return { ...conn, name: remote.server?.name || conn.name || device.name };
+    } catch (err) {
+      failure = err;
+    }
+    const now = attempt === 0 && latest ? computerConnection(await latest().catch(() => null)) : null;
+    if (!now || (now.url === conn.url && now.token === conn.token)) break;
+    conn = now;
+  }
+  if (failure) throw failure;
+  throw new Error(tr('{name} is off. Start Holly Computer on it, then try again.', { name: device?.name || tr('your Holly Computer') }));
+}
+
+/** What sort of device this is, for Holly Computer to say who connected
+ * (computer/src/server.mjs hello, deviceName). */
+export function deviceKind(nav = globalThis.navigator) {
+  const ua = nav?.userAgent || '';
+  if (/iPhone|iPod/.test(ua)) return 'iphone';
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && nav.maxTouchPoints > 1)) return 'ipad';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'android-phone' : 'android-tablet';
+  if (/CrOS/.test(ua)) return 'chromebook';
+  if (/Macintosh|Mac OS X/.test(ua)) return 'mac';
+  if (/Windows/.test(ua)) return 'windows';
+  if (/Linux|X11/.test(ua)) return 'linux';
+  return 'other';
+}
+
+/** A deviceKind in words: "iPhone", "Android phone", "device". */
+export function deviceName(kind) {
+  const names = {
+    iphone: 'iPhone', ipad: 'iPad', mac: 'Mac', chromebook: 'Chromebook',
+    'android-phone': tr('Android phone'), 'android-tablet': tr('Android tablet'), windows: tr('Windows PC'), linux: tr('Linux computer'),
+  };
+  return names[kind] || tr('device');
+}
+
+/**
+ * Computers the account's devices connect to by themselves: ones a device
+ * connected to before (Connect, on the phone, the first time: the account
+ * keeps that, convex/devices.ts pair, and so does this device, in case the
+ * account can't say yet), and the server that comes with the plan.
+ */
+const PAIRED = 'holly.pairedComputers';
+
+export function isPaired(device) {
+  if (!device) return false;
+  if (device.server || device.paired) return true;
+  const list = readJson(PAIRED + scope);
+  return Array.isArray(list) && list.includes(device.id);
+}
+
+/**
+ * This device moves to the computer at `conn` because the person chose it
+ * (Connect, or picking it in a chat's workspace): it's saved, with what to
+ * say once connected there (`hello`: 'first' or 'auto', src/main.js). Moving
+ * away from another of their own computers (`from`, a linked computer) on
+ * purpose, this device doesn't go back to that one by itself until it
+ * restarts, or for twelve hours (declineComputer).
+ */
+export function chooseComputer(conn, { from = null, hello = 'first' } = {}) {
+  if (from?.id && !from.server && from.id !== conn.device) declineComputer(from);
+  saveConnection({ ...conn, hello });
+}
+
+export function markPaired(device) {
+  if (!device?.id || isPaired(device)) return;
+  const list = readJson(PAIRED + scope);
+  writeJson(PAIRED + scope, [...(Array.isArray(list) ? list : []), device.id].slice(-20));
 }
 
 /** Computers this device doesn't connect to by itself: the person said Not

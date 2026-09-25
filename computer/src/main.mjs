@@ -6,13 +6,13 @@
 import os from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import './node-db.mjs'; // IDBKeyRange for the app core
 import { LocalComputer, VERSION, defaultWorkspace } from './local-computer.mjs';
 import { createHollyServer } from './server.mjs';
-import { startQuickTunnel, ensureCloudflared, qrText } from './tunnel.mjs';
+import { TunnelKeeper, ensureCloudflared, qrText } from './tunnel.mjs';
 import { keepAwake } from './awake.mjs';
 import { AccountLink } from './account.mjs';
 import { BotHome } from './home.mjs';
@@ -188,6 +188,9 @@ export async function main(argv = process.argv.slice(2)) {
     hostname: os.hostname(),
     version: VERSION,
     platform: process.platform,
+    // Which run of Holly Computer this is, so the tunnel can tell it's this
+    // one answering at its address (computer/src/tunnel.mjs).
+    instance: randomUUID(),
     get account() {
       return home.status();
     },
@@ -212,23 +215,38 @@ export async function main(argv = process.argv.slice(2)) {
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
   console.log('');
 
-  let publicUrl = args.publicUrl ? args.publicUrl.replace(/\/+$/, '') : null;
-  if (args.tunnel && !publicUrl) {
-    try {
-      const bin = await ensureCloudflared(dataDir);
-      console.log('  Opening a secure tunnel…');
-      const t = await startQuickTunnel(port, { bin, onClose: () => home.setAddress(null) });
-      publicUrl = t.url;
-      process.on('exit', () => t.stop());
-      if (!t.connected) console.log('  The tunnel is slow to connect. If your phone can\'t reach this computer, this network may block Cloudflare Tunnel.');
-    } catch (err) {
-      console.log(`  Tunnel failed: ${err.message}`);
-    }
-  }
   // Linked, it tells the account where the account's devices can reach it,
-  // so Holly Bot on each of them connects by itself (or asks to, when it's
-  // already open): no link to open or QR code to scan.
-  home.setAddress(publicUrl);
+  // so Holly Bot on each of them connects by itself (or asks to, the first
+  // time): no link to open or QR code to scan. A quick tunnel's address is
+  // told only while it works, and a new tunnel opens when it stops working
+  // (computer/src/tunnel.mjs); without one, the account hears why.
+  let publicUrl = args.publicUrl ? args.publicUrl.replace(/\/+$/, '') : null;
+  let tunnel = null;
+  if (args.tunnel && !publicUrl) {
+    let started = false;
+    tunnel = new TunnelKeeper({
+      port,
+      host: args.host,
+      instance: serverInfo.instance,
+      bin: () => ensureCloudflared(dataDir),
+      ownBin: () => ensureCloudflared(dataDir, { own: true }),
+      onChange: ({ url, state }) => {
+        if (state === 'stopped') return;
+        home.setAddress(url, { tunnel: state });
+        // Once it's started, what changes is said here too.
+        if (url && started) console.log('  The secure tunnel is open: your phone can reach this computer.');
+      },
+    });
+    process.on('exit', () => tunnel.stop());
+    console.log('  Opening a secure tunnel so your phone can reach this computer…');
+    // Straight away, so an address from before (a run that ended without
+    // saying so) isn't tried meanwhile.
+    home.setAddress(null, { tunnel: 'starting' });
+    publicUrl = await tunnel.start({ waitMs: 90_000 });
+    started = true;
+  } else {
+    home.setAddress(publicUrl, { tunnel: 'off' });
+  }
   const name = cfg.name;
   const signIn = link(local, '', cfg.token);
   if (!account.linked) {
@@ -237,12 +255,13 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(args.open
       ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holly Bot.`
       : `  On this computer, open this page and sign in with the Apple or Google account you use in Holly Bot:\n    ${signIn}`);
-    console.log(`  Holly Bot on your phone then asks to connect to ${name}.`);
+    console.log(`  Then open Holly Bot on your phone and tap Connect. After that it connects to ${name} by itself.`);
   } else if (publicUrl) {
-    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account: it connects to ${name} by itself,`);
-    console.log('  or asks to if it\'s already open.');
+    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account. It connects to ${name} by itself,`);
+    console.log('  or asks you to tap Connect the first time.');
   }
-  if (!publicUrl) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
+  if (!publicUrl && !tunnel) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
+  else if (!publicUrl && tunnel.state !== 'blocked') console.log('  The secure tunnel is taking a while. Your phone can connect as soon as it\'s open.');
   const lan = args.host === '0.0.0.0' ? lanAddress() : null;
   if (lan) {
     // A Wi-Fi address can't sign in (Apple and Google can't send a sign-in
@@ -265,6 +284,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (stopping) return;
     stopping = true;
     console.log('\n  Stopping Holly Computer…');
+    tunnel?.stop();
     awake?.stop();
     server.close();
     await home.close();
@@ -273,6 +293,9 @@ export async function main(argv = process.argv.slice(2)) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  // Its terminal window closed: the account still hears it stopped, so the
+  // phone doesn't try to reach it (Windows allows a few seconds for this).
+  process.on('SIGHUP', shutdown);
   // Run by systemd (a Holly Bot server: convex/lib/cloudinit.ts), which starts
   // it again with the latest build: once a newer one is out and no bot is
   // working, it stops for that, so a fix reaches servers without waiting for
@@ -285,11 +308,16 @@ export async function main(argv = process.argv.slice(2)) {
       shutdown();
     }, UPDATE_EVERY).unref();
   }
-  return { app, home, server, computer, db: app.db, token: cfg.token, url: local };
+  return { app, home, server, computer, tunnel, db: app.db, token: cfg.token, url: local };
 }
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked || globalThis.__HOLLY_BUNDLE__) {
+  // One slip in a background task mustn't take the bots, and the phone's way
+  // in, down with it: it's said, and Holly Computer keeps running.
+  process.on('unhandledRejection', (err) => {
+    console.warn(`  Something went wrong in the background: ${err?.stack || err?.message || err}`);
+  });
   main().catch((err) => {
     console.error(`\n  Holly Computer failed to start: ${err.stack || err.message}\n`);
     process.exit(1);

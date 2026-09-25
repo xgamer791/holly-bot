@@ -183,9 +183,9 @@ async function connectGmail(as: Awaited<ReturnType<typeof signIn>>["as"], g: Ret
 
 describe("what can be connected", () => {
   test("follows the deployment's variables", async () => {
-    expect(await t.query(api.connectors.available, {})).toEqual({ gmail: true, outlook: false, github: true, githubToken: true });
+    expect(await t.query(api.connectors.available, {})).toEqual({ gmail: true, outlook: false, github: true, githubToken: true, higgsfield: true });
     vi.stubEnv("CONNECTORS_KEY", "");
-    expect(await t.query(api.connectors.available, {})).toEqual({ gmail: false, outlook: false, github: false, githubToken: false });
+    expect(await t.query(api.connectors.available, {})).toEqual({ gmail: false, outlook: false, github: false, githubToken: false, higgsfield: false });
     vi.stubEnv("CONNECTORS_KEY", KEY);
     vi.stubEnv("CONNECT_MICROSOFT_ID", "ms-id");
     vi.stubEnv("CONNECT_MICROSOFT_SECRET", "ms-secret");

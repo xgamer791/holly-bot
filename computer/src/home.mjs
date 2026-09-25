@@ -40,6 +40,7 @@ export class BotHome {
     this.app = null;
     this.busy = null; // a link, unlink or reload under way
     this.address = null; // where the account's devices can reach this computer (setAddress)
+    this.tunnel = null; // why there's no address: 'off', 'starting' or 'blocked' (setAddress)
     this.reporting = Promise.resolve();
     this.planServer = false; // the server that comes with the account's plan (report)
     this.closing = false;
@@ -75,11 +76,13 @@ export class BotHome {
   }
 
   /** Where the account's devices can reach this computer: its tunnel or
-   * --public-url address, or null (none, or the tunnel closed). Only https
-   * will do: the Holly Bot site can't call a plain-http address. */
-  setAddress(url) {
+   * --public-url address, or null (none, or the tunnel isn't working), and
+   * then why (`tunnel`: 'off', 'starting' or 'blocked', computer/src/tunnel.mjs).
+   * Only https will do: the Holly Bot site can't call a plain-http address. */
+  setAddress(url, { tunnel = null } = {}) {
     if (this.closing) return this.reporting;
     this.address = /^https:\/\//i.test(url || '') ? url.replace(/\/+$/, '') : null;
+    this.tunnel = this.address ? null : ['off', 'starting', 'blocked'].includes(tunnel) ? tunnel : null;
     return this.report();
   }
 
@@ -94,8 +97,20 @@ export class BotHome {
       if (!this.account.linked || (this.closing && !stopping)) return;
       const url = stopping ? '' : this.address || '';
       const access = url ? this.account.accessKey || '' : '';
+      const args = { url, access, ...(stopping ? { stopping } : {}) };
+      // Why there's no address, for the app to say (an account server from
+      // before 1.31 doesn't take it: then it's left out).
+      if (!url && !stopping && this.tunnel && !this.oldAccountServer) args.tunnel = this.tunnel;
       try {
-        const answer = await this.account.authed('mutation', 'devices:report', { url, access, ...(stopping ? { stopping } : {}) });
+        let answer;
+        try {
+          answer = await this.account.authed('mutation', 'devices:report', args);
+        } catch (err) {
+          if (!args.tunnel || !/tunnel/.test(err?.message || '') || !/validator|extra field/i.test(err?.message || '')) throw err;
+          this.oldAccountServer = true;
+          delete args.tunnel;
+          answer = await this.account.authed('mutation', 'devices:report', args);
+        }
         if (answer && typeof answer.server === 'boolean') this.planServer = answer.server;
         this.reportFailed = false;
       } catch (err) {

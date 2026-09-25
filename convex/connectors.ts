@@ -7,6 +7,7 @@ import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
 import { requireSubscriber } from "./lib/subscription";
 import * as github from "./lib/github";
+import * as higgsfield from "./lib/higgsfield";
 import * as mail from "./lib/mail";
 import {
   OAuthError,
@@ -19,15 +20,19 @@ import {
   pkceChallenge,
   randomToken,
   refreshTokens,
+  registerClient,
+  registersClient,
   revokeTokens,
+  type OAuthApp,
   type Service,
   type Tokens,
 } from "./lib/oauth";
 import { seal, unseal } from "./lib/seal";
 
-// Connectors: Gmail, Outlook and GitHub, connected to an account so its bots
-// can read and send email and work on repositories when asked
-// (src/core/tools/connector-tools.js). The tokens stay here, sealed with
+// Connectors: Gmail, Outlook, GitHub and Higgsfield, connected to an account
+// so its bots can read and send email, work on repositories, and make images
+// and videos when asked (src/core/tools/connector-tools.js, and Higgsfield's
+// own tools: src/core/plugins.js). The tokens stay here, sealed with
 // CONNECTORS_KEY; bots ask `run`, which calls the service for them.
 //
 // Connecting: the app asks `start` for the service's consent screen and goes
@@ -39,7 +44,7 @@ import { seal, unseal } from "./lib/seal";
 // with GitHub and kept the same way (`connectToken`).
 
 const WINDOW_MS = 10 * 60 * 1000;
-const service = v.union(v.literal("gmail"), v.literal("outlook"), v.literal("github"));
+const service = v.union(v.literal("gmail"), v.literal("outlook"), v.literal("github"), v.literal("higgsfield"));
 
 const env = () => process.env as Record<string, string | undefined>;
 const key = () => process.env.CONNECTORS_KEY;
@@ -49,10 +54,18 @@ const callbackUrl = (s: Service) => `${process.env.CONVEX_SITE_URL}/connectors/$
 const label = (s: string) => SERVICES[s as Service]?.label ?? s;
 const reconnect = (s: string) => new ConvexError(`${label(s)} needs connecting again: Settings → Plugins.`);
 
+/** The OAuth app a connection goes through: the deployment's (CONVEX.md), or,
+ * for a service Holly Bot registers with as each connection starts
+ * (Higgsfield), the client registered for that connection. */
+function appFor(s: Service, tokens?: { clientId?: string }): OAuthApp | null {
+  if (registersClient(s)) return tokens?.clientId ? { clientId: tokens.clientId, clientSecret: "" } : null;
+  return oauthApp(s, env());
+}
+
 /** Which services can be connected on this deployment right now. */
 export const available = query({
   args: {},
-  returns: v.object({ gmail: v.boolean(), outlook: v.boolean(), github: v.boolean(), githubToken: v.boolean() }),
+  returns: v.object({ gmail: v.boolean(), outlook: v.boolean(), github: v.boolean(), githubToken: v.boolean(), higgsfield: v.boolean() }),
   handler: async () => {
     const ready = !!key();
     return {
@@ -60,6 +73,8 @@ export const available = query({
       outlook: ready && !!oauthApp("outlook", env()),
       github: ready && !!oauthApp("github", env()),
       githubToken: ready,
+      // Nothing to set up: Holly Bot registers with Higgsfield as a connection starts.
+      higgsfield: ready,
     };
   },
 });
@@ -96,18 +111,29 @@ export const start = action({
   returns: v.string(),
   handler: async (ctx, { service: s, returnTo }) => {
     await ctx.runQuery(internal.connectors.whoami, {});
-    const app = oauthApp(s, env());
-    if (!app || !key()) throw new ConvexError(`${label(s)} isn't set up on Holly Bot's server yet.`);
+    const registers = registersClient(s);
+    const app = registers ? null : oauthApp(s, env());
+    if ((!registers && !app) || !key()) throw new ConvexError(`${label(s)} isn't set up on Holly Bot's server yet.`);
     if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holly Bot can't come back to that address.");
+    // Higgsfield has no app to set up: Holly Bot registers a client for this connection.
+    let clientId = app?.clientId ?? "";
+    if (registers) {
+      try {
+        clientId = await registerClient(s, { redirectUri: callbackUrl(s) });
+      } catch (err) {
+        console.error(`Registering with ${s} failed: ${err instanceof Error ? err.message : String(err)}`);
+        throw new ConvexError("Couldn't reach Higgsfield. Try again in a minute.");
+      }
+    }
     const state = randomToken();
     const verifier = randomToken(48);
-    await ctx.runMutation(internal.connectors.saveState, { service: s, state, verifier, returnTo });
-    return authorizeUrl(s, { clientId: app.clientId, redirectUri: callbackUrl(s), state, challenge: await pkceChallenge(verifier) });
+    await ctx.runMutation(internal.connectors.saveState, { service: s, state, verifier, returnTo, ...(registers ? { clientId } : {}) });
+    return authorizeUrl(s, { clientId, redirectUri: callbackUrl(s), state, challenge: await pkceChallenge(verifier) });
   },
 });
 
 export const saveState = internalMutation({
-  args: { service, state: v.string(), verifier: v.string(), returnTo: v.string() },
+  args: { service, state: v.string(), verifier: v.string(), returnTo: v.string(), clientId: v.optional(v.string()) },
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -123,13 +149,13 @@ export const saveState = internalMutation({
 /** Spends a state: who started the connection, and how to finish it. */
 export const takeState = internalMutation({
   args: { state: v.string() },
-  returns: v.union(v.null(), v.object({ userId: v.id("users"), service: v.string(), verifier: v.string(), returnTo: v.string() })),
+  returns: v.union(v.null(), v.object({ userId: v.id("users"), service: v.string(), verifier: v.string(), returnTo: v.string(), clientId: v.optional(v.string()) })),
   handler: async (ctx, { state }) => {
     const row = await ctx.db.query("connectorStates").withIndex("by_state", (q) => q.eq("state", state)).unique();
     if (!row) return null;
     await ctx.db.delete(row._id);
     if (row.expiresAt < Date.now()) return null;
-    return { userId: row.userId, service: row.service, verifier: row.verifier, returnTo: row.returnTo };
+    return { userId: row.userId, service: row.service, verifier: row.verifier, returnTo: row.returnTo, ...(row.clientId ? { clientId: row.clientId } : {}) };
   },
 });
 
@@ -145,6 +171,7 @@ export const savePending = internalMutation({
 async function identify(s: Service, token: string): Promise<string> {
   if (s === "gmail") return (await mail.gmailProfile({ token })).email;
   if (s === "outlook") return (await mail.outlookProfile({ token })).email;
+  if (s === "higgsfield") return await higgsfield.higgsfieldAccount({ token });
   return (await github.githubUser({ token })).login;
 }
 
@@ -165,10 +192,12 @@ export const callback = httpAction(async (ctx, request) => {
   const code = url.searchParams.get("code");
   const error = url.searchParams.get("error");
   if (error || !code) return back({ connect_error: error === "access_denied" ? "cancelled" : "failed", service: s });
-  const app = oauthApp(s, env());
+  const app = appFor(s, started);
   if (!app || !key()) return back({ connect_error: "failed", service: s });
   try {
     const tokens = await exchangeCode(s, { app, code, redirectUri: callbackUrl(s), verifier: started.verifier });
+    // Renewing and revoking them later goes through the client they were issued to.
+    if (registersClient(s)) tokens.clientId = app.clientId;
     // Permissions unticked: the tokens are dropped, never kept. (Not revoked:
     // at Google that ends the person's whole grant, a connection that works
     // included.)
@@ -295,7 +324,7 @@ async function revokeSealed(s: string, sealed: string, where: string, via: strin
   // A GitHub token the person made is theirs to revoke on GitHub.
   if (via !== "oauth" || !SERVICE_NAMES.includes(s as Service)) return;
   const tokens = await unseal<Tokens>(key(), sealed, where);
-  await revokeTokens(s as Service, { app: oauthApp(s as Service, env()), tokens });
+  await revokeTokens(s as Service, { app: appFor(s as Service, tokens), tokens });
 }
 
 /** Revokes a connection's tokens after it has left the database (a deleted account). */
@@ -344,10 +373,12 @@ const OPS: Record<Service, Record<string, Op>> = {
     delete_file: github.deleteFile,
     request: github.request,
   },
+  // Higgsfield's own MCP server: what it offers, and running one of its tools.
+  higgsfield: { tools: higgsfield.listTools, call: higgsfield.callTool },
 };
 
 function statusOf(err: unknown): number {
-  return err instanceof mail.ApiError || err instanceof github.GitHubError ? err.status : 0;
+  return err instanceof mail.ApiError || err instanceof github.GitHubError || err instanceof higgsfield.HiggsfieldError ? err.status : 0;
 }
 
 /** What went wrong, in words a bot can pass on. */
@@ -380,7 +411,7 @@ export const run = action({
       throw reconnect(s);
     });
     const renew = async () => {
-      const app = oauthApp(s, env());
+      const app = appFor(s, tokens);
       if (!app || !tokens.refreshToken) throw reconnect(s);
       try {
         tokens = await refreshTokens(s, { app, tokens });
