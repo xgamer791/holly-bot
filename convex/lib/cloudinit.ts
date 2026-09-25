@@ -10,7 +10,7 @@
 //      there, like any linked Holly Computer.
 //   4. Caddy in front of it at https://<ip>.sslip.io (a name that always
 //      points at this address), with a Let's Encrypt certificate, so the app
-//      can reach it from the Holly Bot site.
+//      can reach it from the Holly Bot site (over HTTP/1.1 or HTTP/2).
 // Then it calls POST /servers/ready on Holly Bot's deployment with the
 // one-time ready token, the address and the pairing token, or with what went
 // wrong. Everything it does is logged in /var/log/holly-setup.log. No imports.
@@ -169,7 +169,16 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+# HTTP/1.1 and HTTP/2 only. Caddy would also offer HTTP/3, which runs over
+# UDP 443, and the firewall below opens TCP only: Safari, told to use it,
+# keeps trying and the app's live updates fail.
 cat > /etc/caddy/Caddyfile <<EOF
+{
+  servers {
+    protocols h1 h2
+  }
+}
+
 $HOST {
   reverse_proxy 127.0.0.1:8787
 }
