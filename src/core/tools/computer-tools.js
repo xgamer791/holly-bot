@@ -51,7 +51,8 @@ export const computerTools = [
     approvalScope: 'turn',
     approval: () => 'Control your computer’s mouse and keyboard for this task',
     async run(args, ctx) {
-      const r = await ctx.app.computer.desktopAction(args.action, args, { signal: ctx.signal });
+      // On a server, each bot's own screen (computer/src/screens.mjs).
+      const r = await ctx.app.computer.desktopAction(args.action, { ...args, agentId: ctx.agent.id }, { signal: ctx.signal });
       ctx.app.logActivity(ctx.agent.id, { type: 'desktop', title: safeLabel(this, args), detail: '' });
       if (args.action === 'cursor') return { content: `Cursor at ${r.cursor?.x}, ${r.cursor?.y}.` };
       const shot = r.screenshot;

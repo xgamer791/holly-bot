@@ -123,11 +123,38 @@ const X11_KEYS = {
 const x11Key = (k) => X11_KEYS[k] || (/^f\d+$/.test(k) ? k.toUpperCase() : k);
 
 class LinuxDesktop {
-  constructor({ log, env }) {
+  constructor({ log, env, region = null }) {
     this.log = log;
     this.env = { ...env };
     if (!this.env.DISPLAY && !this.env.WAYLAND_DISPLAY && existsSync('/tmp/.X11-unix/X0')) this.env.DISPLAY = ':0';
+    // A bot's own screen, a part of a wider display: coordinates here are
+    // within it, and screenshots show only it.
+    this.region = region;
+    this.lastPoint = null;
     this.cached = null;
+  }
+
+  /** From this screen's coordinates to the display's. */
+  at(x, y) {
+    if (!this.region) return [x, y];
+    const p = [Number.isFinite(x) ? this.region.x + x : x, Number.isFinite(y) ? this.region.y + y : y];
+    if (Number.isFinite(p[0]) && Number.isFinite(p[1])) this.lastPoint = p;
+    return p;
+  }
+
+  /**
+   * Keys go to the window under this screen's pointer first: on a display
+   * shared by several bots' screens, the keyboard's focus may have moved to
+   * another bot's window since this one last clicked.
+   */
+  async focusHere() {
+    if (!this.region) return;
+    const [x, y] = this.lastPoint || [this.region.x + Math.round(this.region.width / 2), this.region.y + Math.round(this.region.height / 2)];
+    try {
+      const { stdout } = await this.x(['mousemove', '--sync', x, y, 'getmouselocation', '--shell']);
+      const win = stdout.match(/WINDOW=(\d+)/)?.[1];
+      if (win) await this.x(['windowfocus', '--sync', win]);
+    } catch { /* keys go wherever the focus is */ }
   }
 
   async init() {
@@ -168,7 +195,9 @@ class LinuxDesktop {
     if (!this.env.DISPLAY && !this.env.WAYLAND_DISPLAY) {
       notes.push('No graphical desktop here (headless), so no screen control. Shell, files and the browser still work.');
     } else {
-      if (this.x11 && t.xdotool) {
+      if (this.region) {
+        ({ width, height } = this.region);
+      } else if (this.x11 && t.xdotool) {
         try {
           const { stdout } = await this.x(['getdisplaygeometry'], 5000);
           [width, height] = stdout.trim().split(/\s+/).map(Number);
@@ -208,11 +237,12 @@ class LinuxDesktop {
     try {
       if (tool === 'import') {
         const [cmd, pre] = t.import ? [t.import, []] : [t.magick, ['import']];
-        const { stdout } = await run(cmd, [...pre, '-silent', '-window', 'root', 'png:-'], { env: this.env, binary: true, timeoutMs: 15000 });
+        const { stdout } = await run(cmd, [...pre, '-silent', '-window', 'root', ...this.crop(), 'png:-'], { env: this.env, binary: true, timeoutMs: 15000 });
         return stdout;
       }
-      if (tool === 'scrot') await run(t.scrot, [file], { env: this.env, timeoutMs: 15000 });
-      else if (tool === 'maim') await run(t.maim, [file], { env: this.env, timeoutMs: 15000 });
+      const r = this.region;
+      if (tool === 'scrot') await run(t.scrot, [...(r ? ['--autoselect', `${r.x},${r.y},${r.width},${r.height}`] : []), file], { env: this.env, timeoutMs: 15000 });
+      else if (tool === 'maim') await run(t.maim, [...(r ? ['-g', `${r.width}x${r.height}+${r.x}+${r.y}`] : []), file], { env: this.env, timeoutMs: 15000 });
       else if (tool === 'gnome-screenshot') await run(t.gnomeScreenshot, ['-f', file], { env: this.env, timeoutMs: 15000 });
       else if (tool === 'grim') await run(t.grim, [file], { env: this.env, timeoutMs: 15000 });
       else if (tool === 'spectacle') await run(t.spectacle, ['-b', '-n', '-f', '-o', file], { env: this.env, timeoutMs: 15000 });
@@ -229,7 +259,7 @@ class LinuxDesktop {
     const tw = info.width ? Math.min(maxWidth, info.width) : maxWidth;
     if (this.screenshotTool() === 'import') {
       const [cmd, pre] = t.import ? [t.import, []] : [t.magick, ['import']];
-      const { stdout } = await run(cmd, [...pre, '-silent', '-window', 'root', '-resize', `${tw}x`, '-quality', String(quality), 'jpeg:-'], { env: this.env, binary: true, timeoutMs: 15000 });
+      const { stdout } = await run(cmd, [...pre, '-silent', '-window', 'root', ...this.crop(), '-resize', `${tw}x`, '-quality', String(quality), 'jpeg:-'], { env: this.env, binary: true, timeoutMs: 15000 });
       const size = imageSize(stdout) || { width: tw, height: Math.round((info.height * tw) / (info.width || tw)) };
       return { data: stdout.toString('base64'), mime: 'image/jpeg', width: size.width, height: size.height, screenWidth: info.width || size.width, screenHeight: info.height || size.height };
     }
@@ -246,41 +276,63 @@ class LinuxDesktop {
   }
 
   async move(x, y) {
-    await this.x(['mousemove', '--sync', x, y]);
+    const [X, Y] = this.at(x, y);
+    await this.x(['mousemove', '--sync', X, Y]);
   }
 
   async click(x, y, { button = 'left', double = false } = {}) {
     const b = { left: 1, middle: 2, right: 3 }[button] || 1;
-    const move = Number.isFinite(x) && Number.isFinite(y) ? ['mousemove', '--sync', x, y] : [];
+    let [X, Y] = this.at(x, y);
+    // Where this screen's pointer was: the pointer may be on another bot's screen now.
+    if (this.region && !(Number.isFinite(X) && Number.isFinite(Y))) [X, Y] = this.lastPoint || this.at(Math.round(this.region.width / 2), Math.round(this.region.height / 2));
+    const move = Number.isFinite(X) && Number.isFinite(Y) ? ['mousemove', '--sync', X, Y] : [];
     await this.x([...move, 'click', ...(double ? ['--repeat', 2, '--delay', 90] : []), b]);
   }
 
   async drag(x1, y1, x2, y2) {
-    const mx = Math.round((x1 + x2) / 2);
-    const my = Math.round((y1 + y2) / 2);
-    await this.x(['mousemove', '--sync', x1, y1, 'mousedown', 1, 'sleep', 0.15, 'mousemove', mx, my, 'sleep', 0.08, 'mousemove', '--sync', x2, y2, 'sleep', 0.12, 'mouseup', 1]);
+    const [X1, Y1] = this.at(x1, y1);
+    const [X2, Y2] = this.at(x2, y2);
+    const mx = Math.round((X1 + X2) / 2);
+    const my = Math.round((Y1 + Y2) / 2);
+    await this.x(['mousemove', '--sync', X1, Y1, 'mousedown', 1, 'sleep', 0.15, 'mousemove', mx, my, 'sleep', 0.08, 'mousemove', '--sync', X2, Y2, 'sleep', 0.12, 'mouseup', 1]);
   }
 
   async type(text) {
     if (!text) return;
+    await this.focusHere();
     await this.x(['type', '--delay', 12, '--clearmodifiers', '--', text], 10000 + text.length * 40);
   }
 
   async key(spec) {
     const combos = parseKeys(spec, 'linux').map(({ mods, key }) => [...mods, key].map(x11Key).join('+'));
+    await this.focusHere();
     await this.x(['key', '--clearmodifiers', '--delay', 40, '--', ...combos]);
   }
 
   async scroll(x, y, { direction = 'down', amount = 5 } = {}) {
     const b = { up: 4, down: 5, left: 6, right: 7 }[direction] || 5;
-    await this.x(['mousemove', '--sync', x, y, 'click', '--repeat', Math.max(1, Math.min(50, amount)), '--delay', 40, b]);
+    const [X, Y] = this.at(x, y);
+    await this.x(['mousemove', '--sync', X, Y, 'click', '--repeat', Math.max(1, Math.min(50, amount)), '--delay', 40, b]);
   }
 
   async cursor() {
     const { stdout } = await this.x(['getmouselocation', '--shell']);
-    const x = Number(stdout.match(/X=(\d+)/)?.[1]);
-    const y = Number(stdout.match(/Y=(\d+)/)?.[1]);
+    let x = Number(stdout.match(/X=(\d+)/)?.[1]);
+    let y = Number(stdout.match(/Y=(\d+)/)?.[1]);
+    const r = this.region;
+    if (r) {
+      // Off this screen (another bot moved it): where it last was here.
+      if (!(x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height)) [x, y] = this.lastPoint || [r.x, r.y];
+      x -= r.x;
+      y -= r.y;
+    }
     return { x, y };
+  }
+
+  /** ImageMagick's crop to this screen, when it's part of a wider display. */
+  crop() {
+    const r = this.region;
+    return r ? ['-crop', `${r.width}x${r.height}+${r.x}+${r.y}`, '+repage'] : [];
   }
 
   async close() {
@@ -812,8 +864,10 @@ class WindowsDesktop {
   }
 }
 
-export async function createDesktop({ log = console, platform = process.platform, env = process.env } = {}) {
+/** `region`: on Linux, a part of the display that's all this desktop sees and
+ * acts on ({ x, y, width, height }: a bot's own screen, computer/src/screens.mjs). */
+export async function createDesktop({ log = console, platform = process.platform, env = process.env, region = null } = {}) {
   if (platform === 'win32') return new WindowsDesktop({ log }).init();
   if (platform === 'darwin') return new MacDesktop({ log }).init();
-  return new LinuxDesktop({ log, env }).init();
+  return new LinuxDesktop({ log, env, region }).init();
 }

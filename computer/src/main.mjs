@@ -16,7 +16,10 @@ import { startQuickTunnel, ensureCloudflared, qrText } from './tunnel.mjs';
 import { keepAwake } from './awake.mjs';
 import { AccountLink } from './account.mjs';
 import { BotHome } from './home.mjs';
-import { runLatest } from './update.mjs';
+import { latestVersion, newerVersion, runLatest } from './update.mjs';
+
+/** How often a Holly Bot server looks for a newer Holly Computer. */
+const UPDATE_EVERY = 30 * 60_000;
 
 const USAGE = `Holly Computer — your Holly bots live on this computer; control them from your phone.
 
@@ -176,6 +179,8 @@ export async function main(argv = process.argv.slice(2)) {
   const account = new AccountLink(join(dataDir, 'account.json'), { name: cfg.name });
   await account.keepAccessKey({ renew: args.newToken });
   const home = new BotHome({ dataDir, account, computer });
+  // A working bot's own screen stays up (computer/src/screens.mjs).
+  computer.isBusy = (owner) => !!home.app?.runtime.isAgentBusy(owner);
   const app = await home.open();
 
   const serverInfo = {
@@ -268,6 +273,18 @@ export async function main(argv = process.argv.slice(2)) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  // Run by systemd (a Holly Bot server: convex/lib/cloudinit.ts), which starts
+  // it again with the latest build: once a newer one is out and no bot is
+  // working, it stops for that, so a fix reaches servers without waiting for
+  // one to restart. Elsewhere it updates as it starts (runLatest).
+  if (args.update && globalThis.__HOLLY_BUNDLE__ && process.env.INVOCATION_ID) {
+    setInterval(async () => {
+      const latest = await latestVersion();
+      if (!latest || !newerVersion(latest, VERSION) || home.app?.runtime.activeRuns().length) return;
+      console.log(`\n  Holly Computer ${latest} is out: restarting to run it.`);
+      shutdown();
+    }, UPDATE_EVERY).unref();
+  }
   return { app, home, server, computer, db: app.db, token: cfg.token, url: local };
 }
 

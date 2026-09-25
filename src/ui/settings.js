@@ -162,7 +162,7 @@ function MainPage({ go, onClose }) {
       <${Row} title="Set Time Zone Automatically" sub="Your Bot's computer follows this device's time zone." toggle=${s.timeZoneAuto !== false}
         onToggle=${(v) => set({ timeZoneAuto: v, timeZone: v ? '' : tz })} />
       <${Row} title="Time Zone" value=${tz} onClick=${s.timeZoneAuto === false ? () => go('timezone') : null} chevron=${false} />
-      <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : app.linkedComputers?.length ? 'Not connected' : 'Set up'} onClick=${() => go('computer')} />
+      <${Row} title="Bot Computer" value=${app.remote ? app.computer.info?.hostname || 'Connected' : app.awaitingServer ? 'Setting up…' : app.linkedComputers?.length ? 'Not connected' : 'Set up'} onClick=${() => go('computer')} />
       <${Row} title="Memory & Context" onClick=${() => go('memory')} />
       <${Row} title="Routines" onClick=${() => ui.openSheet('routines', {})} />
     <//>

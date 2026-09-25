@@ -75,7 +75,7 @@ export function CreateBotSheet({ onClose }) {
   return html`
     <${Sheet} title="Create New Bot" onClose=${onClose}
       footer=${html`<button class="btn block big ${valid ? 'primary' : ''}" disabled=${!valid || busy} onClick=${create}>Create</button>`}>
-      <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live working=${preview} anim=${thinking} /></div>
+      <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live working=${preview || busy} anim=${thinking} /></div>
       <input class="name-input" placeholder="Name your Bot" maxlength="40" value=${name} aria-label="Bot name"
         onInput=${(e) => setName(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && create()} />
       <${LookPicker} shape=${shape} color=${color} thinking=${thinking}

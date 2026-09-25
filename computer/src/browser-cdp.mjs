@@ -553,9 +553,17 @@ class Tab {
 }
 
 export class CdpBrowser {
-  constructor({ executablePath, userDataDir, headless = false, log = console, downloadDir = null, width = 1280, height = 900, extraArgs = [] } = {}) {
+  /** `env`: what Chrome runs with (its DISPLAY). `place(owner)`: where an
+   * owner's own screen is ({ x, y, width, height }), when each bot has one
+   * (computer/src/screens.mjs): its tabs then open in a window of its own
+   * there, so bots browse side by side, with the same logins. */
+  constructor({ executablePath, userDataDir, headless = false, log = console, downloadDir = null, width = 1280, height = 900, extraArgs = [], env = process.env, place = null } = {}) {
     this.executablePath = executablePath;
     this.extraArgs = extraArgs;
+    this.env = env;
+    this.place = place;
+    this.owned = new Map(); // owner → Set of its windows' tabs (targetId), with place
+    this.shown = new Map(); // owner → the tab last brought to the front in its window
     this.userDataDir = userDataDir;
     this.headless = headless;
     this.log = log;
@@ -589,6 +597,8 @@ export class CdpBrowser {
     this.cdp = cdp;
     this.tabs.clear();
     this.owners.clear();
+    this.owned.clear();
+    this.shown.clear();
     this.lastUsed = null;
     cdp.on((m) => this.onEvent(m));
     await cdp.send('Target.setDiscoverTargets', { discover: true });
@@ -635,7 +645,7 @@ export class CdpBrowser {
     return new Promise((resolve, reject) => {
       let child;
       try {
-        child = spawn(this.executablePath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+        child = spawn(this.executablePath, args, { stdio: ['ignore', 'ignore', 'pipe'], env: this.env });
       } catch (err) {
         reject(new Error(`Could not start the browser: ${err.message}`));
         return;
@@ -675,6 +685,8 @@ export class CdpBrowser {
       this.cdp = null;
       this.tabs.clear();
       this.owners.clear();
+      this.owned.clear();
+      this.shown.clear();
       this.lastUsed = null;
       return;
     }
@@ -745,6 +757,7 @@ export class CdpBrowser {
 
   forget(tab) {
     this.tabs.delete(tab.sessionId);
+    for (const set of this.owned.values()) set.delete(tab.targetId);
     for (const [owner, t] of this.owners) if (t === tab) this.owners.delete(owner);
     if (this.lastUsed === tab) this.lastUsed = null;
   }
@@ -794,23 +807,57 @@ export class CdpBrowser {
       if ((await this.pageTargets()).some((t) => t.targetId === popupId)) {
         tab = await this.attach(popupId);
         this.owners.set(owner, tab);
+        await this.onScreen(owner, popupId);
         this.notes.push('The page opened a new tab — switched to it.');
       }
     }
     if (!tab) tab = await this.claimTab(owner);
     this.lastUsed = tab;
-    await this.cdp.send('Target.activateTarget', { targetId: tab.targetId }).catch(() => {});
+    // With a window each, a tab comes to the front only when the bot moves to
+    // another: bringing a window forward takes the keyboard from the others.
+    if (!this.place || this.shown.get(owner) !== tab.targetId) {
+      this.shown.set(owner, tab.targetId);
+      await this.cdp.send('Target.activateTarget', { targetId: tab.targetId }).catch(() => {});
+    }
     return tab;
+  }
+
+  /** Puts a window of `owner`'s on its own screen, filling it. */
+  async onScreen(owner, targetId) {
+    if (!this.place) return;
+    if (!this.owned.has(owner)) this.owned.set(owner, new Set());
+    this.owned.get(owner).add(targetId);
+    try {
+      const b = await this.place(owner);
+      const { windowId } = await this.cdp.send('Browser.getWindowForTarget', { targetId });
+      await this.cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } }).catch(() => {});
+      await this.cdp.send('Browser.setWindowBounds', { windowId, bounds: { left: b.x, top: b.y, width: b.width, height: b.height } });
+    } catch (err) {
+      this.log.warn?.(`  Couldn't put a bot's browser window on its screen: ${err.message}`);
+    }
+  }
+
+  /** `owner` gave up its screen: its windows close. */
+  async release(owner) {
+    const ids = [...(this.owned.get(owner) || [])];
+    this.owned.delete(owner);
+    this.shown.delete(owner);
+    this.owners.delete(owner);
+    for (const targetId of ids) await this.cdp?.send('Target.closeTarget', { targetId }).catch(() => {});
   }
 
   async claimTab(owner) {
     const pages = await this.pageTargets();
     const taken = new Set([...this.owners.values()].map((t) => t.targetId));
     const blank = (t) => /^(about:blank|chrome:\/\/newtab|chrome:\/\/new-tab-page|edge:\/\/newtab|chrome-search:)/.test(t.url);
-    const free = pages.find((t) => !taken.has(t.targetId) && blank(t)) || (taken.size === 0 && owner === 'user' ? pages[0] : null);
-    const targetId = free ? free.targetId : (await this.cdp.send('Target.createTarget', { url: 'about:blank' })).targetId;
+    // With a screen each, a blank tab could be in another's window: only Chrome's first one is free.
+    const spare = !this.place || !this.owned.size;
+    const free = spare ? pages.find((t) => !taken.has(t.targetId) && blank(t)) || (taken.size === 0 && owner === 'user' ? pages[0] : null) : null;
+    // With a screen each, a new window, on the owner's screen.
+    const targetId = free ? free.targetId : (await this.cdp.send('Target.createTarget', { url: 'about:blank', ...(this.place ? { newWindow: true } : {}) })).targetId;
     const tab = await this.attach(targetId);
     this.owners.set(owner, tab);
+    await this.onScreen(owner, targetId);
     return tab;
   }
 
@@ -1025,9 +1072,10 @@ export class CdpBrowser {
 
   async newTab(url, o = {}) {
     await this.start();
-    const { targetId } = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
+    const { targetId } = await this.cdp.send('Target.createTarget', { url: 'about:blank', ...(this.place ? { newWindow: true } : {}) });
     const tab = await this.attach(targetId);
     this.owners.set(o.owner || 'user', tab);
+    await this.onScreen(o.owner || 'user', targetId);
     this.lastUsed = tab;
     const opts = { owner: o.owner || 'user' };
     if (url && url !== 'about:blank') return this.goto(url, opts);

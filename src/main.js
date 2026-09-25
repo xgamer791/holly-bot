@@ -11,7 +11,8 @@ import {
   DeviceDataScreen, LinkComputerScreen, OtherAccountScreen, ProblemScreen, WelcomeFlow, screenFromHash,
 } from './ui/welcome.js';
 import { SubscribeScreen } from './ui/subscribe.js';
-import { SetupScreen } from './ui/setup.js';
+import { ChiefScreen } from './ui/chief.js';
+import { chiefOf } from './core/chief.js';
 import {
   account, friendlyError, signInWorksHere, SITE,
 } from './account/account.js';
@@ -73,7 +74,7 @@ async function boot() {
  * Holly Computer linked to the account, like any other). */
 async function openApp() {
   whitePages(false);
-  if (/^#\/(subscribe|setup)\b/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+  if (/^#\/(subscribe|setup|chief)\b/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
   const connected = await finishConnecting();
   if (connected) notice = connected;
   return startAccount();
@@ -92,20 +93,18 @@ function whitePages(on) {
 /** The latest billing:status (convex/billing.ts). */
 let billing = null;
 let watchingSubscription = false;
-/** The server that comes with the plan was just set up (the setup page): the
- * app opens onto it (openComputer). */
-let serverJustSetUp = false;
 
 /**
  * Holly Bot opens only for an account with an active subscription
- * (convex/billing.ts) whose computer is ready (convex/servers.ts). Anyone
- * without a subscription gets the subscription page instead, and a subscriber
- * whose computer is still being set up gets its progress (src/ui/setup.js);
- * the address can't get around either, since the app and its routes open only
- * from here. Back from Stripe (Checkout or the billing portal), or when a paid
- * period should have ended, Stripe is asked first, so a subscription just paid
- * for goes straight on to its computer. True when the app may open; otherwise
- * a page has taken over, and opens it when it's time.
+ * (convex/billing.ts). Anyone without one gets the subscription page instead;
+ * the address can't get around it, since the app and its routes open only
+ * from here. A new subscriber's computer takes a few minutes to set up
+ * (convex/servers.ts), and the app doesn't wait for it: it opens with the bots
+ * running here and the computer button pulsing blue, and moves onto the
+ * computer once it's ready (watchServerSetup). Back from Stripe (Checkout or
+ * the billing portal), or when a paid period should have ended, Stripe is
+ * asked first, so a subscription just paid for opens the app straight away.
+ * True when the app may open; otherwise a page has taken over.
  */
 async function subscribed() {
   const back = takeBillingReturn();
@@ -130,17 +129,7 @@ async function subscribed() {
     return false;
   }
   if (back === 'paid') notice = { text: welcomeText(status) };
-  if (usable(status)) return true;
-  showSetup(status);
-  return false;
-}
-
-/** Whether the app can open: the subscriber's computer is ready (or being
- * resized), or they're past due, keeping what they have while Stripe tries
- * their card again, or the account needs no subscription (exempt, the owner's
- * while testing), and so has no computer to wait for. */
-function usable(status) {
-  return status.exempt || status.pastDue || ['ready', 'resizing'].includes(status.server?.status);
+  return true;
 }
 
 function showSubscribe(status, back) {
@@ -150,19 +139,6 @@ function showSubscribe(status, back) {
     onActive=${(next) => {
       billing = next;
       notice = { text: welcomeText(next) };
-      if (usable(next)) openApp();
-      else showSetup(next);
-    }}
-    onSignOut=${() => signOut()} />`);
-}
-
-function showSetup(status) {
-  whitePages(true);
-  history.replaceState(null, '', `${location.pathname}${location.search}#/setup`);
-  show(html`<${SetupScreen} status=${status}
-    onReady=${(next) => {
-      billing = next;
-      serverJustSetUp = true;
       openApp();
     }}
     onSignOut=${() => signOut()} />`);
@@ -299,19 +275,16 @@ async function openComputer() {
   // A saved computer that was linked to the account and isn't any more (a
   // subscriber's server replaced by a smaller one) counts as none saved.
   const gone = !!(saved?.device && linked && !mine);
-  // Just set up, the server that comes with the plan first: it's what the
-  // person subscribed for. Then the saved computer, and where the account
-  // says it is now if it moved. Then, with none saved, or when the saved one
-  // is linked to the account but can't be reached, any running, your own
-  // computer before the server that comes with a plan, and none this device
-  // was told to leave alone (Not now, Disconnect this device). A saved
-  // computer that isn't linked to the account is the only one tried: its
-  // bots may be only there.
+  // The saved computer first, and where the account says it is now if it
+  // moved. Then, with none saved, or when the saved one is linked to the
+  // account but can't be reached, any running, your own computer before the
+  // server that comes with a plan, and none this device was told to leave
+  // alone (Not now, Disconnect this device). A saved computer that isn't
+  // linked to the account is the only one tried: its bots may be only there.
   const tries = [];
   const add = (conn) => {
     if (conn && !tries.some((t) => t.url === conn.url && t.token === conn.token)) tries.push(conn);
   };
-  if (serverJustSetUp) (linked || []).filter((device) => device.server).forEach((device) => add(computerConnection(device)));
   if (saved && !gone) add(saved);
   const others = runsHere() ? [] : preferred(linked || []).filter((device) => !declined(device));
   for (const device of saved && !gone ? [mine, ...(mine ? others : [])] : others) add(computerConnection(device));
@@ -403,9 +376,11 @@ function watchComputers(app) {
         if (left && !computerConnection(list.find((device) => device.id === left))) showNotice(app, null);
       } else {
         app.linkedComputers = statesOf(list);
-        showNotice(app, noticeAbout(app.linkedComputers, list));
+        // Nothing to say while the plan's server is on its way: the app moves onto it by itself.
+        showNotice(app, app.awaitingServer ? null : noticeAbout(app.linkedComputers, list));
       }
-      const offer = preferred(list).find((device) => device !== here && (!device.server || !app.remote)
+      // A server just set up isn't offered: the app moves onto it by itself (watchServerSetup).
+      const offer = preferred(list).find((device) => device !== here && (!device.server || (!app.remote && !app.awaitingServer))
         && computerConnection(device) && !declined(device) && !unreachable.has(addressOf(device)));
       if (!offer || !app.events.map.get('computer-offer')?.size) return;
       asking = true;
@@ -683,11 +658,7 @@ function watchOtherDevices(app, db) {
     });
     const reloadIfQuiet = () => {
       if (document.visibilityState !== 'visible') return;
-      const field = document.activeElement;
-      const typing = !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
-        || [...(app.drafts?.values() || [])].some((text) => text?.trim());
-      const busy = typing || app.runtime.activeRuns().length > 0 || db.pending.length > 0;
-      if (!busy && Date.now() - lastInput > 120_000) location.reload();
+      if (!busyHere(app) && Date.now() - lastInput > 120_000) location.reload();
     };
     banner('Changed on another device · Tap to refresh', () => location.reload());
     setInterval(reloadIfQuiet, 5000);
@@ -753,7 +724,13 @@ function banner(text, onClick, tone = '') {
   return button;
 }
 
-function mount(app) {
+/** Opens the app on `app`: first the Chief Coordinator's page when the account
+ * doesn't have one yet (wantsChief). */
+function mount(app, { chiefDone = false } = {}) {
+  if (!chiefDone && wantsChief(app)) {
+    showChief(app);
+    return;
+  }
   app.startupNotice = notice;
   notice = null;
   render(null, root);
@@ -765,8 +742,122 @@ function mount(app) {
     if (billing?.pastDue) paymentBanner();
     watchSubscription();
     watchComputers(app);
+    watchServerSetup(app);
   }
   if (signInWorksHere()) watchUpdates();
+}
+
+const CHIEF_LATER = 'holly.chiefLater';
+
+/** Whether to show the Chief Coordinator's page (src/ui/chief.js) as the app
+ * opens: on the Holly Bot site, signed in, for an account without one, when
+ * it has no bots at all (it's the first) or it wasn't put away on this device
+ * (Not now). */
+function wantsChief(app) {
+  if (!signInWorksHere() || !account.signedIn || chiefOf(app)) return false;
+  if (!app.listAgents().length) return true;
+  try {
+    return !localStorage.getItem(CHIEF_LATER);
+  } catch {
+    return false;
+  }
+}
+
+function showChief(app) {
+  history.replaceState(null, '', `${location.pathname}${location.search}#/chief`);
+  document.getElementById('boot')?.remove();
+  registerServiceWorker();
+  // Straight on to the bot list, the dashboard.
+  const open = () => {
+    history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+    mount(app, { chiefDone: true });
+  };
+  show(html`<${ChiefScreen} app=${app} canSkip=${app.listAgents().length > 0} onDone=${open}
+    onSkip=${() => {
+      try {
+        localStorage.setItem(CHIEF_LATER, '1');
+      } catch { /* storage blocked: it asks again next time */ }
+      open();
+    }}
+    onSignOut=${() => signOut(app.db?.cloud ? app.db : undefined)} />`);
+}
+
+/** What billing:status says about a server still being set up. */
+const SETTING_UP = ['none', 'provisioning', 'deleting'];
+
+/** Whether the subscription's server is still being set up. */
+function settingUp(status) {
+  return !!status?.active && !status.exempt && SETTING_UP.includes(status.server?.status || 'none');
+}
+
+/**
+ * The app opens while a new subscriber's server is still being set up
+ * (convex/servers.ts takes a few minutes): the bots run here meanwhile, and
+ * the computer button pulses blue (app.awaitingServer,
+ * src/ui/computer-button.js). This follows the setup (billing:status every ten
+ * seconds while the app is in front) and, once the server is ready, moves onto
+ * it as soon as nothing's going on here. Setup that hasn't started after a
+ * minute and a half (Stripe's word didn't come) is started (servers:retry).
+ * If it fails, the button goes gray, and Settings says why and offers to try
+ * again.
+ */
+function watchServerSetup(app) {
+  if (!settingUp(billing)) return;
+  const stop = () => {
+    clearInterval(timer);
+    app.awaitingServer = false;
+    app.emit('computer');
+  };
+  app.awaitingServer = true;
+  app.emit('computer');
+  const since = Date.now();
+  let nudged = false;
+  let ready = false;
+  let checking = false;
+  let lastInput = Date.now();
+  for (const type of ['pointerdown', 'keydown', 'input']) {
+    addEventListener(type, () => { lastInput = Date.now(); }, { capture: true, passive: true });
+  }
+  const timer = setInterval(async () => {
+    if (checking || document.visibilityState !== 'visible') return;
+    checking = true;
+    try {
+      if (!ready) {
+        const status = await account.authed('query', 'billing:status');
+        billing = status;
+        if (settingUp(status)) {
+          if (!nudged && (status.server?.status || 'none') === 'none' && Date.now() - since > 90_000) {
+            nudged = true;
+            await account.authed('mutation', 'servers:retry').catch(() => {});
+          }
+          return;
+        }
+        if (!['ready', 'resizing'].includes(status.server?.status)) return stop(); // it failed: Settings says why
+        ready = true;
+      }
+      const list = await linkedComputers();
+      if (!list) return;
+      // On a computer that's still linked (your own): the bots stay there. One
+      // that's gone (the server this one replaced) is left for the new one.
+      if (app.remote && (!app.device || list.some((d) => d.id === app.device))) return stop();
+      const device = list.find((d) => d.server && computerConnection(d));
+      if (!device || busyHere(app) || Date.now() - lastInput < 5000) return;
+      clearInterval(timer);
+      connectTo(device);
+    } catch { /* offline, or the server is busy: next time */ } finally {
+      checking = false;
+    }
+    return undefined;
+  }, 10_000);
+}
+
+/** Whether reloading now would cut something short here: a bot replying,
+ * something being typed, changes waiting to be saved. */
+function busyHere(app) {
+  const field = document.activeElement;
+  const typing = !!(field?.matches?.('input, textarea') ? field.value?.trim() : field?.isContentEditable && field.textContent.trim())
+    || [...(app.drafts?.values() || [])].some((text) => text?.trim());
+  return typing || app.runtime.activeRuns().length > 0 || (app.db?.pending?.length || 0) > 0;
 }
 
 function registerServiceWorker() {

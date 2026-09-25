@@ -14,6 +14,17 @@ export function buildVersion(text) {
   return /\(app (\d+\.\d+\.\d+)\)/.exec(String(text).slice(0, 2000))?.[1] || null;
 }
 
+/** The version of the build the Holly Bot site serves now, from its header;
+ * null when the site can't be reached. */
+export async function latestVersion() {
+  try {
+    const res = await fetch(`${LATEST}?t=${Date.now()}`, { headers: { Range: 'bytes=0-1999' }, signal: AbortSignal.timeout(15_000) });
+    return res.ok ? buildVersion(await res.text()) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whether version `a` is newer than `b` (both x.y.z). */
 export function newerVersion(a, b) {
   const x = a.split('.').map(Number);

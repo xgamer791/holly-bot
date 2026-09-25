@@ -25,10 +25,11 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
   ];
   return html`
     <${Sheet} title=${agent ? `${agent.name}'s computer` : 'Computer'} onClose=${onClose}
+      footer=${tab === 'screen' && caps.memory ? html`<${RamMeter} />` : null}
       right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast('Stopped all bots'), (err) => ui.toast(err.message, { error: true }))}>Stop all</button>`
         : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? 'Online' : 'Browser only'}</span>`}>
       <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
-      ${tab === 'screen' && html`<${Screen} />`}
+      ${tab === 'screen' && html`<${Screen} agentId=${agent?.id} />`}
       ${tab === 'files' && agent && (openFile
         ? html`<${FilePreview} fileId=${openFile} onBack=${() => setOpenFile(null)} />`
         : html`<${FileList} agentId=${agentId} onOpen=${setOpenFile} />`)}
@@ -166,10 +167,14 @@ function Terminal() {
     </div>`;
 }
 
-function Screen() {
+/** The computer's screen, or with `agentId`, that bot's: on a server each bot
+ * has a screen of its own, with its own window of the shared Chrome
+ * (computer/src/screens.mjs); elsewhere they share the one. */
+function Screen({ agentId }) {
   const app = useApp();
   const ui = useUi();
   const caps = app.computer.info?.capabilities || {};
+  const own = !!(caps.screens && agentId);
   const [mode, setMode] = useState(caps.screenshot ? 'desktop' : 'browser');
   const [shot, setShot] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -197,8 +202,8 @@ function Screen() {
     inflight.current = true;
     if (!quiet) setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280 }), true);
-      else show(await app.computer.browser('screenshot', { ifRunning: true }), false);
+      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { maxWidth: 1280, agentId }), true);
+      else show(await app.computer.browser('screenshot', { ifRunning: true, agentId }), false);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });
       setLive(false);
@@ -222,11 +227,11 @@ function Screen() {
   const act = async (action, args = {}) => {
     setBusy(true);
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width }), true);
+      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, imageWidth: shot?.width, agentId }), true);
       else {
         // Act on the tab being shown; after that the view follows whichever tab the bots use.
         const tab = action === 'goto' && closed ? undefined : shot?.tab;
-        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true }), false);
+        show(await app.computer.browser(action, { ...args, tab, quick: true, withScreenshot: true, agentId }), false);
       }
     } catch (err) {
       ui.toast(err.message, { error: true });
@@ -267,7 +272,9 @@ function Screen() {
         : html`<div class="notice" style="padding:60px 0">${busy ? 'Connecting to the screen…' : mode === 'browser' && closed ? 'The bot browser isn’t open. Type a website above to open it — or ask a bot to browse.' : 'No picture yet.'}</div>`}
       ${busy && shot?.data && html`<span class="spinner" style="position:absolute;top:10px;right:10px"></span>`}
     </div>
-    <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.'}</div>
+    <div class="hint" style="margin:8px 4px">Tap the picture to click there. ${own
+      ? (mode === 'browser' ? 'Sign in to sites here and every bot is signed in: the browser\'s logins are shared.' : 'This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.')
+      : (mode === 'browser' ? 'Sign in to sites here for your bots — logins stay in the bot browser.' : 'This is the live screen of your computer.')}</div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <input class="input" placeholder="Type text…" value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />
       <button class="btn" onClick=${typeNow}>Type</button>
@@ -285,6 +292,52 @@ function Screen() {
     <div class="btn-row" style="margin-top:12px">
       <button class="btn small" onClick=${() => setLive(!live)}>${live ? '❚❚ Pause live view' : '▶ Live view'}</button>
       <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> Refresh</button>
+    </div>`;
+}
+
+/** Memory in bytes as "812 MB", "3.8 GB" or "15 GB". */
+function ramSize(bytes) {
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 10) return `${Math.round(gb)} GB`;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
+}
+
+/** How much of the computer's memory is in use, as its own system monitor
+ * counts it (computer/src/memory.mjs), read every few seconds while shown:
+ * pinned at the bottom of the computer sheet under the Screen tab. */
+function RamMeter() {
+  const app = useApp();
+  const [mem, setMem] = useState(null);
+  useEffect(() => {
+    let reading = null;
+    const read = async () => {
+      if (reading || document.visibilityState !== 'visible') return;
+      reading = new AbortController();
+      try {
+        setMem(await app.computer.memory({ signal: reading.signal }));
+      } catch { /* keeps the last reading */ } finally {
+        reading = null;
+      }
+    };
+    read();
+    const t = setInterval(read, 3000);
+    return () => {
+      clearInterval(t);
+      reading?.abort();
+    };
+  }, []);
+  // Until the first reading comes, it keeps its place, so nothing jumps.
+  const known = mem?.total > 0;
+  const share = known ? Math.min(1, Math.max(0, mem.used / mem.total)) : 0;
+  const pct = Math.round(share * 100);
+  const text = known ? `${ramSize(mem.used)} of ${ramSize(mem.total)}` : '';
+  return html`
+    <div class="ram-meter" role="meter" aria-label="Memory in use" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
+      aria-valuetext=${known ? `${text} in use` : 'Reading'}>
+      <div class="ram-meter-head"><b>RAM</b><span>${known ? `${text} · ${pct}%` : '…'}</span></div>
+      <div class="ram-meter-bar"><span class=${share >= 0.9 ? 'high' : share >= 0.75 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
+      ${mem?.swapUsed > 0 && html`<div class="ram-meter-note">Swap: ${ramSize(mem.swapUsed)} of ${ramSize(mem.swapTotal)} in use</div>`}
     </div>`;
 }
 

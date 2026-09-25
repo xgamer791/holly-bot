@@ -55,6 +55,12 @@ export class ComputerClient {
     return this.request('/v1/apps', undefined, { signal });
   }
 
+  /** How much of the computer's memory is in use, in bytes: { total, used,
+   * swapTotal, swapUsed } (computer/src/memory.mjs). */
+  memory({ signal } = {}) {
+    return this.request('/v1/memory', undefined, { signal });
+  }
+
   async connect({ signal } = {}) {
     try {
       this.info = await this.request('/v1/info', undefined, { signal });
