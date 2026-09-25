@@ -4,9 +4,9 @@ import { range } from '../db.js';
 
 // Long-term memory for each agent. Every agent owns a private set of memories;
 // SHARED_ID holds the team notebook all agents can read and write, and USER_ID
-// what the bots know about the user themself (About you): their name, how to
-// reach them, where they live, what they like and don't, their hobbies and
-// habits. Every bot learns into it and sees it (src/core/prompts.js).
+// what the bots know about the user themself: their name, how to reach them,
+// where they live, what they like and don't, their hobbies and habits. Every
+// bot learns into it from their chats and sees it (src/core/prompts.js).
 
 export const SHARED_ID = '__shared__';
 export const USER_ID = '__user__';

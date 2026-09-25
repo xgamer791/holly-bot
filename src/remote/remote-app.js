@@ -520,10 +520,6 @@ export class RemoteApp {
     return this.rpc('memory.reflect', agentId);
   }
 
-  learnFromEmail() {
-    return this.rpc('user.learnFromEmail');
-  }
-
   exportData(opts) {
     return this.rpc('data.export', opts);
   }

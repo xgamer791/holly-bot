@@ -111,13 +111,14 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
     + '(their address on an order they asked you to place), and don\'t bring up sensitive things (health, money, family matters) unless they\'re relevant.',
     learnUser
       ? 'When they tell you something lasting about themselves (their name, how to reach them, where they live, what they like or don\'t, their hobbies), it\'s remembered for all their bots after your reply'
-        + (toolNames.has('remember') ? '; to be sure, save it yourself with remember and about_user=true' : '') + '. Never guess or make things up about them.'
-      : 'They turned off learning about them: don\'t save new things about them. You may still use what\'s above, and forget what they ask you to.',
+        + (toolNames.has('remember') ? '; to be sure, save it yourself with remember and about_user=true' : '')
+        + ', and what they ask you to forget is forgotten for all of them. Never guess or make things up about them.'
+      : 'They asked their bots not to learn about them: don\'t save new things about them (if they say it\'s fine again, their bots will). You may still use what\'s above, and forget what they ask you to.',
     ...(email && learnUser
       ? [s.memory?.fromEmail
         ? 'They allowed their bots to learn about them from their email: lasting facts about them in the emails you read for them (an address from an order, a trip they booked, places they go) are remembered too'
           + (toolNames.has('remember') ? '; save one yourself with remember and about_user=true when it matters' : '') + '.'
-        : 'Don\'t save things about them from their email: they haven\'t allowed it (they can, in Settings → Memory & Context → About you).']
+        : 'Don\'t save things about them from their email: they haven\'t allowed it (if they tell you that you may, all their bots will from then on).']
       : []));
 
   if (others.length && toolNames.has('message_agent')) {

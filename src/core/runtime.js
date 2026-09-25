@@ -1100,7 +1100,7 @@ export class Runtime {
       const fromUser = [...incoming].reverse().find((m) => m.authorType === 'user');
       if (exchange.length >= 2 || (thread.kind === 'dm' && exchange.length)) {
         try {
-          const { applied, name, call } = await extractAndApply({
+          const { applied, name, call, learn, email } = await extractAndApply({
             llm, store: app.memory, agentId, agentName: agent.name, userName: app.settings.profile?.name,
             exchange, source: { threadId, messageId: msg.id },
             when: fromUser ? localTimeContext(fromUser.createdAt, app.timeZone()) : '',
@@ -1117,6 +1117,11 @@ export class Runtime {
           const profile = app.settings.profile || {};
           const next = { ...profile, ...(name ? { name } : {}), ...(call !== undefined ? { callMe: call, noName: !call } : {}) };
           if (next.name !== profile.name || next.callMe !== profile.callMe || next.noName !== profile.noName) await app.saveSettings({ profile: next });
+          // Whether the bots may learn about them, and from their email, as they said in the chat.
+          const mem = app.settings.memory || {};
+          if ((learn !== undefined && learn !== (mem.learnUser !== false)) || (email !== undefined && email !== !!mem.fromEmail)) {
+            await app.saveSettings({ memory: { ...mem, ...(learn !== undefined ? { learnUser: learn } : {}), ...(email !== undefined ? { fromEmail: email } : {}) } });
+          }
         } catch (err) {
           console.warn('memory extraction failed', err);
           app.logActivity(agentId, { type: 'memory', title: phrase('Memory update failed'), detail: errorMessage(err), isError: true });

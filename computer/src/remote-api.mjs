@@ -148,7 +148,6 @@ export const RPC = {
   'memory.remove': (app, [id]) => app.memory.remove(id),
   'memory.reindex': (app, [agentId]) => app.memory.reindex(agentId),
   'memory.reflect': (app, [agentId]) => app.reflectNow(agentId),
-  'user.learnFromEmail': (app) => app.learnFromEmail(),
 
   'files.list': (app, [agentId, prefix]) => app.files.list(agentId, prefix),
   'files.meta': async (app, [id]) => {

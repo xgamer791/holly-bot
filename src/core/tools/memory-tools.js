@@ -21,14 +21,14 @@ export const memoryTools = [
         type: { type: 'string', enum: MEMORY_TYPES },
         importance: { type: 'integer', minimum: 1, maximum: 10, description: '1 = trivia, 5 = useful, 8+ = core/critical' },
         tags: { type: 'array', items: { type: 'string' } },
-        about_user: { type: 'boolean', description: 'A fact about the user themself, for all their bots (About you).' },
+        about_user: { type: 'boolean', description: 'A fact about the user themself, for all their bots.' },
         shared: { type: 'boolean', description: 'Save to the shared team memory instead of your private memory.' },
       },
       required: ['text'],
     },
     async run(args, ctx) {
       if (args.about_user && ctx.app.settings.memory?.learnUser === false) {
-        return { content: 'Not saved: the user turned off learning about them (Settings → Memory & Context → About you).', isError: true };
+        return { content: 'Not saved: the user asked their bots not to learn about them. If they say it\'s fine again, it will be.', isError: true };
       }
       const owner = args.about_user ? USER_ID : args.shared ? SHARED_ID : ctx.agent.id;
       const { memory, action } = await ctx.app.memory.add(owner, {

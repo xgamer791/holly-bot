@@ -21,14 +21,15 @@ import { BUILTIN_TOOLS } from './tools/index.js';
 
 export const DEFAULT_SETTINGS = {
   // The user: their name, and what the bots call them (callMe; noName: not by
-  // name), learned as they chat (src/core/runtime.js) or set in About you.
+  // name), as they said in their chats (src/core/runtime.js).
   profile: { name: '', email: '', about: '', callMe: '', noName: false },
   providers: {},
   defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same', effort: '' },
   // Retry once with this provider/model when the main one fails (outage, rate limit, no credit).
   backup: { provider: '', model: '' },
-  // learnUser: bots learn about the user (About you, src/core/memory/store.js
-  // USER_ID); fromEmail: from the emails they read for them too.
+  // learnUser: bots learn about the user (src/core/memory/store.js USER_ID);
+  // fromEmail: from the emails they read for them too. Both as the user says
+  // in their chats (src/core/runtime.js).
   memory: { auto: true, embeddings: 'auto', contextBudget: 'auto', learnUser: true, fromEmail: false },
   services: {},
   computer: { url: '', token: '' },
@@ -405,7 +406,7 @@ export class App {
     const chief = agent.role === 'chief';
     const lang = this.settings.uiLanguage || 'en';
     const say = (text, vars) => firstWords(lang, text, vars);
-    // By name, when the bots know what to call the user (About you).
+    // By name, when the bots know what to call the user.
     const user = callName(this.settings.profile);
     const text = chief ? chiefGreeting(agent.name, lang, user)
       : user ? say("Hey {user} — I'm {name}. Ready whenever you are.\n\nWhat do you want me helping with most?", { name: agent.name, user })
@@ -671,7 +672,7 @@ export class App {
     return out;
   }
 
-  // ----- what the bots know about the user (About you) ------------------------
+  // ----- what the bots know about the user ----------------------------------
 
   /** Loads what the bots know about the user, for their prompts. */
   async loadUserFacts() {
@@ -732,35 +733,6 @@ export class App {
     } finally {
       this.reflectingOnUser = false;
     }
-  }
-
-  /**
-   * About you → Learn from my recent email (with Learn from my email on): what
-   * the newest emails, and the latest orders, bookings and receipts, in the
-   * user's connected mailboxes show about them. Returns how many new things
-   * the bots learned.
-   */
-  async learnFromEmail({ signal } = {}) {
-    const mem = this.settings.memory || {};
-    if (mem.learnUser === false || !mem.fromEmail) throw new Error('Learning from your email is off.');
-    await this.refreshConnections({ maxAge: 60 * 1000 });
-    const services = ['gmail', 'outlook'].filter((service) => this.connection(service));
-    if (!services.length) throw new Error('Connect Gmail or Outlook first, in Settings → Plugins.');
-    const searches = {
-      gmail: ['', 'subject:(order OR receipt OR reservation OR booking OR confirmation OR ticket) newer_than:1y'],
-      outlook: ['', 'confirmation'],
-    };
-    const emails = new Map();
-    for (const service of services) {
-      for (const query of searches[service]) {
-        for (const m of await this.connector(service, 'search', { query, max: 25 }, { signal })) emails.set(`${service}:${m.id}`, m);
-      }
-    }
-    if (!emails.size) return 0;
-    const { learnFromEmails } = await import('./memory/extract.js');
-    const llm = (req) => this.providers.complete({ agent: null, purpose: 'memory', signal, ...req });
-    const { applied } = await learnFromEmails({ llm, store: this.memory, emails: [...emails.values()], userName: this.settings.profile?.name, signal });
-    return applied.filter((a) => a.op === 'add').length;
   }
 
   /** Run memory reflection + profile refresh for a bot now. Returns the number of new insights. */
