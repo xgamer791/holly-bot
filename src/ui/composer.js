@@ -47,12 +47,20 @@ export function Composer({ thread, agents, onVoice }) {
   const isGroup = thread.kind === 'group';
   const primary = agents[0];
 
+  // The textarea isn't controlled: this re-renders all the time while a bot
+  // works, and writing the text back into the box mid-typing upsets iOS
+  // dictation and predictive text (their gray text ends up over the
+  // placeholder). What the app itself changes goes in through put().
+  const put = (v) => {
+    if (taRef.current && taRef.current.value !== v) taRef.current.value = v;
+    setText(v);
+  };
   useEffect(() => {
     app.drafts ||= new Map();
     app.drafts.set(thread.id, text);
   }, [text]);
   useEffect(() => {
-    setText(app.drafts?.get(thread.id) || '');
+    put(app.drafts?.get(thread.id) || '');
     setAtts([]);
   }, [thread.id]);
   useEffect(() => autosize(taRef.current), [text]);
@@ -62,7 +70,7 @@ export function Composer({ thread, agents, onVoice }) {
     const body = text.trim();
     if (!body && !atts.length) return;
     haptic(app);
-    setText('');
+    put('');
     setAtts([]);
     setMention(null);
     app.drafts?.set(thread.id, '');
@@ -103,7 +111,7 @@ export function Composer({ thread, agents, onVoice }) {
     }
     const base = text ? `${text.trimEnd()} ` : '';
     const rec = listen({
-      onText: (fin, interim) => setText(base + fin + interim),
+      onText: (fin, interim) => put(base + fin + interim),
       onEnd: () => setDictating(null),
       onError: (err) => {
         ui.toast(err.message, { error: true });
@@ -124,7 +132,7 @@ export function Composer({ thread, agents, onVoice }) {
   };
 
   const insertMention = (a) => {
-    setText((t) => t.replace(/@([\p{L}\p{N}_.-]*)$/u, `@${a.name.replace(/\s+/g, '')} `));
+    put((taRef.current?.value ?? text).replace(/@([\p{L}\p{N}_.-]*)$/u, `@${a.name.replace(/\s+/g, '')} `));
     setMention(null);
     taRef.current?.focus();
   };
@@ -154,7 +162,7 @@ export function Composer({ thread, agents, onVoice }) {
         <button key=${a.id} onClick=${() => insertMention(a)}><${Avatar} shape=${a.shape} color=${a.color} size=${24} /> ${a.name}</button>`)}</div>`}
       <button ref=${plusRef} class="circle-btn plus" aria-label="Add attachment" onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       <div class="input-pill">
-        <textarea ref=${taRef} rows="1" placeholder=${hint ? `${placeholder} — @mention who should reply` : placeholder} value=${text} aria-label=${placeholder}
+        <textarea ref=${taRef} rows="1" placeholder=${hint ? `${placeholder} — @mention who should reply` : placeholder} aria-label=${placeholder}
           onInput=${onInput} onKeyDown=${onKeyDown}
           onPaste=${(e) => {
             const files = [...(e.clipboardData?.files || [])];

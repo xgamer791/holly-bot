@@ -456,6 +456,8 @@ button.row:active { background: var(--surface-2); }
 .input-pill { flex: 1; min-width: 0; min-height: 50px; border-radius: 25px; border: 1px solid var(--border); background: var(--bg); display: flex; align-items: flex-end; padding: 4px 6px 4px 18px; gap: 6px; }
 .input-pill textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: none; font-size: 17px; line-height: 1.35; padding: 10px 0; max-height: 160px; color: var(--text); }
 .input-pill textarea::placeholder { color: #6f6f73; }
+/* Gone while typing, so the keyboard's gray predictions never sit on top of it. */
+.input-pill textarea:focus::placeholder { color: transparent; }
 .icon-btn { width: 40px; height: 40px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex: none; }
 .icon-btn svg { width: 22px; height: 22px; }
 .icon-btn.recording { color: var(--red-strong); animation: pulse 1.2s infinite; }

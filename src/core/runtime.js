@@ -59,14 +59,14 @@ export class Runtime {
     for (const r of this.runs.values()) r.controller.abort(new DOMException('Stopped', 'AbortError'));
   }
 
-  /** A new message came in while the bot works in this thread: its turn ends
-   * at the next step, so the next turn can answer. A reply it's writing is
-   * cut off; a tool that's running finishes first, so nothing is left half done. */
+  /** A new message came in while the bot works in this thread: it stops what
+   * it's doing right away (the reply it's writing, a tool that's running), so
+   * the next turn can answer, then carry on (cutShort). */
   interrupt(threadId) {
     const run = this.runs.get(threadId);
     if (!run) return;
     run.interrupted = true;
-    run.stepController?.abort(new DOMException('Interrupted', 'AbortError'));
+    run.controller.abort(new DOMException('Interrupted', 'AbortError'));
   }
 
   /** Serialize work per thread so turns never interleave. */
@@ -98,9 +98,9 @@ export class Runtime {
       await this.closeLocalQuestion(waiting.message, waiting.call, text.trim(), { inChat: true });
       waiting = null;
     }
-    // The bot is busy with a task in this chat: it stops at its next step
-    // (interrupt), answers this, then picks the task back up (the note this
-    // message carries says so: buildHistory).
+    // The bot is busy with a task in this chat: it stops (interrupt), answers
+    // this, then picks the task back up (the note this message carries says
+    // so: buildHistory).
     const busy = !waiting && thread.kind !== 'group' ? this.runs.get(threadId) : null;
     const userMsg = await app.addMessage({
       threadId, authorType: 'user', authorId: 'user', parts,
@@ -275,7 +275,8 @@ export class Runtime {
     }
     msg.status = 'streaming';
     msg.error = null;
-    this.runs.set(threadId, { controller, agentId: agent.id, messageId: msg.id, phase: 'thinking' });
+    const run = { controller, agentId: agent.id, messageId: msg.id, phase: 'thinking' };
+    this.runs.set(threadId, run);
     app.emitRuns();
     await app.updateThread(threadId, { status: 'working' });
 
@@ -285,10 +286,10 @@ export class Runtime {
       cfg = app.providers.resolve(agent);
       const serverTools = app.providers.serverToolsFor(cfg, agent);
       // Gmail, Outlook or GitHub connected (or disconnected) on another device since.
-      await app.refreshConnections({ maxAge: 60_000 });
+      await untilAborted(app.refreshConnections({ maxAge: 60_000 }), controller.signal);
       tools = toolsForAgent(app, agent, { nativeSearch: serverTools.includes('web_search') });
       if (!msg.turn) {
-        if (!resumeFrom) await this.attachContext(agent, thread, msg, controller.signal);
+        if (!resumeFrom) await untilAborted(this.attachContext(agent, thread, msg, controller.signal), controller.signal);
         msg.turn = {
           system: buildSystemPrompt({ app, agent, thread: app.getThread(threadId), tools }),
           provider: cfg.provider.id,
@@ -314,27 +315,14 @@ export class Runtime {
         }
       }
 
-      let cutShort = false; // by a new message (interrupt)
       for (let i = 0; i < MAX_TOOL_STEPS; i++) {
-        if (this.runs.get(threadId)?.interrupted) {
-          cutShort = true;
-          break;
-        }
+        if (run.interrupted) break;
         let history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
         const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
         msg.steps.push(step);
         app.touchMessage(msg);
         this.setPhase(threadId, 'thinking');
 
-        // The model's part of this step can be cut off by a new message
-        // (interrupt) without stopping the turn's tools.
-        const stepController = new AbortController();
-        const unlinkStep = linkSignal(controller.signal, stepController);
-        const run = this.runs.get(threadId);
-        if (run) {
-          run.stepController = stepController;
-          if (run.interrupted) stepController.abort(new DOMException('Interrupted', 'AbortError'));
-        }
         const ask = (c) => app.providers.chat({
           cfg: c,
           system: msg.turn.system,
@@ -343,40 +331,24 @@ export class Runtime {
           serverTools: app.providers.serverToolsFor(c, agent),
           reasoningEffort: agent.effort || app.settings.defaults?.effort || undefined,
           maxTokens: agent.maxTokens || undefined,
-          signal: stepController.signal,
+          signal: controller.signal,
           onEvent: (e) => this.onStreamEvent(msg, step, e),
         });
         let result;
         try {
-          try {
-            result = await ask(cfg);
-          } catch (err) {
-            // Main provider down, rate limited or out of credit: retry this step once on the backup.
-            const backup = stepController.signal.aborted ? null : app.providers.backupFor(cfg, err);
-            if (!backup) throw err;
-            Object.assign(step, { text: '', thinking: '', toolCalls: [], serverTools: [], citations: [] });
-            step.notices.push(`${cfg.provider.label} failed (${truncate(errorMessage(err), 140)}) — switched to ${backup.provider.label} for this reply.`);
-            app.touchMessage(msg);
-            cfg = backup;
-            msg.steps.pop();
-            history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
-            msg.steps.push(step);
-            result = await ask(cfg);
-          }
+          result = await ask(cfg);
         } catch (err) {
-          if (!stepController.signal.aborted || controller.signal.aborted) throw err;
-          cutShort = true;
-        } finally {
-          unlinkStep();
-          if (run) run.stepController = null;
-        }
-        if (cutShort) {
-          // Interrupted: keep what it had written, drop tool calls it hadn't finished asking for.
-          step.toolCalls = [];
-          step.serverTools = (step.serverTools || []).filter((st) => st.status !== 'running');
-          step.endedAt = now();
-          if (!step.text) msg.steps.pop();
-          break;
+          // Main provider down, rate limited or out of credit: retry this step once on the backup.
+          const backup = controller.signal.aborted ? null : app.providers.backupFor(cfg, err);
+          if (!backup) throw err;
+          Object.assign(step, { text: '', thinking: '', toolCalls: [], serverTools: [], citations: [] });
+          step.notices.push(`${cfg.provider.label} failed (${truncate(errorMessage(err), 140)}) — switched to ${backup.provider.label} for this reply.`);
+          app.touchMessage(msg);
+          cfg = backup;
+          msg.steps.pop();
+          history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
+          msg.steps.push(step);
+          result = await ask(cfg);
         }
 
         step.text = result.text;
@@ -410,17 +382,15 @@ export class Runtime {
         if (i === MAX_TOOL_STEPS - 1) step.notices.push(`Stopped after ${MAX_TOOL_STEPS} tool steps.`);
       }
 
+      if (run.interrupted) return await this.cutShort(msg);
       msg.status = 'done';
       await app.saveMessage(msg);
       const text = finalText(msg);
-      // Cut short, the turn isn't over: the next one answers the new message
-      // and carries on, and wraps up the chat (still busy until then).
-      if (!cutShort) {
-        await this.finishThread(threadId, msg, agent);
-        this.afterTurn(agent, threadId, msg).catch((err) => console.warn('post-turn memory work failed', err));
-      }
+      await this.finishThread(threadId, msg, agent);
+      this.afterTurn(agent, threadId, msg).catch((err) => console.warn('post-turn memory work failed', err));
       return { status: 'done', text, messageId: msg.id };
     } catch (err) {
+      if (run.interrupted) return await this.cutShort(msg);
       const stopped = isAbort(err) || controller.signal.aborted;
       msg.status = stopped ? 'stopped' : 'error';
       msg.error = stopped ? null : errorMessage(err);
@@ -447,6 +417,32 @@ export class Runtime {
       if (this.runs.get(threadId)?.messageId === msg.id) this.runs.delete(threadId);
       app.emitRuns();
     }
+  }
+
+  /**
+   * Ends a turn a new message cut short (interrupt), not as stopped: what it
+   * wrote stays; a step it was still writing loses its half-made tool calls;
+   * tools that hadn't finished say so, for the next turn to pick up from. The
+   * chat stays busy: the next turn answers and wraps up (finishThread, afterTurn).
+   */
+  async cutShort(msg) {
+    const last = msg.steps[msg.steps.length - 1];
+    if (last && !last.endedAt) {
+      last.endedAt = now();
+      last.toolCalls = [];
+      last.serverTools = (last.serverTools || []).filter((st) => st.status !== 'running');
+    }
+    for (const step of msg.steps) {
+      for (const c of step.toolCalls || []) {
+        if (c.result) continue;
+        c.status = 'error';
+        c.result = { content: 'Interrupted by a new message from the user before this finished, so it may not have happened. Check before doing it again.', isError: true };
+      }
+    }
+    msg.steps = msg.steps.filter((s) => s.text || s.toolCalls?.length || s.serverTools?.length);
+    msg.status = 'done';
+    await this.app.saveMessage(msg);
+    return { status: 'done', text: finalText(msg), messageId: msg.id };
   }
 
   async pause(msg, waitingMsg, threadId, carried = false) {
@@ -602,18 +598,21 @@ export class Runtime {
         call.approval = { status: 'pending', summary, requestedAt: now() };
         return 'paused';
       }
+      if (signal.aborted) throw new DOMException('Stopped', 'AbortError');
       call.status = 'running';
       call.startedAt = now();
       app.touchMessage(msg);
       let res;
       try {
-        res = await tool.run(call.prepared || args, {
+        // A tool that doesn't listen for the signal can't hold a stop or a new
+        // message up: the turn moves on, and what it returns later is dropped.
+        res = await untilAborted(tool.run(call.prepared || args, {
           app, agent, thread, message: msg, callId: call.id, signal, depth, runtime: this,
           progress: (text) => {
             call.progress = text;
             app.touchMessage(msg);
           },
-        });
+        }), signal);
       } catch (err) {
         if (isAbort(err) || signal.aborted) throw err;
         res = { content: errorMessage(err), isError: true };
@@ -1005,6 +1004,18 @@ export class Runtime {
 }
 
 // ----- helpers ------------------------------------------------------------
+
+/** `promise`, or an AbortError as soon as `signal` fires (what it was doing
+ * carries on; its outcome is dropped). */
+function untilAborted(promise, signal) {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const stop = () => reject(isAbort(signal.reason) ? signal.reason : new DOMException('Stopped', 'AbortError'));
+    if (signal.aborted) return stop();
+    signal.addEventListener('abort', stop, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
+}
 
 function linkSignal(parent, controller) {
   if (!parent) return () => {};
