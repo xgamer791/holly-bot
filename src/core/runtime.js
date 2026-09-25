@@ -1,4 +1,4 @@
-import { uid, now, truncate, estimateTokens, errorMessage, isAbort, normalizeName } from './util.js';
+import { uid, now, truncate, estimateTokens, errorMessage, isAbort, normalizeName, sleep } from './util.js';
 import { toolsForAgent, validateArgs, coerceArgs } from './tools/index.js';
 import { CONNECTOR_READS } from './tools/connector-tools.js';
 import { buildSystemPrompt, buildMessageContext } from './prompts.js';
@@ -17,12 +17,21 @@ const GROUP_MAX_HOPS = 8;
 /** For the bot, on the newest message when it came in while the bot was busy
  * with a task (Runtime.send, interrupt). */
 const INTERRUPTED_NOTE = '[This message came in while you were in the middle of a task, which is paused. Answer it first. Then, unless it tells you to stop or do something else, carry on with that task from where you left off.]';
+/** For the bot, on the newest message when its last reply was stopped (Stop,
+ * or the app closing) before it finished. */
+const STOPPED_NOTE = '[The user stopped your last reply before you finished. Anything you were in the middle of may not have happened. If this message asks you to continue, pick the task back up from where you left off: check what already got done, then carry on. Otherwise, do what it asks.]';
+/** Results for tool calls a Stop cut off (settleStopped). */
+const STOPPED_RUNNING = 'Stopped by the user while this was running, so it may not have finished. Check before doing it again.';
+const STOPPED_BEFORE = 'Not run: the user stopped the task first.';
+/** How long what's sent after a Stop waits for the stopped turn to wind down. */
+const STOP_GRACE_MS = 3000;
 
 export class Runtime {
   constructor(app) {
     this.app = app;
-    this.runs = new Map(); // threadId -> { controller, agentId, messageId }
+    this.runs = new Map(); // threadId -> { controller, agentId, messageId, phase, msg, agent }
     this.queues = new Map(); // threadId -> Promise chain
+    this.halts = new Map(); // threadId -> AbortController a Stop in that thread fires (stop)
     this.bgQueues = new Map(); // agentId -> Promise chain (memory jobs)
   }
 
@@ -47,16 +56,55 @@ export class Runtime {
   }
 
   activeRuns() {
-    return [...this.runs.entries()].map(([threadId, r]) => ({ threadId, ...r }));
+    return [...this.runs.entries()].map(([threadId, r]) => ({ threadId, agentId: r.agentId, messageId: r.messageId, phase: r.phase }));
   }
 
+  /**
+   * Stop: whatever the bots are doing in this chat ends now, whatever it is.
+   * The reply being written stops (what it wrote stays), a running tool is
+   * dropped (a shell command is killed), turns waiting behind it don't start,
+   * and tasks handed from this chat to other bots are called off. The chat is
+   * free at once, even if the turn takes a moment to wind down, and the next
+   * message has the bot pick up where it left off (STOPPED_NOTE).
+   */
   stop(threadId) {
-    const r = this.runs.get(threadId);
-    if (r) r.controller.abort(new DOMException('Stopped by user', 'AbortError'));
+    const reason = new DOMException('Stopped by user', 'AbortError');
+    const run = this.runs.get(threadId);
+    if (run) run.stopped = true;
+    const halt = this.halts.get(threadId);
+    this.halts.delete(threadId);
+    halt?.abort(reason);
+    if (run) {
+      run.controller.abort(reason);
+      this.runs.delete(threadId);
+      this.app.emitRuns();
+      // A turn that hasn't wound down by now (stuck on something that
+      // doesn't listen for the stop) is marked stopped all the same.
+      setTimeout(() => {
+        if (run.msg.status === 'streaming') this.settleStopped(threadId, run.msg, run.agent).catch((err) => console.warn('stop', err));
+      }, STOP_GRACE_MS);
+    }
+    // What's sent next doesn't wait on a stopped turn for long.
+    const queue = this.queues.get(threadId);
+    if (queue) {
+      const released = Promise.race([queue, sleep(STOP_GRACE_MS)]);
+      this.queues.set(threadId, released);
+      released.finally(() => {
+        if (this.queues.get(threadId) === released) this.queues.delete(threadId);
+      });
+    }
   }
 
   stopAll() {
-    for (const r of this.runs.values()) r.controller.abort(new DOMException('Stopped', 'AbortError'));
+    for (const threadId of new Set([...this.runs.keys(), ...this.halts.keys(), ...this.queues.keys()])) this.stop(threadId);
+  }
+
+  /** The signal a Stop in this thread fires (stop): the running turn, turns
+   * queued behind it and tasks delegated from the thread all listen for it. */
+  haltFor(threadId) {
+    let halt = this.halts.get(threadId);
+    if (!halt) this.halts.set(threadId, (halt = new AbortController()));
+    return halt.signal;
   }
 
   /** A new message came in while the bot works in this thread: it stops what
@@ -69,13 +117,16 @@ export class Runtime {
     run.controller.abort(new DOMException('Interrupted', 'AbortError'));
   }
 
-  /** Serialize work per thread so turns never interleave. */
+  /** Serialize work per thread so turns never interleave. `fn(halt)` gets the
+   * thread's stop signal (haltFor), and doesn't run if a Stop fired it first. */
   enqueue(threadId, fn) {
+    const halt = this.haltFor(threadId);
     const prev = this.queues.get(threadId) || Promise.resolve();
-    const next = prev.catch(() => {}).then(fn);
-    this.queues.set(threadId, next.finally(() => {
-      if (this.queues.get(threadId) === next) this.queues.delete(threadId);
-    }));
+    const next = prev.catch(() => {}).then(() => (halt.aborted ? { status: 'stopped', text: '', messageId: null } : fn(halt)));
+    const tail = next.catch(() => {}).finally(() => {
+      if (this.queues.get(threadId) === tail) this.queues.delete(threadId);
+    });
+    this.queues.set(threadId, tail);
     return next;
   }
 
@@ -111,13 +162,13 @@ export class Runtime {
       const answer = text.trim() || '(sent an attachment)';
       if (waiting.call.pending?.kind === 'question') await this.recordAnswer(waiting.message, waiting.call, answer, { typed: true });
       else await this.recordApproval(waiting.message, waiting.call, 'deny', { note: answer });
-      return this.enqueue(threadId, () => this.resume(waiting.message.id));
+      return this.enqueue(threadId, (halt) => this.resume(waiting.message.id, { halt }));
     }
-    if (thread.kind === 'group') return this.enqueue(threadId, () => this.runGroup(thread, userMsg));
+    if (thread.kind === 'group') return this.enqueue(threadId, (halt) => this.runGroup(thread, userMsg, halt));
     const agent = app.getAgent(thread.agentIds[0]);
     if (!agent) throw new Error('This bot no longer exists');
     if (busy) this.interrupt(threadId);
-    return this.enqueue(threadId, () => this.runTurn({ agent, threadId }));
+    return this.enqueue(threadId, (halt) => this.runTurn({ agent, threadId, halt }));
   }
 
   /** User tapped an option on a question card (or submitted several). */
@@ -132,10 +183,10 @@ export class Runtime {
       if (agent && callId.startsWith('onboard_')) await this.app.updateAgent(agent.id, { focus: value });
       await this.app.addMessage({ threadId: msg.threadId, authorType: 'user', authorId: 'user', parts: [{ type: 'text', text: value }], quiet: true });
       if (!agent) return;
-      return this.enqueue(msg.threadId, () => this.runTurn({ agent, threadId: msg.threadId }));
+      return this.enqueue(msg.threadId, (halt) => this.runTurn({ agent, threadId: msg.threadId, halt }));
     }
     await this.recordAnswer(msg, call, Array.isArray(answer) ? answer.join(', ') : answer);
-    return this.enqueue(msg.threadId, () => this.resume(messageId));
+    return this.enqueue(msg.threadId, (halt) => this.resume(messageId, { halt }));
   }
 
   /** User dismissed a question card without answering. */
@@ -153,7 +204,7 @@ export class Runtime {
     const call = findCall(msg, callId);
     if (!call || call.result) return;
     await this.recordApproval(msg, call, decision);
-    return this.enqueue(msg.threadId, () => this.resume(messageId));
+    return this.enqueue(msg.threadId, (halt) => this.resume(messageId, { halt }));
   }
 
   async retry(messageId) {
@@ -165,7 +216,7 @@ export class Runtime {
     msg.error = null;
     msg.status = 'streaming';
     await this.app.saveMessage(msg);
-    return this.enqueue(msg.threadId, () => this.resume(messageId, { sameMessage: true }));
+    return this.enqueue(msg.threadId, (halt) => this.resume(messageId, { sameMessage: true, halt }));
   }
 
   /** Delete a bot turn and run it again. */
@@ -178,7 +229,7 @@ export class Runtime {
     for (const m of msgs.filter((x) => (x.turnId || x.id) === turnId && x.authorId === msg.authorId)) await app.deleteMessage(m.id);
     const agent = app.getAgent(msg.authorId);
     if (!agent) return null;
-    return this.enqueue(msg.threadId, () => this.runTurn({ agent, threadId: msg.threadId }));
+    return this.enqueue(msg.threadId, (halt) => this.runTurn({ agent, threadId: msg.threadId, halt }));
   }
 
   async findWaiting(threadId) {
@@ -232,12 +283,12 @@ export class Runtime {
   }
 
   /** Continue a paused/failed turn. */
-  async resume(messageId, { sameMessage = false } = {}) {
+  async resume(messageId, { sameMessage = false, halt } = {}) {
     const msg = await this.app.getMessage(messageId);
     if (!msg) return null;
     const agent = this.app.getAgent(msg.authorId);
     if (!agent) return null;
-    return this.runTurn({ agent, threadId: msg.threadId, resumeFrom: msg, sameMessage, depth: msg.depth || 0 });
+    return this.runTurn({ agent, threadId: msg.threadId, resumeFrom: msg, sameMessage, depth: msg.depth || 0, halt });
   }
 
   // ----- the agent loop ---------------------------------------------------
@@ -246,11 +297,14 @@ export class Runtime {
    * Run (or resume) one bot turn in a thread.
    * @returns {Promise<{status: 'done'|'waiting'|'error'|'stopped', text: string, messageId: string, error?: string}>}
    */
-  async runTurn({ agent, threadId, depth = 0, signal, resumeFrom = null, sameMessage = false, routine = null }) {
+  async runTurn({ agent, threadId, depth = 0, signal, halt = this.haltFor(threadId), resumeFrom = null, sameMessage = false, routine = null }) {
     const app = this.app;
+    // Stopped before it began (a Stop here, or in the chat of the bot that asked for this).
+    if (signal?.aborted || halt.aborted) return { status: 'stopped', text: '', messageId: null };
     const thread = app.getThread(threadId);
     const controller = new AbortController();
     const unlink = linkSignal(signal, controller);
+    const unlinkHalt = linkSignal(halt, controller);
 
     // Turn identity: a resumed turn continues in a new message segment so the
     // conversation reads top-to-bottom (answer bubble, then the continuation).
@@ -275,14 +329,17 @@ export class Runtime {
     }
     msg.status = 'streaming';
     msg.error = null;
-    const run = { controller, agentId: agent.id, messageId: msg.id, phase: 'thinking' };
-    this.runs.set(threadId, run);
-    app.emitRuns();
-    await app.updateThread(threadId, { status: 'working' });
+    const run = { controller, agentId: agent.id, messageId: msg.id, phase: 'thinking', msg, agent };
+    // (Stopped while its message was being made: it winds down at once, below.)
+    if (!controller.signal.aborted) {
+      this.runs.set(threadId, run);
+      app.emitRuns();
+    }
 
     let cfg;
     let tools;
     try {
+      await app.updateThread(threadId, { status: 'working' });
       cfg = app.providers.resolve(agent);
       const serverTools = app.providers.serverToolsFor(cfg, agent);
       // Gmail, Outlook or GitHub connected (or disconnected) on another device since.
@@ -317,6 +374,7 @@ export class Runtime {
 
       for (let i = 0; i < MAX_TOOL_STEPS; i++) {
         if (run.interrupted) break;
+        if (controller.signal.aborted) throw abortError(controller.signal);
         let history = await this.buildHistory(agent, threadId, msg, cfg.provider.id);
         const step = { id: uid('stp'), text: '', thinking: '', toolCalls: [], serverTools: [], citations: [], notices: [], startedAt: now() };
         msg.steps.push(step);
@@ -350,6 +408,9 @@ export class Runtime {
           msg.steps.push(step);
           result = await ask(cfg);
         }
+        // Stopped as the reply came in: a stream cut off can end as if it were
+        // done, so what came back is only what got written before the stop.
+        if (controller.signal.aborted) throw abortError(controller.signal);
 
         step.text = result.text;
         step.thinking = result.thinking || step.thinking;
@@ -382,6 +443,8 @@ export class Runtime {
         if (i === MAX_TOOL_STEPS - 1) step.notices.push(`Stopped after ${MAX_TOOL_STEPS} tool steps.`);
       }
 
+      // A Stop that came as the last step finished still stops the turn.
+      if (run.stopped) throw abortError(controller.signal);
       if (run.interrupted) return await this.cutShort(msg);
       msg.status = 'done';
       await app.saveMessage(msg);
@@ -390,30 +453,31 @@ export class Runtime {
       this.afterTurn(agent, threadId, msg).catch((err) => console.warn('post-turn memory work failed', err));
       return { status: 'done', text, messageId: msg.id };
     } catch (err) {
-      if (run.interrupted) return await this.cutShort(msg);
-      const stopped = isAbort(err) || controller.signal.aborted;
-      msg.status = stopped ? 'stopped' : 'error';
-      msg.error = stopped ? null : errorMessage(err);
+      if (run.interrupted && !run.stopped) return await this.cutShort(msg);
+      if (run.stopped || isAbort(err) || controller.signal.aborted) return await this.settleStopped(threadId, msg, agent, resumeFrom);
+      msg.status = 'error';
+      msg.error = errorMessage(err);
       msg.errorKind = err?.kind || (err?.status === 401 || err?.status === 403 ? 'auth' : null);
       const last = msg.steps[msg.steps.length - 1];
       if (last && !last.endedAt) {
         last.endedAt = now();
-        if (!last.text && !last.toolCalls?.length && !stopped) last.error = msg.error;
+        if (!last.text && !last.toolCalls?.length) last.error = msg.error;
       }
       for (const step of msg.steps) {
         for (const c of step.toolCalls || []) {
           if (!c.result) {
             c.status = 'error';
-            c.result = { content: stopped ? 'Stopped by the user.' : `Not run: ${msg.error}`, isError: true };
+            c.result = { content: `Not run: ${msg.error}`, isError: true };
           }
         }
       }
       await app.saveMessage(msg);
       await this.finishThread(threadId, msg, agent);
-      if (!stopped) console.warn(`turn failed for ${agent.name}`, err);
+      console.warn(`turn failed for ${agent.name}`, err);
       return { status: msg.status, text: finalText(msg), error: msg.error, messageId: msg.id };
     } finally {
       unlink();
+      unlinkHalt();
       if (this.runs.get(threadId)?.messageId === msg.id) this.runs.delete(threadId);
       app.emitRuns();
     }
@@ -426,23 +490,36 @@ export class Runtime {
    * chat stays busy: the next turn answers and wraps up (finishThread, afterTurn).
    */
   async cutShort(msg) {
-    const last = msg.steps[msg.steps.length - 1];
-    if (last && !last.endedAt) {
-      last.endedAt = now();
-      last.toolCalls = [];
-      last.serverTools = (last.serverTools || []).filter((st) => st.status !== 'running');
-    }
-    for (const step of msg.steps) {
-      for (const c of step.toolCalls || []) {
-        if (c.result) continue;
-        c.status = 'error';
-        c.result = { content: 'Interrupted by a new message from the user before this finished, so it may not have happened. Check before doing it again.', isError: true };
-      }
-    }
-    msg.steps = msg.steps.filter((s) => s.text || s.toolCalls?.length || s.serverTools?.length);
+    endUnfinished(msg, () => 'Interrupted by a new message from the user before this finished, so it may not have happened. Check before doing it again.');
     msg.status = 'done';
     await this.app.saveMessage(msg);
     return { status: 'done', text: finalText(msg), messageId: msg.id };
+  }
+
+  /**
+   * Ends a turn Stop cut off (stop) as stopped, the same way: what it wrote
+   * stays, and its tools say whether they were running or never ran, so the
+   * bot can check and carry on when asked to (STOPPED_NOTE). A tool call
+   * carried over from a paused turn (`carriedFrom`) is ended there too.
+   */
+  async settleStopped(threadId, msg, agent, carriedFrom = null) {
+    const note = (c) => {
+      if (c.pending) {
+        c.dismissed = true; // a question it had just asked: its card goes
+        return 'The user stopped the task before answering this.';
+      }
+      return c.startedAt ? STOPPED_RUNNING : STOPPED_BEFORE;
+    };
+    if (carriedFrom && carriedFrom !== msg && carriedFrom.steps.some((s) => (s.toolCalls || []).some((c) => !c.result))) {
+      endUnfinished(carriedFrom, note);
+      await this.app.saveMessage(carriedFrom);
+    }
+    endUnfinished(msg, note);
+    msg.status = 'stopped';
+    msg.error = null;
+    await this.app.saveMessage(msg);
+    await this.finishThread(threadId, msg, agent);
+    return { status: 'stopped', text: finalText(msg), messageId: msg.id };
   }
 
   async pause(msg, waitingMsg, threadId, carried = false) {
@@ -546,6 +623,7 @@ export class Runtime {
     const byName = new Map(tools.map((t) => [t.name, t]));
     const todo = step.toolCalls.filter((c) => !c.result);
     const runOne = async (call) => {
+      if (signal.aborted) throw abortError(signal);
       const tool = byName.get(call.name) || app.findToolAnywhere(call.name, agent);
       if (!tool) {
         call.status = 'error';
@@ -579,7 +657,7 @@ export class Runtime {
         if (tool.preview) {
           let seen;
           try {
-            seen = await tool.preview(args, { app, agent, thread, signal });
+            seen = await untilAborted(tool.preview(args, { app, agent, thread, signal }), signal);
           } catch (err) {
             if (isAbort(err) || signal.aborted) throw err;
             call.status = 'error';
@@ -598,7 +676,7 @@ export class Runtime {
         call.approval = { status: 'pending', summary, requestedAt: now() };
         return 'paused';
       }
-      if (signal.aborted) throw new DOMException('Stopped', 'AbortError');
+      if (signal.aborted) throw abortError(signal);
       call.status = 'running';
       call.startedAt = now();
       app.touchMessage(msg);
@@ -647,6 +725,8 @@ export class Runtime {
     for (const call of todo) {
       const outcome = await runOne(call);
       await app.saveMessage(msg);
+      // Stopped meanwhile: no asking for permission or an answer after all.
+      if (signal.aborted) throw abortError(signal);
       if (outcome === 'paused') return 'paused';
     }
     return 'continue';
@@ -697,6 +777,9 @@ export class Runtime {
     });
 
     const lastFromUser = [...visible].reverse().find((m) => m.authorType === 'user');
+    // This bot's reply just before the newest message was stopped: it hears so,
+    // to pick the task back up when asked to.
+    const stoppedBefore = !!lastFromUser && [...visible].reverse().find((m) => m.seq < lastFromUser.seq && m.authorId === agent.id)?.status === 'stopped';
     for (const m of visible) {
       if (m.authorType === 'system') {
         if (m.forModel) out.push({ role: 'user', parts: [{ type: 'text', text: messageText(m) }] });
@@ -706,7 +789,10 @@ export class Runtime {
         const parts = await app.partsForModel(m, agent);
         const ctx = m.contexts?.[agent.id];
         if (group && parts[0]?.type === 'text') parts[0] = { ...parts[0], text: `[${userName}]: ${parts[0].text}` };
-        const note = m === lastFromUser && m.interrupts ? [{ type: 'text', text: INTERRUPTED_NOTE }] : [];
+        const note = m !== lastFromUser ? [] : [
+          ...(m.interrupts ? [{ type: 'text', text: INTERRUPTED_NOTE }] : []),
+          ...(stoppedBefore ? [{ type: 'text', text: STOPPED_NOTE }] : []),
+        ];
         out.push({ role: 'user', parts: [...(ctx ? [{ type: 'text', text: ctx }] : []), ...note, ...parts] });
         continue;
       }
@@ -789,21 +875,27 @@ export class Runtime {
       return { threadId: thread.id, text: '', error: `${to.name} is already in a conversation with ${from.name}; reply to it directly instead.` };
     }
     await app.addMessage({ threadId: thread.id, authorType: 'agent', authorId: from.id, parts: [{ type: 'text', text }] });
-    const res = await this.enqueue(thread.id, () => this.runTurn({ agent: to, threadId: thread.id, depth, signal }));
-    return { threadId: thread.id, text: res?.status === 'waiting' ? `${res.text}\n\n(${to.name} is waiting for the user's approval before continuing.)`.trim() : res?.text || '', error: res?.error };
+    const res = await this.enqueue(thread.id, (halt) => this.runTurn({ agent: to, threadId: thread.id, depth, signal, halt }));
+    return { threadId: thread.id, text: res?.status === 'waiting' ? `${res.text}\n\n(${to.name} is waiting for the user's approval before continuing.)`.trim() : res?.text || '', error: res?.error, stopped: res?.status === 'stopped' };
   }
 
-  /** delegate_task: run in the background, then deliver the result back into the requester's chat. */
+  /** delegate_task: run in the background, then deliver the result back into
+   * the requester's chat. A Stop in that chat, or of the bot doing it, calls it off. */
   async delegate({ from, to, task, replyThreadId, depth = 1 }) {
     const app = this.app;
+    const halt = this.haltFor(replyThreadId);
     const record = await app.saveTask({
       id: uid('task'), fromAgentId: from.id, toAgentId: to.id, task, status: 'running', createdAt: now(), replyThreadId,
     });
     (async () => {
       const res = await this.converse({
-        from, to, depth,
+        from, to, depth, signal: halt,
         text: `[Task from ${from.name}] ${task}\n\nWork on this now with your tools. When you're done, reply with the complete result (it will be passed back to ${from.name}).`,
       });
+      if (halt.aborted || res.stopped) {
+        await app.saveTask({ ...record, status: 'stopped', result: res.text, error: 'Stopped by the user', completedAt: now() });
+        return null;
+      }
       await app.saveTask({ ...record, status: res.error && !res.text ? 'failed' : 'done', result: res.text, error: res.error, completedAt: now() });
       const delivery = await app.addMessage({
         threadId: replyThreadId, authorType: 'agent', authorId: to.id,
@@ -813,7 +905,7 @@ export class Runtime {
       const replyThread = app.getThread(replyThreadId);
       if (!replyThread) return;
       const reporter = replyThread.kind === 'dm' ? app.getAgent(replyThread.agentIds[0]) : from;
-      if (reporter) await this.enqueue(replyThreadId, () => this.runTurn({ agent: reporter, threadId: replyThreadId, depth: 0 }));
+      if (reporter) await this.enqueue(replyThreadId, (next) => this.runTurn({ agent: reporter, threadId: replyThreadId, depth: 0, halt: next }));
       return delivery;
     })().catch((err) => console.warn('delegated task failed', err));
     return record;
@@ -821,7 +913,7 @@ export class Runtime {
 
   // ----- group chats ------------------------------------------------------
 
-  async runGroup(thread, trigger) {
+  async runGroup(thread, trigger, halt = this.haltFor(thread.id)) {
     const app = this.app;
     const members = thread.agentIds.map((id) => app.getAgent(id)).filter(Boolean);
     if (!members.length) return null;
@@ -830,15 +922,16 @@ export class Runtime {
     if (!queue.length) {
       // "@Mentions" groups: only bots that are mentioned reply.
       if (thread.mode === 'mention') return null;
-      queue = thread.mode === 'all' ? [...members] : await this.pickSpeakers(thread, members, trigger);
+      queue = thread.mode === 'all' ? [...members] : await this.pickSpeakers(thread, members, trigger, halt);
     }
     const spoken = new Set();
     let hops = 0;
     let last = null;
-    while (queue.length && hops < GROUP_MAX_HOPS) {
+    // A Stop ends the round: nobody else speaks.
+    while (queue.length && hops < GROUP_MAX_HOPS && !halt.aborted) {
       const agent = queue.shift();
       hops++;
-      const res = await this.runTurn({ agent, threadId: thread.id });
+      const res = await this.runTurn({ agent, threadId: thread.id, halt });
       last = res;
       spoken.add(agent.id);
       if (res.status !== 'done') {
@@ -861,7 +954,7 @@ export class Runtime {
   }
 
   /** Ask a model which members should respond; falls back to everyone. */
-  async pickSpeakers(thread, members, trigger) {
+  async pickSpeakers(thread, members, trigger, signal) {
     if (members.length === 1) return members;
     const app = this.app;
     try {
@@ -875,12 +968,13 @@ export class Runtime {
         prompt: `Bots:\n${roster}\n\nRecent messages:\n${transcript}\n\nLatest message: ${truncate(messageText(trigger), 1500)}`,
         json: true,
         maxTokens: 300,
+        signal,
       });
       const names = extractJson(out)?.speakers || [];
       const picked = names.map((n) => members.find((a) => normalizeName(a.name) === normalizeName(n))).filter(Boolean);
       if (picked.length) return [...new Set(picked)];
     } catch (err) {
-      console.warn('speaker selection failed; everyone answers', err);
+      if (!signal?.aborted) console.warn('speaker selection failed; everyone answers', err);
     }
     return [...members];
   }
@@ -897,7 +991,7 @@ export class Runtime {
       threadId: thread.id, authorType: 'system', authorId: 'routine', forModel: true, routineId: routine.id,
       parts: [{ type: 'text', text: `[Routine “${routine.title}” — scheduled run at ${new Date().toLocaleString()}]\n${routine.prompt}` }],
     });
-    return this.enqueue(thread.id, () => this.runTurn({ agent, threadId: thread.id, routine }));
+    return this.enqueue(thread.id, (halt) => this.runTurn({ agent, threadId: thread.id, routine, halt }));
   }
 
   // ----- memory work after each turn -------------------------------------
@@ -1010,11 +1104,39 @@ export class Runtime {
 function untilAborted(promise, signal) {
   if (!signal) return promise;
   return new Promise((resolve, reject) => {
-    const stop = () => reject(isAbort(signal.reason) ? signal.reason : new DOMException('Stopped', 'AbortError'));
+    const stop = () => reject(abortError(signal));
     if (signal.aborted) return stop();
     signal.addEventListener('abort', stop, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
   });
+}
+
+/** The error a fired signal ends the work with. */
+function abortError(signal) {
+  return isAbort(signal.reason) ? signal.reason : new DOMException('Stopped', 'AbortError');
+}
+
+/**
+ * Wraps up a reply that was cut off (cutShort, settleStopped): a step it was
+ * still writing loses its half-made tool calls (never sent in full), tools
+ * that hadn't finished get `note(call)` as their result, and steps left with
+ * nothing to show go.
+ */
+function endUnfinished(msg, note) {
+  const last = msg.steps[msg.steps.length - 1];
+  if (last && !last.endedAt) {
+    last.endedAt = now();
+    last.toolCalls = [];
+    last.serverTools = (last.serverTools || []).filter((st) => st.status !== 'running');
+  }
+  for (const step of msg.steps) {
+    for (const c of step.toolCalls || []) {
+      if (c.result) continue;
+      c.status = 'error';
+      c.result = { content: note(c), isError: true };
+    }
+  }
+  msg.steps = msg.steps.filter((s) => s.text || s.toolCalls?.length || s.serverTools?.length || s.notices?.length);
 }
 
 function linkSignal(parent, controller) {

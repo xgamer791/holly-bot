@@ -189,15 +189,23 @@ class Jobs {
   constructor(computer) {
     this.computer = computer;
     this.jobs = new Map();
+    this.killed = new Map(); // id -> when: killed before they started (kill)
   }
 
   start(body) {
-    const id = randomUUID();
+    const own = typeof body.id === 'string' && /^[\w-]{8,64}$/.test(body.id) && !this.jobs.has(body.id);
+    const id = own ? body.id : randomUUID();
     const job = { id, chunks: [], done: null, ctrl: new AbortController(), waiters: new Set() };
     const wake = () => {
       for (const w of [...job.waiters]) w();
     };
     this.jobs.set(id, job);
+    // The app stopped it before this request got here: it never runs.
+    if (this.killed.delete(id)) {
+      job.done = { code: null, error: 'Stopped' };
+      setTimeout(() => this.jobs.delete(id), 10 * 60000).unref();
+      return job;
+    }
     this.computer.exec(body.command, {
       cwd: body.cwd,
       timeoutMs: body.timeoutMs,
@@ -237,6 +245,20 @@ class Jobs {
       });
     }
     return { job: job.id, chunks: job.chunks.slice(since), next: job.chunks.length, done: job.done };
+  }
+
+  /** Stops job `id`, or makes sure it never starts, when the request to start
+   * it is still on its way (the app picks the id: src/core/computer.js exec). */
+  kill(id) {
+    const job = this.jobs.get(id);
+    if (job) {
+      job.ctrl.abort();
+      return true;
+    }
+    const now = Date.now();
+    for (const [k, at] of this.killed) if (now - at > 60_000) this.killed.delete(k);
+    if (this.killed.size < 1000) this.killed.set(id, now);
+    return false;
   }
 }
 
@@ -326,12 +348,9 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
     }
     const jobOp = p.match(/^\/v1\/jobs\/([\w-]+)(\/kill)?$/);
     if (jobOp) {
+      if (jobOp[2]) return json(res, 200, { ok: jobs.kill(jobOp[1]) });
       const job = jobs.jobs.get(jobOp[1]);
       if (!job) return json(res, 404, { error: 'That command is no longer running here.' });
-      if (jobOp[2]) {
-        job.ctrl.abort();
-        return json(res, 200, { ok: true });
-      }
       return json(res, 200, await jobs.read(job, Number(url.searchParams.get('since')) || 0, LONG_MS));
     }
     const fsOp = p.match(/^\/v1\/fs\/(read|write|append|list|delete)$/);
