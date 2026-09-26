@@ -25,11 +25,12 @@ import { APP_VERSION } from './core/constants.js';
 import { deviceTimeZone } from './core/routines.js';
 import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 
-// Boot. Holli Bot needs an account (Sign in with Apple or Google) with an
-// active subscription: until it has one, the subscription page stands in for
-// the app (src/ui/subscribe.js). What it keeps lives in that account on Holli
-// Bot's server (src/account/cloud-db.js), never in the browser where the next
-// person to sign in could see it. Then two ways to run:
+// Boot. Holli Bot needs an account (Sign in with Apple or Google), on Free or
+// a paid plan: every account starts on Free, and upgrades on the plan page
+// (src/ui/subscribe.js, Upgrade Plan at the top of Settings). What it keeps
+// lives in that account on Holli Bot's server (src/account/cloud-db.js),
+// never in the browser where the next person to sign in could see it. Then
+// two ways to run:
 //  • Your computer (recommended): bots live on Holli Bot Computer and this app is the remote control.
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
 // Holli Bot Computer linked to the account keeps its bots there too, and runs
@@ -123,16 +124,17 @@ let billing = null;
 let watchingSubscription = false;
 
 /**
- * Holli Bot opens only for an account with an active subscription
- * (convex/billing.ts). Anyone without one gets the subscription page instead;
- * the address can't get around it, since the app and its routes open only
- * from here. A new subscriber's computer takes a few minutes to set up
- * (convex/servers.ts), and the app doesn't wait for it: it opens with the bots
- * running here and the computer button pulsing blue, and moves onto the
- * computer once it's ready (watchServerSetup). Back from Stripe (Checkout or
- * the billing portal), or when a paid period should have ended, Stripe is
- * asked first, so a subscription just paid for opens the app straight away.
- * True when the app may open; otherwise a page has taken over.
+ * Holli Bot opens on the account's plan (convex/billing.ts): a paid one, or
+ * Free. Back from paying on Stripe Checkout, the plan page waits for Stripe's
+ * word before the app opens on the new plan (or on Free, if the person
+ * chooses to while Stripe takes its time). A new subscriber's computer takes
+ * a few minutes to set up (convex/servers.ts), and the app doesn't wait for
+ * it: it opens with the bots running here and the computer button pulsing
+ * blue, and moves onto the computer once it's ready (watchServerSetup). Back
+ * from Stripe (Checkout or the billing portal), or when a paid period should
+ * have ended, Stripe is asked first, so a subscription just paid for opens
+ * the app straight away. True when the app may open; otherwise a page has
+ * taken over.
  */
 async function subscribed() {
   const back = takeBillingReturn();
@@ -152,11 +154,13 @@ async function subscribed() {
     return false;
   }
   billing = status;
-  if (!status.active) {
+  // Just paid, before Stripe has said so; or a server from before Free.
+  if (!status.active && (back === 'paid' || !status.free)) {
     showSubscribe(status, back);
     return false;
   }
   if (back === 'paid') notice = { text: welcomeText(status) };
+  else if (back === 'cancelled') notice = { text: tr('Checkout was cancelled, and nothing was charged.') };
   return true;
 }
 
@@ -169,8 +173,16 @@ function showSubscribe(status, back) {
       notice = { text: welcomeText(next) };
       openApp();
     }}
+    onFree=${(next) => {
+      billing = next;
+      openApp();
+    }}
     onSignOut=${() => signOut()} />`);
 }
+
+/** A renewal that didn't go through: past due (still on the plan while Stripe
+ * tries the card again), or unpaid (on Free until it's paid). */
+const paymentFailed = (status) => !!status?.pastDue || status?.subscription?.status === 'unpaid';
 
 function welcomeText(status) {
   const plan = status.plans?.find((p) => p.id === status.subscription?.plan);
@@ -194,11 +206,12 @@ function takeBillingReturn() {
 
 /**
  * While the app is open, its subscription can change. It's checked each time
- * the app comes back to the front and every ten minutes: once it has ended,
- * the app reloads, which lands on the subscription page (changes not yet
- * saved wait on the device); a renewal that didn't go through shows a banner
- * asking for a new card; and when the computer it controls was replaced (a
- * smaller one after a downgrade), the app reloads to connect to the new one.
+ * the app comes back to the front and every ten minutes: once a paid plan
+ * starts (Stripe took its time) or ends (back on Free), the app reloads on
+ * the new plan (changes not yet saved wait on the device); a renewal that
+ * didn't go through shows a banner asking for a new card; and when the
+ * computer it controls was replaced (a smaller one after a downgrade), the
+ * app reloads to connect to the new one.
  */
 function watchSubscription() {
   if (watchingSubscription) return;
@@ -210,9 +223,10 @@ function watchSubscription() {
     try {
       let status = await account.authed('query', 'billing:status');
       if (status.check) status = await account.authed('action', 'billing:sync');
+      const was = billing;
       billing = status;
-      if (!status.active) return location.reload();
-      if (status.pastDue) paymentBanner();
+      if (was && !!was.active !== !!status.active) return location.reload();
+      if (paymentFailed(status)) paymentBanner();
       // The computer this app controls was replaced (a smaller one after a
       // downgrade) or unlinked: start again, which finds the one linked now.
       const app = window.holly;
@@ -228,8 +242,8 @@ function watchSubscription() {
 
 let paymentBannerShown = false;
 
-/** Past due: Holli Bot keeps working while Stripe tries the card again, and
- * this asks for a new one, in Stripe's billing portal. */
+/** Past due: Holli Bot keeps working while Stripe tries the card again (or,
+ * unpaid, on Free), and this asks for a new card, in Stripe's billing portal. */
 function paymentBanner() {
   if (paymentBannerShown) return;
   paymentBannerShown = true;
@@ -914,6 +928,12 @@ async function bootLocal(db) {
   }
   window.holly = app;
   if (db.cloud) {
+    // A change the server turned down (a Free account's files at their
+    // limit), in the server's words.
+    db.onError = (message, err) => {
+      console.error(message);
+      if (typeof err?.data === 'string') app.emit('toast', { text: tr(err.data), error: true });
+    };
     watchOtherDevices(app, db);
     // A computer linked to the account runs the routines, so this app
     // doesn't, and its bots know the computer is there (src/core/prompts.js).
@@ -1027,7 +1047,7 @@ async function mount(app, { chiefDone = false } = {}) {
   registerServiceWorker();
   keepDeviceSettings(app);
   if (signInWorksHere() && account.signedIn) {
-    if (billing?.pastDue) paymentBanner();
+    if (paymentFailed(billing)) paymentBanner();
     watchSubscription();
     watchComputers(app).catch((err) => console.warn('computers', err));
     watchServerSetup(app);

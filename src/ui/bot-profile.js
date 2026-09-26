@@ -6,6 +6,7 @@ import { briefCurrent, jobSummary } from '../core/brief.js';
 import { Sheet, Group, Row, Toggle, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { AI_MODELS } from '../core/providers/index.js';
+import { account, signInWorksHere } from '../account/account.js';
 import { TOOL_GROUPS, effortOf } from '../core/constants.js';
 import { mark, phraseOr, tr, trn } from './i18n.js';
 
@@ -159,15 +160,26 @@ export function modelLabel(app, agent) {
 }
 
 /** A bot's brain: one of Holli Bot's AI models, paid for with the account's
- * credits (src/core/providers). Flash unless the bot picks Pro. */
+ * credits (src/core/providers). Flash unless the bot picks Pro. On Free,
+ * Flash only: Pro says it comes with a paid plan, and opens the plan page. */
 export function ModelPickerSheet({ agentId, onClose }) {
   const app = useApp();
   const ui = useUi();
   useTopics(['settings', 'agents']);
+  // The account's plan, also while this app controls a computer (which runs the bots).
+  const here = account.signedIn && signInWorksHere();
+  const { data: credits } = useAsync(() => (here ? account.authed('query', 'credits:mine').catch(() => null) : Promise.resolve(null)), [here]);
   const agent = agentId ? app.getAgent(agentId) : null;
-  const current = AI_MODELS.includes(agent ? agent.model : app.settings.defaults?.model) ? (agent ? agent.model : app.settings.defaults.model) : AI_MODELS[0];
+  const free = (credits || app.credits)?.plan === 'free';
+  const current = free ? AI_MODELS[0] : AI_MODELS.includes(agent ? agent.model : app.settings.defaults?.model) ? (agent ? agent.model : app.settings.defaults.model) : AI_MODELS[0];
+  // What Free can't run (convex/credits.ts): V4 Pro.
+  const paidOnly = (model) => free && model !== AI_MODELS[0];
 
   const choose = async (model) => {
+    if (paidOnly(model)) {
+      ui.openSheet('plans');
+      return;
+    }
     if (agent) await app.updateAgent(agent.id, { provider: 'deepseek', model });
     else await app.saveSettings({ defaults: { ...app.settings.defaults, provider: 'deepseek', model } });
     ui.toast(tr('Using {model}', { model: MODEL_NAMES[model] }));
@@ -179,10 +191,13 @@ export function ModelPickerSheet({ agentId, onClose }) {
       <div class="group">
         ${AI_MODELS.map((m) => html`<button key=${m} class="row" onClick=${() => choose(m)}>
           <div class="label"><div class="t" style="font-size:16px">${MODEL_NAMES[m]}</div><div class="s">${tr(MODEL_NOTES[m])}</div></div>
+          ${paidOnly(m) && html`<span class="plan-pill"><${Icon.lock} size=${13} /> ${tr('Paid plans')}</span>`}
           ${current === m && html`<span class="ok-check"><${Icon.check} /></span>`}
         </button>`)}
       </div>
-      <div class="group-note">${tr("Both run on your plan's AI credits (Settings → Usage).")}</div>
+      <div class="group-note">${free
+        ? tr('Free runs DeepSeek V4.1 Flash. V4 Pro comes with a paid plan: tap it to see the plans.')
+        : tr("Both run on your plan's AI credits (Settings → Usage).")}</div>
     <//>`;
 }
 

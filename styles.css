@@ -445,6 +445,21 @@ button.row:active { background: var(--surface-2); }
 .drawer .usage-row { flex-wrap: wrap; row-gap: 9px; padding-bottom: 13px; }
 .drawer .usage-row .credits-bar { flex: 0 0 100%; height: 5px; margin: 0; border-radius: 3px; background: var(--meter); }
 
+/* On Free, above it all: Upgrade Plan, which opens the plan page over the app. */
+.upgrade-card { position: relative; width: 100%; display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 13px 14px 13px 13px;
+  border-radius: var(--radius-group); overflow: hidden; color: #fff; text-align: left;
+  background: linear-gradient(118deg, #0a84ff 0%, #5e5ce6 58%, #bf5af2 100%);
+  box-shadow: 0 12px 28px -16px rgba(94, 92, 230, .9); transition: transform .15s, filter .2s; }
+.upgrade-card::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 60%); }
+.upgrade-card:active { transform: scale(.985); filter: brightness(.94); }
+@media (hover: hover) { .upgrade-card:hover { filter: brightness(1.06); } }
+.upgrade-icon { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, .2); }
+.upgrade-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.upgrade-title { font-size: 16.5px; line-height: 21px; font-weight: 650; letter-spacing: -.1px; }
+.upgrade-sub { margin-top: 1px; font-size: 13px; line-height: 17px; font-weight: 500; opacity: .88; }
+.upgrade-chev { flex: none; width: 16px; height: 16px; margin-right: -2px; opacity: .85; stroke-width: 2.5; }
+
 /* The bottom: Sign Out on a surface of its own, then the app and its version. */
 .drawer-signout { margin-top: 22px; background: var(--card); border-radius: var(--radius-group); overflow: hidden; }
 .drawer-foot { display: flex; align-items: center; gap: 8px; margin: 18px 16px 0; color: var(--sub); font-size: 13px; font-weight: 450; }
@@ -833,6 +848,9 @@ button.row:active { background: var(--surface-2); }
 .provider-card { display: flex; align-items: center; gap: 12px; }
 .provider-logo { width: 34px; height: 34px; border-radius: 10px; background: var(--surface-3); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: none; }
 .ok-check { color: var(--green); display: inline-flex; }
+/* A model Free doesn't run (the model picker): it comes with a paid plan. */
+.plan-pill { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--surface-3);
+  color: var(--text-2); font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; }
 .ok-check svg { width: 20px; height: 20px; }
 .usage-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .usage-table td, .usage-table th { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: right; }
@@ -986,6 +1004,19 @@ html.signed-out #boot { background: #fff !important; }
 .sub-dock .auth-error { text-align: center; }
 .sub-fine { margin: 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
 @keyframes sub-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* The plan page over the app (PlansPage): above Settings, sliding up, with a way back. */
+.hello.in-app { z-index: 60; animation: rise .32s cubic-bezier(.2, .9, .3, 1); }
+.sub-close { position: fixed; top: calc(var(--safe-top) + 10px); left: 12px; z-index: 4; width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: rgba(242, 243, 245, .92); color: var(--text);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.sub-close:active { opacity: .7; }
+.sub-close:disabled { opacity: .4; }
+/* On a paid plan the cards show the plans, and Stripe changes them. */
+.sub-plan.fixed { cursor: default; }
+.sub-plan.fixed:active { transform: none; }
+.sub-now { padding: 2px 8px; border-radius: 999px; background: var(--text); color: #fff; font-size: 11.5px; line-height: 16px; font-weight: 700;
+  letter-spacing: .2px; white-space: nowrap; }
 
 /* The Chief Coordinator's page (src/ui/chief.js): what it does, its name and look. */
 .chief-points { max-width: 400px; margin: 2px 0 6px; padding: 16px 18px; list-style: none; display: flex; flex-direction: column; gap: 12px;

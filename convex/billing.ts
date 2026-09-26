@@ -5,19 +5,20 @@ import { action, httpAction, internalAction, internalMutation, internalQuery, qu
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
-import { PLANS, planById, priceVariable, type Interval, type Plan, type PlanId } from "./lib/plans";
+import { FREE, PLANS, planById, priceVariable, type Interval, type Plan, type PlanId } from "./lib/plans";
 import { StripeError, call, subscriptionState, verifySignature, type SubscriptionState } from "./lib/stripe";
 import { storeSession } from "./lib/store";
 import { ENDED, hasAccess, isExempt, liveMode, needsCheck, subscriberOf } from "./lib/subscription";
 import { planServer, serverView } from "./servers";
 
-// Subscriptions. Holli Bot opens only for an account whose subscription is
-// active (or past due, while Stripe tries the card again), or that's exempt
-// (the owner's, while testing): the app sends everyone else to its
-// subscription page (src/main.js), and the server keeps and uses an account's
-// data only for them (convex/lib/subscription.ts).
-// People pick a plan and pay on Stripe Checkout (mode=subscription), and
-// manage it in Stripe's billing portal. Each subscriber's record in
+// Subscriptions. Every account starts on Free (convex/lib/plans.ts FREE: AI
+// credits by the day, no server) and is on a paid plan while its subscription
+// is active (or past due, while Stripe tries the card again); the owner's can
+// be exempt, with no subscription (convex/lib/subscription.ts). A paid plan
+// that ends goes back to Free.
+// People pick a plan and pay on Stripe Checkout (mode=subscription), from the
+// app's plan page (Upgrade Plan at the top of Settings: src/ui/subscribe.js),
+// and manage it in Stripe's billing portal. Each subscriber's record in
 // `subscribers` also holds their dedicated server (convex/servers.ts).
 //
 // Stripe's webhook (/stripe/webhook) drives everything that follows a
@@ -70,13 +71,16 @@ const planInfo = v.object({
 
 /**
  * What the app knows about the account's subscription and server. `active`:
- * it may use Holli Bot (paid up, or `pastDue` while Stripe tries the card
- * again, or `exempt`: it needs no subscription, and has no server). `ready`:
- * Stripe is set up. `check`: a paid period should have ended by now without
- * word from Stripe, so ask it (`sync`).
+ * it's on a paid plan (paid up, or `pastDue` while Stripe tries the card
+ * again) or `exempt` (it needs no subscription, and has no server). `free`:
+ * it's on Free instead, with `freeCredits` AI credits a day. `ready`: Stripe
+ * is set up. `check`: a paid period should have ended by now without word
+ * from Stripe, so ask it (`sync`).
  */
 const statusInfo = v.object({
   active: v.boolean(),
+  free: v.boolean(),
+  freeCredits: v.number(),
   pastDue: v.boolean(),
   exempt: v.boolean(),
   ready: v.boolean(),
@@ -120,6 +124,8 @@ async function describe(ctx: QueryCtx, userId: Id<"users">): Promise<Status> {
   const exempt = !paid && (await isExempt(ctx, userId));
   return {
     active: paid || exempt,
+    free: !paid && !exempt,
+    freeCredits: FREE.credits,
     pastDue: paid && row?.subscriptionStatus === "past_due",
     exempt,
     ready: configured(),

@@ -1072,9 +1072,10 @@ export class App {
 
   // ----- AI credits -------------------------------------------------------------
 
-  /** This month's AI credits (convex/credits.ts `mine`): what the plan gives,
-   * what's left and when they refill, and `ready`, whether Holli Bot's server
-   * can run its AI; null without a subscription. Loaded like connections:
+  /** This month's (on Free, today's) AI credits (convex/credits.ts `mine`):
+   * what the plan gives, what's left and when they refill, `plan` ('free',
+   * 'paid' or 'exempt'), and `ready`, whether Holli Bot's server can run its
+   * AI; null before they're known. Loaded like connections:
    * when what's held is older than `maxAge`, never throwing, and waiting at
    * most a few seconds. Only storage that is the account's has credits. */
   refreshCredits({ maxAge = 0 } = {}) {

@@ -5,7 +5,6 @@ import { action, httpAction, internalAction, internalMutation, internalQuery, mu
 import type { ActionCtx, MutationCtx } from "./_generated/server";
 import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
-import { requireSubscriber } from "./lib/subscription";
 import * as github from "./lib/github";
 import * as higgsfield from "./lib/higgsfield";
 import { convexSafe } from "./lib/values";
@@ -100,11 +99,11 @@ function outdated(s: string, scopes: string[]): boolean {
 }
 
 /** The signed-in account, for the actions below (their sign-in passes to
- * what they run). Connecting a service takes an active subscription. */
+ * what they run). */
 export const whoami = internalQuery({
   args: {},
   returns: v.id("users"),
-  handler: async (ctx) => await requireSubscriber(ctx),
+  handler: async (ctx) => await requireUserId(ctx),
 });
 
 /** Starts connecting a service: the address of its consent screen. */
@@ -235,7 +234,7 @@ export const claim = mutation({
   args: { claim: v.string() },
   returns: v.union(v.object({ service: v.string(), account: v.string() }), v.object({ error: v.string() })),
   handler: async (ctx, { claim }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     const row = await ctx.db.query("connectorClaims").withIndex("by_claim", (q) => q.eq("claim", claim)).unique();
     if (!row) return { error: "That connection has expired. Connect it again." };
     await ctx.db.delete(row._id);
@@ -339,13 +338,12 @@ export const revokeLater = internalAction({
   },
 });
 
-/** The account's connection to a service, for a bot's request (`run`), which
- * takes an active subscription. */
+/** The account's connection to a service, for a bot's request (`run`). */
 export const mine = internalQuery({
   args: { service },
   returns: v.union(v.null(), v.object({ id: v.id("connections"), userId: v.id("users"), sealed: v.string(), scopes: v.array(v.string()) })),
   handler: async (ctx, { service: s }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     const row = await ctx.db.query("connections").withIndex("by_user_service", (q) => q.eq("userId", userId).eq("service", s)).unique();
     return row ? { id: row._id, userId, sealed: row.sealed, scopes: row.scopes } : null;
   },

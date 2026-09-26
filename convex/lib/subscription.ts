@@ -1,17 +1,12 @@
-import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { requireUserId } from "./auth";
 
-// Whether an account's subscription lets it use Holli Bot (convex/billing.ts
-// keeps what Stripe says about it in `subscribers`). Holli Bot's server keeps
-// and uses an account's data only while it does, or while the account is
-// exempt: see requireSubscriber.
-
-/** What the server says to an account without a subscription. The app and
- * Holli Bot Computer know it by "active subscription" (src/account/cloud-db.js):
- * nothing is lost, and changes wait on the device until it's active again. */
-export const INACTIVE = "Holli Bot needs an active subscription. Choose a plan in the app to keep going.";
+// What an account's subscription gives it (convex/billing.ts keeps what
+// Stripe says about it in `subscribers`): its paid plan while it's paid up,
+// or past due while Stripe tries the card again, and otherwise Free
+// (convex/lib/plans.ts FREE). Every signed-in account keeps and uses its data
+// either way; the plan decides its AI credits (convex/credits.ts), its files
+// (convex/data.ts) and whether it has a server (convex/servers.ts).
 
 /** Stripe statuses that pay for Holli Bot. */
 const PAID = new Set(["active", "trialing"]);
@@ -28,11 +23,11 @@ export const ENDED = new Set(["canceled", "incomplete_expired"]);
 const LATE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /**
- * Accounts that use Holli Bot without a subscription: the owner's, while they
- * test it. Each is the SHA-256 (hex) of the account's email address in lower
- * case, so the addresses aren't in this public code; make one with
- * `printf %s you@example.com | sha256sum`. These accounts skip the
- * subscription page and keep their data like a subscriber, but get no server.
+ * Accounts that get the biggest plan's AI credits without a subscription: the
+ * owner's, while they test it. Each is the SHA-256 (hex) of the account's
+ * email address in lower case, so the addresses aren't in this public code;
+ * make one with `printf %s you@example.com | sha256sum`. These accounts aren't
+ * on Free, but get no server.
  */
 const EXEMPT = new Set<string>([
   // "434633ce2df27abbb930fa08014a267046ef87c349456af49eefacaa07b51600", // the owner: off while they test subscribing
@@ -94,16 +89,7 @@ export async function isExempt(ctx: QueryCtx | MutationCtx, userId: Id<"users">)
   return !!email && user?.emailVerificationTime !== undefined && EXEMPT.has(await sha256(email));
 }
 
-/**
- * requireUserId, for an account whose subscription lets it use Holli Bot (or
- * that's exempt). Everything that keeps or uses an account's data starts here
- * (convex/data.ts, and connecting and running Gmail, Outlook and GitHub in
- * convex/connectors.ts). Signing in and out, the subscription itself,
- * deleting the account, unlinking a computer and disconnecting a service
- * work without one.
- */
-export async function requireSubscriber(ctx: QueryCtx | MutationCtx): Promise<Id<"users">> {
-  const userId = await requireUserId(ctx);
-  if (!hasAccess(await subscriberOf(ctx, userId)) && !(await isExempt(ctx, userId))) throw new ConvexError(INACTIVE);
-  return userId;
+/** Whether the account is on Free: no paid plan that lets it in, and not exempt. */
+export async function isFree(ctx: QueryCtx | MutationCtx, userId: Id<"users">): Promise<boolean> {
+  return !hasAccess(await subscriberOf(ctx, userId)) && !(await isExempt(ctx, userId));
 }

@@ -11,7 +11,7 @@ import {
 } from '../remote/remote-app.js';
 import { account, signInWorksHere, SITE } from '../account/account.js';
 import {
-  LANGUAGES, dateText, language, listText, mark, number, setLanguage, shortTime, tr, trn, trx,
+  LANGUAGES, clock, dateText, language, listText, mark, number, setLanguage, shortTime, tr, trn, trx,
 } from './i18n.js';
 
 const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
@@ -43,16 +43,44 @@ function home(app) {
 /** The first letter small, for text that goes mid-sentence. */
 const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 
+/** The billing status last read, so Settings opens with it rather than without. */
+let lastBilling = null;
+
+/** The account's plan (convex/billing.ts status), for the top of Settings:
+ * null while unknown, or where there are no accounts. */
+function useBilling() {
+  const here = account.signedIn && signInWorksHere();
+  const { data } = useAsync(() => (here ? account.authed('query', 'billing:status').catch(() => null) : Promise.resolve(null)), [here]);
+  if (data !== undefined) lastBilling = data;
+  return data === undefined && here ? lastBilling : data ?? null;
+}
+
+/** The very top of Settings on Free: Upgrade Plan, which opens the plan page
+ * over the app (src/ui/subscribe.js PlansPage). */
+function UpgradeCard({ onClick }) {
+  return html`
+    <button class="upgrade-card" onClick=${onClick}>
+      <span class="upgrade-icon" aria-hidden="true"><${Icon.sparkle} size=${19} /></span>
+      <span class="upgrade-text">
+        <span class="upgrade-title">${tr('Upgrade Plan')}</span>
+        <span class="upgrade-sub">${tr('Your own server, DeepSeek V4 Pro and more AI credits')}</span>
+      </span>
+      <${Icon.chevron} class="upgrade-chev" />
+    </button>`;
+}
+
 /** The top of Settings: who is signed in (their initials, name, email and
  * how they sign in), and under it the usage meter, how much of the month's
- * AI credits is left, which opens the Usage page. Where there are no
- * accounts (Holli Bot Computer's Wi-Fi links, browser automation) only the meter
- * shows. */
-function AccountHeader({ acct, go }) {
+ * (on Free, the day's) AI credits is left, which opens the Usage page, and
+ * on a paid plan, Plan, which opens the plan page. Where there are no
+ * accounts (Holli Bot Computer's Wi-Fi links, browser automation) only the
+ * meter shows. */
+function AccountHeader({ acct, go, billing, onPlan }) {
   const { credits, here } = useCredits();
   const pct = credits ? creditsShare(credits) : null;
   const user = acct.user || {};
   const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
+  const plan = acct.signedIn && billing?.active && !billing.exempt && billing.plans?.find((p) => p.id === billing.subscription?.plan);
   // One surface: who is signed in, and under it Usage, a row with a slim meter.
   return html`
     <div class="group account-group">
@@ -74,6 +102,7 @@ function AccountHeader({ acct, go }) {
         // Its place kept while the credits load, so nothing under it moves when they come.
         : here && html`<span class="credits-bar" aria-hidden="true"></span>`}
       </button>
+      ${plan && html`<${Row} title=${tr('Plan')} value=${plan.name} onClick=${onPlan} />`}
     </div>`;
 }
 
@@ -116,11 +145,14 @@ function MainPage({ go, onClose }) {
   const app = useApp();
   const ui = useUi();
   const acct = useAccount();
+  const billing = useBilling();
   const s = app.settings;
   const set = (patch) => app.saveSettings(patch);
   const lang = s.language || 'system';
+  const plans = () => ui.openSheet('plans');
   return html`
-    <${AccountHeader} acct=${acct} go=${go} />
+    ${acct.signedIn && billing?.free && html`<${UpgradeCard} onClick=${plans} />`}
+    <${AccountHeader} acct=${acct} go=${go} billing=${billing} onPlan=${plans} />
     <${Group} label=${tr('Bots')}>
       <${Row} title=${tr('Bot Store')} sub=${tr('Pre-trained bots, ready to work')} onClick=${() => ui.openSheet('store', {})} />
       <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
@@ -218,11 +250,13 @@ function creditsShare(c) {
 const asCredits = (micros) => number(Math.floor(Math.max(0, micros) / 10_000));
 
 /**
- * Settings → Usage: this month's AI credits as a bar that drops as bots use
- * them and fills up again when they refill, with no money shown. Read again
- * every few seconds while it's open, so it follows the bots as they work.
+ * Settings → Usage: this month's (on Free, today's) AI credits as a bar that
+ * drops as bots use them and fills up again when they refill, with no money
+ * shown. Read again every few seconds while it's open, so it follows the bots
+ * as they work. On Free, Upgrade Plan under it.
  */
 function UsagePage() {
+  const ui = useUi();
   const { credits, loading, reload } = useCredits();
   useEffect(() => {
     const t = setInterval(() => document.visibilityState === 'visible' && reload(), 5000);
@@ -235,16 +269,25 @@ function UsagePage() {
     return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? tr('Loading…') : tr('Your AI credits come with your Holli Bot plan.')}</p>`;
   }
   const pct = creditsShare(credits);
-  const refill = dateText(credits.refillsAt, { month: 'long', day: 'numeric' });
+  const free = credits.plan === 'free';
+  const left = asCredits(credits.balance);
+  const total = asCredits(credits.allowance);
   return html`
-    <div class="credits-card" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+    <div class="credits-card" role="meter" aria-label=${free ? tr('AI credits left today') : tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
       <div class="credits-head"><b>${tr('AI credits')}</b><span>${tr('{pct}% left', { pct })}</span></div>
       <div class="credits-bar"><span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
-      <div class="credits-sub">${tr('{left} of {total} left · Refills {date}', { left: asCredits(credits.balance), total: asCredits(credits.allowance), date: refill })}</div>
+      <div class="credits-sub">${free
+        ? tr('{left} of {total} left today · Refills at {time}', { left, total, time: clock(credits.refillsAt) })
+        : tr('{left} of {total} left · Refills {date}', { left, total, date: dateText(credits.refillsAt, { month: 'long', day: 'numeric' }) })}</div>
     </div>
     ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">${tr("Holli Bot's AI isn't switched on yet, so your bots aren't using these credits.")}</p>`}
-    <p class="hint" style="font-size:14px;margin:4px">${tr("Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.")}</p>
-    <p class="hint" style="font-size:14px;margin:10px 4px 4px">${tr("Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).")}</p>`;
+    <p class="hint" style="font-size:14px;margin:4px">${free
+      ? tr("Free gives you {count} AI credits a day, on DeepSeek V4.1 Flash. They refill every day at midnight UTC; what's left doesn't carry over. Everything your bots think through uses some: long chats and files use more. When they run out, your bots pause until they refill.", { count: total })
+      : tr("Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.")}</p>
+    <p class="hint" style="font-size:14px;margin:10px 4px 4px">${tr("Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).")}</p>
+    ${free && html`
+      <button class="btn primary block" style="margin-top:18px" onClick=${() => ui.openSheet('plans')}>${tr('Upgrade Plan')}</button>
+      <p class="hint" style="font-size:14px;margin:10px 4px 4px">${tr('Paid plans come with more AI credits every month, DeepSeek V4 Pro and a server of your own.')}</p>`}`;
 }
 
 function PluginsPage() {
@@ -920,6 +963,7 @@ function HelpPage() {
     <p>${trx('1. Tap **+ → New Bot**, name it and pick a look.')}<br />${tr('2. Chat. Your bot learns about you and remembers across conversations.')}</p>
     <h3>${tr('AI credits')}</h3>
     <p>${trx("Your bots think with Holli Bot's AI, DeepSeek, and your plan comes with **AI credits** for it every month. Settings → **Usage** shows what's left and when they refill. When they run out, your bots pause until the refill.")}</p>
+    <p>${trx("On **Free**, your bots get AI credits every day instead, on DeepSeek V4.1 Flash, and they refill at midnight UTC. Credits go twice as far outside DeepSeek's busy hours.")}</p>
     <h3>${tr('Multiple bots')}</h3>
     <p>${trx('Every bot has its own name, personality, model, memory, files and routines. Bots can **message each other** (“Ask Nova to review this”), **delegate** longer tasks, and share a **team memory**. Start a **group chat** with + → New Group Chat and @mention bots.')}</p>
     <h3>${tr('Memory')}</h3>
@@ -929,9 +973,9 @@ function HelpPage() {
     <p>${trx('Web search, a Python/JavaScript sandbox, files, routines and plugins (MCP). Connect a **Bot Computer** for shell, real files, a browser and local plugins. With Auto-review on, risky actions ask for permission first.')}</p>
     <h3>${tr('Email and GitHub')}</h3>
     <p>${trx("Connect **Gmail**, **Outlook** or **GitHub** in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.")}</p>
-    <h3>${tr('Your subscription')}</h3>
-    <p>${tr("You change your plan, update your card, see invoices or cancel on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.")}</p>
-    <p>${trx("Every plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and the **computer button** at the top right shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.")}</p>
+    <h3>${tr('Your plan')}</h3>
+    <p>${trx("Every account starts on **Free**. **Upgrade Plan** at the top of Settings shows the paid plans; on one, Settings → **Plan** is where you change it, update your card, see invoices or cancel, on Stripe. A cancelled plan runs to the end of the period you've paid for, then you're on Free again, and your bots, chats and memories stay in your account.")}</p>
+    <p>${trx("Every paid plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and the **computer button** at the top right shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one. On Free, you can link a computer of your own instead.")}</p>
     <h3>${tr('Install as an app')}</h3>
     <p>${tr('iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.')}</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">${tr('Full guide on GitHub ↗')}</a></p>

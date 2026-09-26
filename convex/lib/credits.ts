@@ -1,8 +1,8 @@
 // AI credits (convex/credits.ts, convex/ai.ts): what a request to DeepSeek
-// costs, and each account's month of credits. Amounts are millionths of a US
-// dollar at DeepSeek's list prices; plans give credits in cents
-// (convex/lib/plans.ts), and the app shows 1 credit per cent. No imports:
-// plain functions.
+// costs, and each account's month (or, on Free, day) of credits. Amounts are
+// millionths of a US dollar at DeepSeek's list prices; plans give credits in
+// cents (convex/lib/plans.ts), and the app shows 1 credit per cent. No
+// imports: plain functions.
 
 /** Millionths of a dollar in a cent. */
 export const MICROS_PER_CENT = 10_000;
@@ -96,6 +96,21 @@ export interface Ledger {
   cachedTokens: number;
   freshTokens: number;
   outputTokens: number;
+  /** Free's credits, which go by the UTC day instead of the month. */
+  daily?: boolean;
+}
+
+const DAY_MS = 86_400_000;
+
+/** The UTC day `now` is in: Free's credits refill as it starts. */
+export function dayOf(now: number): { start: number; end: number } {
+  const start = Math.floor(now / DAY_MS) * DAY_MS;
+  return { start, end: start + DAY_MS };
+}
+
+/** The UTC day `now` is in, as "2026-09-26". */
+export function dayKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
 }
 
 /** `t` moved by `n` months: the same day of the month (or that month's last
@@ -131,19 +146,21 @@ export function anchorFor(periodEnd: number | undefined, now: number): number {
 
 /**
  * The credits as they stand at `now`, for a plan whose allowance is
- * `allowance`. A new month refills them (what was left doesn't carry over).
- * A plan changed during the month adds the difference when it's bigger, and
- * caps what's left when it's smaller. `row` null: the account's first month,
- * from `anchor`.
+ * `allowance`, by the month from `anchor` or, `daily` (Free), by the UTC day.
+ * A new month or day refills them (what was left doesn't carry over). A plan
+ * changed during the month adds the difference when it's bigger, and caps
+ * what's left when it's smaller. `row` null: the account's first period, from
+ * `anchor`; so is a move from Free to a paid plan or back, full at once.
  */
-export function settle(row: Ledger | null, allowance: number, anchor: number, now: number): Ledger {
+export function settle(row: Ledger | null, allowance: number, anchor: number, now: number, daily = false): Ledger {
   const fresh = { spent: 0, requests: 0, cachedTokens: 0, freshTokens: 0, outputTokens: 0 };
-  if (!row) {
-    const { start, end } = periodOf(anchor, now);
-    return { anchor, periodStart: start, periodEnd: end, allowance, balance: allowance, ...fresh };
+  const period = (from: number) => (daily ? dayOf(now) : periodOf(from, now));
+  if (!row || !!row.daily !== daily) {
+    const { start, end } = period(anchor);
+    return { anchor, periodStart: start, periodEnd: end, allowance, balance: allowance, ...fresh, daily: daily || undefined };
   }
   if (now >= row.periodEnd) {
-    const { start, end } = periodOf(row.anchor, now);
+    const { start, end } = period(row.anchor);
     return { ...row, periodStart: start, periodEnd: end, allowance, balance: allowance, ...fresh };
   }
   if (allowance !== row.allowance) {
@@ -167,4 +184,11 @@ export function refillIn(at: number, now: number): string {
   if (ms < 86_400_000) return "within a day";
   const days = Math.round(ms / 86_400_000);
   return days <= 1 ? "in a day" : `in ${days} days`;
+}
+
+/** When Free's credits refill, at most a day away: "in about 5 hours". */
+export function refillHours(at: number, now: number): string {
+  const hours = Math.round((at - now) / 3_600_000);
+  if (hours < 1) return "in under an hour";
+  return hours === 1 ? "in about an hour" : `in about ${hours} hours`;
 }

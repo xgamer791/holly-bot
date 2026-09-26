@@ -11,16 +11,20 @@ import {
   findRow,
   ownsBlob,
   releaseBlobs,
+  storedBytes,
   takeBatch,
   toClient,
   versionOf,
 } from "./lib/records";
-import { requireSubscriber } from "./lib/subscription";
+import { requireUserId } from "./lib/auth";
+import { FREE } from "./lib/plans";
+import { isFree } from "./lib/subscription";
 
 // The app's storage (src/account/cloud-db.js): every bot, chat, message,
-// memory, file, routine and setting of the signed-in account. Each function
-// works on the caller's own rows only (requireSubscriber + indexes that start
-// with it), and only while the account's subscription is active.
+// memory, file, routine and setting of the signed-in account, on Free or a
+// paid plan. Each function works on the caller's own rows only
+// (requireUserId + indexes that start with it). Free keeps at most
+// FREE.storage of files (convex/lib/records.ts claimBlobs).
 
 /** Most changes one `apply` takes. */
 const MAX_OPS = 64;
@@ -35,7 +39,7 @@ const counted = { prev: v.number(), version: v.number() };
 export const list = query({
   args: { store: v.string(), group: v.optional(v.string()), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { store, group, paginationOpts }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     checkStore(store);
     const opts = { ...paginationOpts, numItems: Math.min(Math.max(paginationOpts.numItems, 1), 200), maximumBytesRead: PAGE_BYTES };
     const result = group === undefined
@@ -61,7 +65,7 @@ export const tail = query({
   args: { store: v.string(), group: v.string(), limit: v.number() },
   returns: v.array(row),
   handler: async (ctx, { store, group, limit }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     checkStore(store);
     const docs = await ctx.db
       .query("records")
@@ -76,7 +80,7 @@ export const get = query({
   args: { store: v.string(), key: v.string() },
   returns: v.union(row, v.null()),
   handler: async (ctx, { store, key }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     checkStore(store);
     const doc = await findRow(ctx, userId, store, key);
     return doc ? await toClient(ctx, doc) : null;
@@ -102,8 +106,11 @@ export const apply = mutation({
   args: { ops: v.array(v.union(putOp, deleteOp)) },
   returns: v.object(counted),
   handler: async (ctx, { ops }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     if (!ops.length || ops.length > MAX_OPS) throw new ConvexError("Send between 1 and 64 changes at once");
+    // Free's files have a limit: looked up once, if anything here holds one.
+    const holdsFiles = ops.some((op) => op.op === "put" && (op.blobs?.length || op.overflow));
+    const limit = holdsFiles && (await isFree(ctx, userId)) ? FREE.storage : undefined;
     for (const op of ops) {
       checkStore(op.store);
       checkName(op.key, "key");
@@ -116,7 +123,9 @@ export const apply = mutation({
       if (op.data.length > MAX_DATA) throw new ConvexError("Record too large");
       const blobs = [...new Set([...(op.blobs ?? []), ...(op.overflow ? [op.overflow] : [])])];
       if (blobs.length > 16) throw new ConvexError("Too many files in one record");
-      await claimBlobs(ctx, userId, blobs);
+      // Files the record no longer holds go first, so their room counts for its new ones.
+      if (existing) await releaseBlobs(ctx, userId, existing.blobs ?? [], blobs);
+      await claimBlobs(ctx, userId, blobs, limit);
       const doc = {
         userId,
         store: op.store,
@@ -128,12 +137,8 @@ export const apply = mutation({
         blobs,
         updatedAt: Date.now(),
       };
-      if (existing) {
-        await releaseBlobs(ctx, userId, existing.blobs ?? [], blobs);
-        await ctx.db.replace(existing._id, doc);
-      } else {
-        await ctx.db.insert("records", doc);
-      }
+      if (existing) await ctx.db.replace(existing._id, doc);
+      else await ctx.db.insert("records", doc);
     }
     return await bump(ctx, userId);
   },
@@ -144,7 +149,7 @@ export const clearStore = mutation({
   args: { store: v.string() },
   returns: v.object({ done: v.boolean(), ...counted }),
   handler: async (ctx, { store }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     checkStore(store);
     const { batch, more } = await takeBatch(
       ctx.db.query("records").withIndex("by_user_store_key", (q) => q.eq("userId", userId).eq("store", store)),
@@ -160,7 +165,7 @@ export const clearStore = mutation({
 export const version = query({
   args: {},
   returns: v.number(),
-  handler: async (ctx) => versionOf(ctx, await requireSubscriber(ctx)),
+  handler: async (ctx) => versionOf(ctx, await requireUserId(ctx)),
 });
 
 /** Takes on a piece of scheduled work (`key`, due at `at`) for this device.
@@ -170,7 +175,7 @@ export const claim = mutation({
   args: { key: v.string(), at: v.number() },
   returns: v.boolean(),
   handler: async (ctx, { key, at }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     checkName(key, "key");
     const taken = await ctx.db
       .query("claims")
@@ -183,12 +188,16 @@ export const claim = mutation({
   },
 });
 
-/** Where to upload a file's contents before writing the record that holds it. */
+/** Where to upload a file's contents before writing the record that holds
+ * it. None for a Free account whose files are at Free's limit already. */
 export const uploadUrl = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
+    if ((await storedBytes(ctx, userId)) >= FREE.storage && (await isFree(ctx, userId))) {
+      throw new ConvexError("Free keeps up to 100 MB of files in your account. Delete some, or upgrade for more room.");
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -198,7 +207,7 @@ export const blobUrl = query({
   args: { storageId: v.id("_storage") },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, { storageId }) => {
-    const userId = await requireSubscriber(ctx);
+    const userId = await requireUserId(ctx);
     if (!(await ownsBlob(ctx, userId, storageId))) return null;
     return await ctx.storage.getUrl(storageId);
   },

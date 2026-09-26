@@ -315,18 +315,33 @@ function GeneratedImage({ fileId }) {
   return html`<img class="gen-image" src=${url} alt=${tr('Generated image')} onClick=${() => ui.openFile(fileId)} />`;
 }
 
+/** Free's limits on a reply (convex/credits.ts), in words a dictionary has:
+ * the server's own, in English, can say when. */
+const FREE_LIMITS = {
+  free_credits: mark("Today's free AI credits are used up. Your bots pause until they refill at midnight UTC, or upgrade for more."),
+  free_capacity: mark('Free is at capacity today. It opens again at midnight UTC, or upgrade to keep going now.'),
+  free_model: mark('DeepSeek V4 Pro comes with a paid plan. On Free, your bots think with DeepSeek V4.1 Flash.'),
+  free_too_long: mark('This chat is too long for Free. Start a new chat, or upgrade to keep going.'),
+};
+
 function ErrorCard({ msg }) {
   const app = useApp();
   const ui = useUi();
   // Credits used up: the bot pauses until they refill; Usage shows when. The
   // server's words say when too, which no dictionary has, so in another
-  // language the card says it without the date.
-  const credits = msg.errorKind === 'credits';
+  // language the card says it without the date. Free's limits come with
+  // Upgrade Plan, which opens the plan page.
+  const limit = FREE_LIMITS[msg.errorKind];
+  const credits = msg.errorKind === 'credits' || msg.errorKind === 'free_credits';
+  const text = language() !== 'en' && limit ? tr(limit)
+    : language() !== 'en' && credits ? tr('Your AI credits for this month are used up. Your bots pause until they refill.')
+      : msg.error ? tr(msg.error) : tr('Something went wrong.');
   return html`
     <div class="error-card" role="alert">
-      ${credits && language() !== 'en' ? tr('Your AI credits for this month are used up. Your bots pause until they refill.') : msg.error ? tr(msg.error) : tr('Something went wrong.')}
+      ${text}
       <div class="btn-row">
-        ${credits && html`<button class="btn small primary" onClick=${() => ui.openSheet('settings', { page: 'usage' })}>${tr('See credits')}</button>`}
+        ${limit && html`<button class="btn small primary" onClick=${() => ui.openSheet('plans')}>${tr('Upgrade Plan')}</button>`}
+        ${credits && html`<button class=${`btn small${limit ? '' : ' primary'}`} onClick=${() => ui.openSheet('settings', { page: 'usage' })}>${tr('See credits')}</button>`}
         <button class="btn small" onClick=${() => app.runtime.retry(msg.id)}><${Icon.retry} size="16" /> ${tr('Retry')}</button>
       </div>
     </div>`;

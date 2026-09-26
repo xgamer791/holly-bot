@@ -34,19 +34,24 @@ export default defineSchema({
     .index("by_user_store_key", ["userId", "store", "key"])
     .index("by_user_store_group_sort", ["userId", "store", "group", "sort"]),
 
-  /** Who owns each uploaded file (a file's contents, or an oversized record). */
+  /** Who owns each uploaded file (a file's contents, or an oversized record),
+   * and its size in bytes (kept since 1.43.0; heads.bytes adds them up). */
   blobs: defineTable({
     userId: v.id("users"),
     storageId: v.id("_storage"),
+    size: v.optional(v.number()),
   })
     .index("by_storage", ["storageId"])
     .index("by_user", ["userId"]),
 
   /** How many times each account has changed. A device that sees the count
-   * move without its own writes knows another device changed the account. */
+   * move without its own writes knows another device changed the account.
+   * `bytes`: how much its files take (Free keeps at most FREE.storage:
+   * convex/lib/records.ts claimBlobs), counting those kept since 1.43.0. */
   heads: defineTable({
     userId: v.id("users"),
     version: v.number(),
+    bytes: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   /** Scheduled work a device has taken on (a routine's run due at `at`), so
@@ -217,8 +222,8 @@ export default defineSchema({
    * Each account's AI credits (convex/credits.ts): what's left of this
    * month's allowance from its plan, in millionths of a US dollar of DeepSeek
    * use at DeepSeek's list prices. Months count from `anchor`, and a new one
-   * refills `balance` to `allowance`. The rest are this month's totals. See
-   * Ledger in convex/lib/credits.ts.
+   * refills `balance` to `allowance`; on Free (`daily`), each UTC day does.
+   * The rest are the period's totals. See Ledger in convex/lib/credits.ts.
    */
   credits: defineTable({
     userId: v.id("users"),
@@ -232,8 +237,23 @@ export default defineSchema({
     cachedTokens: v.number(),
     freshTokens: v.number(),
     outputTokens: v.number(),
+    daily: v.optional(v.boolean()),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  /**
+   * What all Free accounts together spent on Holli Bot's AI, one row per UTC
+   * day ("2026-09-26"), in millionths of a US dollar (convex/credits.ts):
+   * holds for requests under way plus what finished ones cost. Once `used`
+   * reaches the day's budget (FREE_DAILY_BUDGET_USD), Free waits for the next
+   * day. A new day is a new row, so nothing needs resetting.
+   */
+  freeSpend: defineTable({
+    day: v.string(),
+    used: v.number(),
+    requests: v.number(),
+    updatedAt: v.number(),
+  }).index("by_day", ["day"]),
 
   meta: defineTable({
     key: v.string(),

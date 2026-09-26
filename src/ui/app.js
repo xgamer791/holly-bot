@@ -11,6 +11,7 @@ import { WorkspaceSheet } from './workspace.js';
 import { RoutinesSheet } from './routines.js';
 import { GroupInfoSheet } from './group-info.js';
 import { StoreSheet } from './store.js';
+import { PlansPage } from './subscribe.js';
 import { Dialog, Toasts } from './components.js';
 import { Avatar, avatarSvgString } from './avatar.js';
 import { threadTitle } from './home.js';
@@ -29,6 +30,8 @@ const SHEETS = {
   routines: RoutinesSheet,
   groupInfo: GroupInfoSheet,
   store: StoreSheet,
+  // The plan page, over the app (Upgrade Plan at the top of Settings).
+  plans: PlansPage,
 };
 
 function parseHash() {

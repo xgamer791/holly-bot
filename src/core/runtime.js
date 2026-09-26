@@ -39,6 +39,17 @@ const STOPPED_BEFORE = 'Not run: the user stopped the task first.';
 const OUT_OF_STEPS_NOTE = '[You\'ve used every tool step you get for one reply, so no more tool calls: any you make won\'t run. In a few sentences, tell the user what you got done, what\'s left, and what\'s in your way, if anything (a tool that keeps failing, something you can\'t reach, something you need from them). Don\'t repeat what you already said.]';
 /** How long what's sent after a Stop waits for the stopped turn to wind down. */
 const STOP_GRACE_MS = 3000;
+/** The most of a chat a bot on Free sends each time, in tokens (historyBudget). */
+const FREE_HISTORY = 64_000;
+/** What went wrong at Holli Bot's AI (convex/credits.ts codes), as the reply's
+ * error card tells it (src/ui/message.js). */
+const ERROR_KINDS = {
+  no_credits: 'credits',
+  free_credits: 'free_credits',
+  free_capacity: 'free_capacity',
+  free_model: 'free_model',
+  free_too_long: 'free_too_long',
+};
 
 export class Runtime {
   constructor(app) {
@@ -483,7 +494,7 @@ export class Runtime {
       if (run.stopped || isAbort(err) || controller.signal.aborted) return await this.settleStopped(threadId, msg, agent, resumeFrom);
       msg.status = 'error';
       msg.error = errorMessage(err);
-      msg.errorKind = err?.kind || (err?.code === 'no_credits' ? 'credits' : err?.status === 401 || err?.status === 403 ? 'auth' : null);
+      msg.errorKind = err?.kind || ERROR_KINDS[err?.code] || (err?.status === 401 || err?.status === 403 ? 'auth' : null);
       const last = msg.steps[msg.steps.length - 1];
       if (last && !last.endedAt) {
         last.endedAt = now();
@@ -943,15 +954,17 @@ export class Runtime {
    */
   historyBudget(agent, cfg = null) {
     const setting = agent.contextBudget || this.app.settings.memory?.contextBudget || 'auto';
-    if (setting !== 'auto' && Number(setting) > 0) return Number(setting);
+    // Free sends at most FREE_HISTORY of a chat each time (convex/lib/plans.ts FREE.maxPrompt caps a request).
+    const most = this.app.credits?.plan === 'free' ? FREE_HISTORY : Infinity;
+    if (setting !== 'auto' && Number(setting) > 0) return Math.min(Number(setting), most);
     if (!cfg) {
       try {
         cfg = this.app.providers.resolve(agent);
       } catch {
-        return 64000;
+        return Math.min(64000, most);
       }
     }
-    return Math.min(Math.round(contextWindow(cfg.provider.id, cfg.model) * 0.5), 400000);
+    return Math.min(Math.round(contextWindow(cfg.provider.id, cfg.model) * 0.5), 400000, most);
   }
 
   // ----- bots talking to bots ----------------------------------------------

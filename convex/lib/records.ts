@@ -48,29 +48,46 @@ export async function ownsBlob(ctx: QueryCtx, userId: Id<"users">, storageId: Id
 }
 
 /** Records an upload as this account's the first time a record refers to it,
- * and refuses one that already belongs to another account. */
-export async function claimBlobs(ctx: MutationCtx, userId: Id<"users">, ids: Id<"_storage">[]) {
+ * and refuses one that already belongs to another account. Its size counts
+ * toward the account's files (`heads.bytes`), which `limit` caps: Free's
+ * (convex/lib/plans.ts FREE.storage, which the refusal says in words). */
+export async function claimBlobs(ctx: MutationCtx, userId: Id<"users">, ids: Id<"_storage">[], limit?: number) {
+  const claimed: { storageId: Id<"_storage">; size: number }[] = [];
   for (const storageId of ids) {
     const owner = await ownerOf(ctx, storageId);
     if (owner) {
       if (owner.userId !== userId) throw new ConvexError("That file belongs to another account");
       continue;
     }
-    if (!(await ctx.db.system.get(storageId))) throw new ConvexError("Upload not found");
-    await ctx.db.insert("blobs", { userId, storageId });
+    const file = await ctx.db.system.get(storageId);
+    if (!file) throw new ConvexError("Upload not found");
+    claimed.push({ storageId, size: file.size });
   }
+  if (!claimed.length) return;
+  const head = await headOf(ctx, userId);
+  const bytes = (head?.bytes ?? 0) + claimed.reduce((sum, c) => sum + c.size, 0);
+  if (limit !== undefined && bytes > limit) {
+    throw new ConvexError("Free keeps up to 100 MB of files in your account. Delete some, or upgrade for more room.");
+  }
+  for (const { storageId, size } of claimed) await ctx.db.insert("blobs", { userId, storageId, size });
+  if (head) await ctx.db.patch(head._id, { bytes });
+  else await ctx.db.insert("heads", { userId, version: 0, bytes });
 }
 
 /** Deletes the account's uploads in `old` that aren't in `keep`. Each upload
  * belongs to one record (the app never shares one between records). */
 export async function releaseBlobs(ctx: MutationCtx, userId: Id<"users">, old: Id<"_storage">[], keep: Id<"_storage">[] = []) {
+  let freed = 0;
   for (const storageId of old) {
     if (keep.includes(storageId)) continue;
     const owner = await ownerOf(ctx, storageId);
     if (!owner || owner.userId !== userId) continue;
+    freed += owner.size ?? 0;
     await ctx.db.delete(owner._id);
     if (await ctx.db.system.get(storageId)) await ctx.storage.delete(storageId);
   }
+  const head = freed ? await headOf(ctx, userId) : null;
+  if (head) await ctx.db.patch(head._id, { bytes: Math.max(0, (head.bytes ?? 0) - freed) });
 }
 
 /** Deletes one row and the uploads it holds. */
@@ -89,6 +106,11 @@ function headOf(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
 /** How many times the account has changed. */
 export async function versionOf(ctx: QueryCtx, userId: Id<"users">) {
   return (await headOf(ctx, userId))?.version ?? 0;
+}
+
+/** How much the account's files take, in bytes (those kept since 1.43.0). */
+export async function storedBytes(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
+  return (await headOf(ctx, userId))?.bytes ?? 0;
 }
 
 /** Counts one change to the account. The app compares `prev` with the count it

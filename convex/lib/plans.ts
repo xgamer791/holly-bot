@@ -1,9 +1,9 @@
 // Holli Bot's plans: what each costs, the dedicated server each runs on at
-// Vultr, and the AI credits each gives every month. This is the one place
-// they're set. The subscription page lists them
-// (billing:status), checkout refuses a Stripe price that doesn't match them
-// (convex/billing.ts), and each subscriber's server is made at its plan's size
-// (convex/servers.ts). No imports: plain data.
+// Vultr, and the AI credits each gives every month, and Free, what every
+// account without one gets. This is the one place they're set. The plan page
+// lists them (billing:status), checkout refuses a Stripe price that doesn't
+// match them (convex/billing.ts), and each subscriber's server is made at its
+// plan's size (convex/servers.ts). No imports: plain data.
 
 export type PlanId = "starter" | "pro" | "ultra";
 export type Interval = "month" | "year";
@@ -33,6 +33,34 @@ export const PLANS: Plan[] = [
   { id: "pro", name: "Pro", price: { month: 12000, year: 99000 }, server: "vc2-4c-8gb", cpu: 4, memoryGb: 8, credits: 2000 },
   { id: "ultra", name: "Ultra", price: { month: 20000, year: 179000 }, server: "vc2-6c-16gb", cpu: 6, memoryGb: 16, credits: 3500 },
 ];
+
+/**
+ * Holli Bot Free: every account without a paid plan (or whose paid plan
+ * ended). It isn't in PLANS, which Stripe and the servers go by, so it never
+ * has a price or a server: its bots run in the app, or on a computer of the
+ * account's own (Holli Bot Computer). Its AI credits come by the day, from
+ * midnight UTC, and it runs Flash only (convex/credits.ts). All Free accounts
+ * together spend at most FREE_DAILY_BUDGET_USD a day, or `dailyBudget`.
+ */
+export const FREE = {
+  id: "free",
+  name: "Free",
+  /** AI credits a day (1 per US cent of DeepSeek use, as for the plans). */
+  credits: 10,
+  /** The one model it runs. */
+  model: "deepseek-flash",
+  /** The most output one request may ask for. */
+  maxTokens: 16_384,
+  /** The most input one request may send, in tokens as promptTokens counts
+   * them (convex/lib/credits.ts): the app sends far less (src/core/runtime.js). */
+  maxPrompt: 131_072,
+  /** The account's files, at most, in bytes (convex/lib/records.ts). The
+   * refusal there says 100 MB. */
+  storage: 100 * 1024 * 1024,
+  /** What all Free accounts together may spend a day, in US dollars, unless
+   * FREE_DAILY_BUDGET_USD says otherwise. */
+  dailyBudget: 5,
+} as const;
 
 /** Where subscribers' servers run, and how they're found at Vultr. */
 export const SERVERS = {

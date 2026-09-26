@@ -242,6 +242,9 @@ export class ProviderHub {
       const mm = agent?.memoryModel || defaults.memoryModel;
       if (mm && mm !== 'same') model = ours(mm.includes(':') ? mm.split(':').slice(1).join(':') : mm) || model;
     }
+    // Free runs Flash only (convex/credits.ts): a bot set to Pro thinks with
+    // Flash until the account is on a paid plan.
+    if (provider.credits && this.app.credits?.plan === 'free') model = AI_MODELS[0];
     return { provider, model, purpose };
   }
 

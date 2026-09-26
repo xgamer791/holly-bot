@@ -693,14 +693,19 @@ function RamMeter() {
 
 function ComputerAbout({ onSetup }) {
   const app = useApp();
+  const ui = useUi();
   const info = app.computer.info;
   if (!app.computer.connected) {
+    // On Free there's no server with the plan: a computer of your own, or a paid plan's.
     return html`
       <div class="welcome">
         <p>${tr('Right now this bot works entirely in your browser: its own drive, a Python/JavaScript sandbox, web search and memory.')}</p>
         <p>${trx('Connect a **Bot Computer** — your own PC, Mac, Linux box or server running the small {program} companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.', { program: 'Holli Bot Computer' })}</p>
         ${app.computer.error && html`<p style="color:var(--red)">${app.computer.error}</p>`}
         <button class="btn primary" onClick=${onSetup}>${tr('Set up Bot Computer')}</button>
+        ${app.credits?.plan === 'free' && html`
+          <p style="margin-top:18px">${tr('Paid plans come with a server of your own that runs your bots around the clock, with nothing to set up.')}</p>
+          <button class="btn" onClick=${() => ui.openSheet('plans')}>${tr('Upgrade Plan')}</button>`}
       </div>`;
   }
   const caps = info?.capabilities || {};

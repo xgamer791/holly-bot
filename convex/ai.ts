@@ -1,17 +1,18 @@
 import { getAuthSessionId, getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
-import { MODELS, RENAMED, costOf, promptTokens, usageOf, type Usage } from "./lib/credits";
+import { MODELS, RENAMED, promptTokens, usageOf, type Usage } from "./lib/credits";
 import { withMemory } from "./lib/store";
 
 // Holli Bot's AI: DeepSeek, on Holli Bot's own key (DEEPSEEK_API_KEY), paid
-// for with each account's monthly credits (convex/credits.ts). The app and
-// Holli Bot Computer send their bots' OpenAI-style chat requests here
-// (src/core/providers) with the account's session in place of a key. This
-// lets a request through while the account has credits, passes it on to
-// DeepSeek, streams the answer back as it comes, and charges what DeepSeek
-// says the request used. The key never leaves the server, and nothing of the
-// request is kept: only what it cost and how many tokens it used.
+// for with each account's credits (convex/credits.ts): its plan's every
+// month, or Free's every day. The app and Holli Bot Computer send their bots'
+// OpenAI-style chat requests here (src/core/providers) with the account's
+// session in place of a key. This lets a request through while the account
+// has credits (and, on Free, within Free's limits), passes it on to DeepSeek,
+// streams the answer back as it comes, and charges what DeepSeek says the
+// request used. The key never leaves the server, and nothing of the request
+// is kept: only what it cost and how many tokens it used.
 
 const DEEPSEEK = "https://api.deepseek.com";
 
@@ -101,24 +102,25 @@ export const chat = httpAction(async (ctx, request) => {
   if (stream) Object.assign(out, { stream: true, stream_options: { include_usage: true } });
 
   // Held back while it runs: the most it could cost (all its input new to
-  // DeepSeek, and all the output it may ask for).
+  // DeepSeek, and all the output it may ask for, which Free caps).
   const prompt = promptTokens(out);
-  const hold = costOf(model, { cached: 0, fresh: prompt, output: out.max_tokens as number }, Date.now());
   let admitted;
   try {
-    admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, hold });
+    admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, model, prompt, maxTokens: out.max_tokens as number });
   } catch (err) {
     console.error(`Letting ${userId}'s request in failed: ${err instanceof Error ? err.message : err}`);
     return refuse(503, "unavailable", "Holli Bot's AI couldn't take that request. Try again in a moment.");
   }
   if (!admitted.ok) return refuse(admitted.status, admitted.code, admitted.message);
-  const { held } = admitted;
+  const { held, freeDay } = admitted;
+  out.max_tokens = admitted.maxTokens;
   const charge = (used: Usage | null, output = 0) =>
     ctx.runMutation(internal.credits.charge, {
       userId,
       model,
       at: Date.now(),
       held,
+      ...(freeDay ? { freeDay } : {}),
       ...(used ? { usage: used } : { estimate: { prompt, output } }),
     }).catch((err) => console.error(`Charging ${userId} for a request failed: ${err instanceof Error ? err.message : err}`));
 

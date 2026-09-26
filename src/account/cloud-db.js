@@ -747,7 +747,7 @@ export class CloudDB {
         if (bad) {
           this.pending = this.pending.filter((e) => e !== bad);
           await this.outbox.remove([bad.seq]).catch(() => {});
-          this.onError(`A change to ${bad.store} couldn't be saved: ${err?.message || err}`);
+          this.onError(`A change to ${bad.store} couldn't be saved: ${err?.message || err}`, err);
         }
         failures = 0;
         continue;
