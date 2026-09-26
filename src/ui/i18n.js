@@ -12,8 +12,8 @@ export { LANGUAGES, mark };
 //
 // The language is Settings → Language (settings.language, kept in the
 // account): English, Spanish or Chinese, or 'system', the device's own when
-// Holli Bot speaks it. Before the account opens (welcome, sign-in, the
-// subscription page) the app goes by the choice this device last used.
+// Holli Bot speaks it. Before the account opens (welcome, sign-in, the plan
+// page waiting for Stripe) the app goes by the choice this device last used.
 //
 // New or changed text: write the English inside tr(), then add it to every
 // dictionary. `node scripts/i18n.mjs` lists what's missing or out of date.

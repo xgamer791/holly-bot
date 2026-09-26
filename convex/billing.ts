@@ -25,8 +25,8 @@ import { planServer, serverView } from "./servers";
 // payment: it keeps the subscription in step and schedules the subscriber's
 // server being made, resized or deleted. Each event is handled once (its id is
 // kept in `stripeEvents`). The app also asks Stripe directly when it comes
-// back from Checkout or the portal (`sync`), so the subscription page knows
-// straight away; that never touches servers.
+// back from Checkout or the portal (`sync`), so the plan page knows straight
+// away; that never touches servers.
 //
 // Variables (CONVEX.md): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and each
 // plan's price ids, STRIPE_PRICE_<PLAN>_MONTHLY and _YEARLY (convex/lib/plans.ts).
@@ -378,7 +378,7 @@ async function customerFor(key: string, userId: string): Promise<string | undefi
   }
 }
 
-/** Checks that a plan's Stripe price is what the subscription page shows
+/** Checks that a plan's Stripe price is what the plan page shows
  * (convex/lib/plans.ts), so nobody is charged a different amount. */
 async function checkPrice(key: string, plan: Plan, every: Interval, id: string) {
   const price = await call(key, "GET", `/prices/${encodeURIComponent(id)}`);
@@ -426,7 +426,7 @@ export const checkout = action({
         metadata: { userId: me.userId, plan: plan.id },
         subscription_data: { metadata: { userId: me.userId, plan: plan.id } },
         custom_text: {
-          submit: { message: `Renews automatically every ${every} until you cancel. Cancel anytime in Holli Bot: Settings → Subscription.` },
+          submit: { message: `Renews automatically every ${every} until you cancel. Cancel anytime in Holli Bot: Settings → Plan.` },
         },
       });
       if (!session?.url) throw new Error("Stripe didn't return a checkout page");

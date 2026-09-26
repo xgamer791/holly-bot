@@ -44,8 +44,8 @@ const INACTIVE_WAIT = 5 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** The server turned a call down because the account's subscription isn't
- * active (convex/lib/subscription.ts). It keeps the account's data, and
- * changes wait here until the subscription is active again. */
+ * active: a server from before Free (1.43.0), when that took a subscription.
+ * It keeps the account's data, and changes wait here until it takes them. */
 export const inactive = (err) => /active subscription/i.test(err?.message || '');
 const idOf = (store, key) => `${store}\n${key}`;
 const keyOf = (store, value) => value?.[SCHEMA[store].keyPath];

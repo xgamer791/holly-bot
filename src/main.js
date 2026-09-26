@@ -80,7 +80,7 @@ async function boot() {
   if (await subscribed()) await openApp();
 }
 
-/** Past the subscription page and the computer's setup: finishes connecting
+/** Past the plan page and the computer's setup: finishes connecting
  * a service if that's what brought the person back, then opens the account,
  * as the remote control of the subscriber's computer (openComputer: it's a
  * Holli Bot Computer linked to the account, like any other). */
@@ -109,9 +109,9 @@ function takeStoreReturn() {
   return { bot, session, cancelled: store !== 'done' };
 }
 
-/** Marks the next launch as one of the white pages' (the subscription page,
- * or the computer's setup), so index.html starts it on white instead of the
- * app's dark splash. */
+/** Marks the next launch as one of the white pages' (the plan page, waiting
+ * for Stripe, or the computer's setup), so index.html starts it on white
+ * instead of the app's dark splash. */
 function whitePages(on) {
   try {
     if (on) localStorage.setItem('holly.subscribePage', '1');
@@ -277,8 +277,8 @@ async function startAccount() {
     });
   } catch (err) {
     console.error('account storage', err);
-    // Signed out meanwhile, or the subscription just ended (the reload lands
-    // on the subscription page).
+    // Signed out meanwhile, or turned away by a server from before Free (which
+    // needed a subscription): the reload starts again.
     if (!account.signedIn || inactive(err)) return location.reload();
     show(html`<${ProblemScreen} message=${loadError(err)} onRetry=${startAccount} onSignOut=${() => signOut()} />`);
     return;

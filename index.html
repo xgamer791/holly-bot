@@ -30,9 +30,9 @@
   </div>
   <script>
     // Where the app asks you to sign in (src/account/account.js), the white
-    // pages come before the app: welcome and sign-in while signed out, then the
-    // subscription page (src/main.js) for an account without a subscription,
-    // including one just created (?code=) or back from Stripe (?checkout=).
+    // pages come before the app: welcome and sign-in while signed out, a new
+    // account's first bot (?code=), and the plan page (src/main.js) back from
+    // Stripe (?checkout=) until Stripe confirms the payment.
     // Those start on white rather than flashing the dark splash first. Only
     // Holli Bot's own session counts: Macronaut shares the site's storage.
     try {

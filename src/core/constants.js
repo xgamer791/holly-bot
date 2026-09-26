@@ -3,7 +3,7 @@
 import { mark } from './i18n.js';
 
 export const APP_NAME = 'Holli Bot';
-export const APP_VERSION = '1.43.0';
+export const APP_VERSION = '1.43.1';
 
 export const SHAPE_KEYS_CORE = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
 export const COLOR_KEYS_CORE = ['white', 'brown', 'red', 'vermilion', 'orange', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'];
