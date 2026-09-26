@@ -256,6 +256,30 @@ function PluginsPage() {
     await app.saveSettings({ mcpServers: list });
     app.plugins.refresh().catch(() => {});
   };
+  // Servers on the Bot Computer (its ~/.holly/mcp.json): switched on and off
+  // and removed from here once it's new enough (capabilities.mcpConfig).
+  const local = state.filter((p) => p.via === 'computer');
+  const canChangeLocal = !!(app.computer.connected && app.computer.info?.capabilities?.mcpConfig);
+  const changeLocal = async (change) => {
+    try {
+      await app.computer.mcpChange(change);
+      await app.plugins.refresh();
+    } catch (err) {
+      ui.toast(err.message, { error: true });
+    }
+  };
+  const removeLocal = async (name) => {
+    if (!(await ui.confirm({ title: tr('Remove {name}?', { name }), message: tr('It stops running on your Bot Computer and your bots lose its tools. Its settings, and any keys in them, are deleted there.'), confirmText: tr('Remove'), danger: true }))) return;
+    changeLocal({ op: 'remove', name });
+  };
+  // One still starting (npx fetching it the first time) is looked at again
+  // every few seconds. With the bots on the computer, it says so itself.
+  const starting = !app.remote && local.some((p) => p.status === 'starting');
+  useEffect(() => {
+    if (!starting) return undefined;
+    const t = setInterval(() => app.plugins.refresh().catch(() => {}), 4000);
+    return () => clearInterval(t);
+  }, [starting]);
   const services = s.services || {};
   const setService = (id, apiKey) => app.saveSettings({ services: { ...services, [id]: { ...(services[id] || {}), apiKey } } });
   return html`
@@ -272,15 +296,19 @@ function PluginsPage() {
           <button class="icon-btn" aria-label=${tr('Remove')} onClick=${() => saveServers(servers.filter((x) => x.id !== srv.id))}><${Icon.trash} /></button>
         </div>`;
       })}
-      ${state.filter((p) => p.via === 'computer').map((p) => html`<div class="row" key=${p.key}><${Icon.monitor} size="20" />
-        <div class="label"><div class="t">${p.name}</div><div class="s">${p.status === 'ok' ? trn(p.tools.length, '{n} tool · on Bot Computer', '{n} tools · on Bot Computer') : p.error || p.status}</div></div></div>`)}
+      ${local.map((p) => html`<div class="row" key=${p.key}><${Icon.monitor} size="20" />
+        <div class="label"><div class="t">${p.name}</div><div class="s">${p.status === 'ok' ? trn(p.tools.length, '{n} tool · on Bot Computer', '{n} tools · on Bot Computer')
+          : p.status === 'starting' ? tr('Starting on your Bot Computer…') : p.status === 'off' ? tr('Off') : p.error ? tr('Error: {error}', { error: p.error }) : p.status}</div></div>
+        ${canChangeLocal && p.key !== 'computer:*' && html`
+          <${Toggle} small on=${p.status !== 'off'} onChange=${(v) => changeLocal({ op: 'enable', name: p.name, enabled: v })} label=${p.name} />
+          <button class="icon-btn" aria-label=${tr('Remove')} onClick=${() => removeLocal(p.name)}><${Icon.trash} /></button>`}
+      </div>`)}
       <button class="row" onClick=${() => setAdding(!adding)}><${Icon.plus} size="20" /><div class="label"><div class="t">${tr('Add MCP server')}</div></div></button>
     </div>
-    <div class="group-note">${trx('Remote MCP servers (Streamable HTTP) are called straight from your browser and must allow CORS. Local servers (stdio, e.g. Gmail, filesystem, GitHub) run on your Bot Computer via {file}.', { file: html`<span class="kbd">~/.holly/mcp.json</span>` })}</div>
-    ${adding && html`<${AddServer} onCancel=${() => setAdding(false)} onSave=${async (srv) => {
-      await saveServers([...servers, srv]);
+    <div class="group-note">${trx('Add a server by pasting its settings: the JSON its instructions give for Claude Desktop or Cursor. One with a command runs on your Bot Computer, kept in {file}; one with a url (Streamable HTTP) is called over the web, and from a browser it must allow CORS.', { file: html`<span class="kbd">~/.holly/mcp.json</span>` })}</div>
+    ${adding && html`<${AddServers} servers=${servers} saveServers=${saveServers} onCancel=${() => setAdding(false)} onAdded=${(names) => {
       setAdding(false);
-      ui.toast(tr('Added {name}', { name: srv.name }));
+      ui.toast(tr('Added {name}', { name: listText(names) }));
     }} />`}
 
     <div class="group-label">${tr('Search & reading')}</div>
@@ -310,17 +338,138 @@ function PluginsPage() {
     } : null} />`}`;
 }
 
-function AddServer({ onSave, onCancel }) {
-  const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
-  const [auth, setAuth] = useState('');
+/** What the settings box shows before anything is pasted. */
+const MCP_EXAMPLE = `{ "mcpServers": {
+  "name": {
+    "command": "npx",
+    "args": ["-y", "package-name"],
+    "env": { "API_KEY": "…" }
+  }
+} }`;
+
+/** A name for a server from its package ("@scope/dataforseo-mcp-server@latest" → "dataforseo") or website ("mcp.linear.app" → "linear"). */
+function serverName(spec) {
+  if (spec.url) {
+    try {
+      return new URL(spec.url).hostname.replace(/^(www|mcp|api)\./, '').split('.')[0] || 'server';
+    } catch {
+      return 'server';
+    }
+  }
+  const pkg = (spec.args || []).find((a) => !String(a).startsWith('-')) || spec.command || 'server';
+  return String(pkg).replace(/^@[^/]+\//, '').replace(/@[^@/]*$/, '').replace(/\.(m?js|py)$/, '').split(/[\\/]/).pop()
+    .replace(/(^mcp[-_]server[-_]|^server[-_]|[-_]mcp[-_]server$|[-_]mcp$|^mcp[-_])/gi, '') || 'server';
+}
+
+/**
+ * Pasted MCP settings → the servers in them: `local` ({ name: { command,
+ * args, env, cwd } }) to run on the Bot Computer, and `remote` ([{ name, url,
+ * headers }]) for the app to call. Takes the "mcpServers" JSON that Claude
+ * Desktop, Cursor and most servers' instructions give (VS Code's "servers"
+ * too), servers by name, one server's settings on their own, or just a
+ * server's web address. Forgiving of what a phone's keyboard does to quotes,
+ * and of trailing commas. Throws a message to show when it can't be used.
+ */
+export function readMcpSettings(text) {
+  const raw = String(text || '').trim();
+  if (!raw) throw new Error(tr('Paste a server’s settings first.'));
+  if (/^https?:\/\/\S+$/i.test(raw)) return { local: {}, remote: [{ name: serverName({ url: raw }), url: raw, headers: {} }] };
+  // As pasted first, so no value is changed; then with a phone keyboard's
+  // curly quotes made straight, trailing commas dropped, and braces put
+  // around "name": { … } pasted without them.
+  const straight = raw.replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"').replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'");
+  const noCommas = (t) => t.replace(/,(\s*[}\]])/g, '$1');
+  let data;
+  for (const t of [raw, straight].flatMap((x) => [x, noCommas(x), `{${x}}`, noCommas(`{${x}}`)])) {
+    try {
+      data = JSON.parse(t);
+      break;
+    } catch { /* the next way */ }
+  }
+  if (data === undefined) throw new Error(tr("That isn't valid JSON. Check its quotes, commas and braces."));
+  let found = data?.mcpServers || data?.servers || data?.mcp?.servers || data;
+  if (found && (found.command || found.url || found.serverUrl)) found = { [serverName(found)]: found };
+  if (!found || typeof found !== 'object' || Array.isArray(found) || !Object.keys(found).length) {
+    throw new Error(tr('No servers in that. It should look like { "mcpServers": { "name": { … } } }.'));
+  }
+  const strings = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).map(([k, v]) => [k, String(v ?? '')]));
+  const local = {};
+  const remote = [];
+  const values = [];
+  for (const [name, spec] of Object.entries(found)) {
+    if (!spec || typeof spec !== 'object') throw new Error(tr('“{name}” has no settings.', { name }));
+    const url = spec.url || spec.serverUrl;
+    if (url) {
+      if (!/^https?:\/\//i.test(url)) throw new Error(tr('“{name}” needs a web address starting with https://.', { name }));
+      const headers = strings(spec.headers);
+      remote.push({ name, url, headers });
+      values.push(...Object.values(headers));
+    } else if (typeof spec.command === 'string' && spec.command.trim()) {
+      const env = strings(spec.env);
+      const args = (Array.isArray(spec.args) ? spec.args : []).map(String);
+      local[name] = { command: spec.command.trim(), args, ...(Object.keys(env).length ? { env } : {}), ...(spec.cwd ? { cwd: String(spec.cwd) } : {}) };
+      values.push(...Object.values(env), ...args);
+    } else throw new Error(tr('“{name}” needs a command to run (such as npx) or a url.', { name }));
+  }
+  // Left as the instructions wrote it: <API password>, YOUR_API_KEY, your-token-here…
+  const blank = values.find((v) => /^<[^<>]+>$/.test(v.trim()) || /^your[-_ ]?([a-z]+[-_ ])*(key|token|password|secret|login)([-_ ]here)?$/i.test(v.trim()));
+  if (blank) throw new Error(tr('Put your own value in place of {placeholder} first.', { placeholder: blank }));
+  return { local, remote };
+}
+
+/** Settings → Plugins → Add MCP server: paste a server's settings. One with
+ * a command goes to the Bot Computer (/v1/mcp/servers), one with a url to
+ * the app's own list; either replaces one with the same name. */
+function AddServers({ servers, saveServers, onAdded, onCancel }) {
+  const app = useApp();
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    let found;
+    try {
+      found = readMcpSettings(text);
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    const localNames = Object.keys(found.local);
+    if (localNames.length && !app.computer.connected) {
+      setError(tr('A server with a command runs on your Bot Computer. Connect one in Settings → Bot Computer first.'));
+      return;
+    }
+    if (localNames.length && !app.computer.info?.capabilities?.mcpConfig) {
+      setError(tr('Your Bot Computer needs the latest Holly Computer for this. A Holly Bot server updates itself within a few minutes; on your own computer, restart Holly Computer.'));
+      return;
+    }
+    setError('');
+    setBusy(true);
+    try {
+      if (found.remote.length) {
+        const names = new Set(found.remote.map((r) => r.name));
+        const stamp = Date.now().toString(36);
+        await saveServers([...servers.filter((x) => !names.has(x.name)), ...found.remote.map((r, i) => ({ id: `mcp_${stamp}${i}`, ...r, enabled: true }))]);
+      }
+      if (localNames.length) {
+        await app.computer.mcpChange({ op: 'add', servers: found.local });
+        await app.plugins.refresh().catch(() => {});
+      }
+      onAdded([...localNames, ...found.remote.map((r) => r.name)]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return html`<div class="mem">
-    <${Field} label=${tr('Name')}><input class="input" placeholder=${tr('e.g. Linear')} value=${name} onInput=${(e) => setName(e.currentTarget.value)} /><//>
-    <${Field} label=${tr('Server URL')}><input class="input mono" placeholder="https://mcp.example.com/mcp" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
-    <${Field} label=${tr('Authorization header (optional)')}><input class="input mono" placeholder="Bearer …" value=${auth} autocapitalize="off" onInput=${(e) => setAuth(e.currentTarget.value)} /><//>
+    <${Field} label=${tr('Server settings (JSON)')}>
+      <textarea class="textarea mono" style="min-height:190px" placeholder=${MCP_EXAMPLE} value=${text} spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off"
+        onInput=${(e) => { setText(e.currentTarget.value); setError(''); }}></textarea>
+    <//>
+    ${error && html`<p class="auth-error" role="alert">${error}</p>`}
     <div class="btn-row" style="justify-content:flex-end">
       <button class="btn small" onClick=${onCancel}>${tr('Cancel')}</button>
-      <button class="btn small primary" disabled=${!name.trim() || !/^https?:\/\//.test(url.trim())} onClick=${() => onSave({ id: `mcp_${Date.now().toString(36)}`, name: name.trim(), url: url.trim(), headers: auth.trim() ? { Authorization: auth.trim() } : {}, enabled: true })}>${tr('Add')}</button>
+      <button class="btn small primary" disabled=${busy || !text.trim()} onClick=${add}>${busy ? html`<span class="spinner"></span>` : tr('Add')}</button>
     </div>
   </div>`;
 }

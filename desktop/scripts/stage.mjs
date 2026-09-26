@@ -2,7 +2,7 @@
 // (electron-builder, which takes app\ and stage\: package.json "build"):
 //
 //   app\main.cjs              the app (src\), in one file, with the app's dictionaries
-//   app\preload.cjs, status\, icons\
+//   app\preload.cjs, status\ (with Holly Bot's font, Satoshi), icons\
 //   stage\computer\           holly-computer.mjs, as the Holly Bot site serves it (build it first:
 //                             npm run build:computer in the project)
 //   stage\node\               Node.js for Windows (x64), the version in package.json "config",
@@ -51,8 +51,11 @@ await build({
 });
 cpSync(join(desktop, 'src', 'preload.cjs'), join(app, 'preload.cjs'));
 for (const file of ['index.html', 'status.css']) cpSync(join(desktop, 'src', 'status', file), join(app, 'status', file));
+// Holly Bot's one font, with its license (vendor/fonts/satoshi).
+mkdirSync(join(app, 'status', 'fonts'), { recursive: true });
+for (const file of ['Satoshi-Variable.woff2', 'FFL.txt']) cpSync(join(root, 'vendor', 'fonts', 'satoshi', file), join(app, 'status', 'fonts', file));
 cpSync(join(desktop, 'src', 'icons'), join(app, 'icons'), { recursive: true });
-console.log('app: main.cjs, preload.cjs, status/, icons/');
+console.log('app: main.cjs, preload.cjs, status/ (with Satoshi), icons/');
 
 // ----- Holly Computer ------------------------------------------------------------------------
 

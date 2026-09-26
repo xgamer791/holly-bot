@@ -1,4 +1,8 @@
-/* Holly Computer for Windows' window: Holly Bot's dark look (styles.css). */
+/* Holly Computer for Windows' window: Holly Bot's dark look (styles.css),
+   and its one font, Satoshi, which comes with the app (scripts/stage.mjs
+   copies it from vendor/fonts/satoshi, with its license). */
+
+@font-face { font-family: 'Satoshi'; src: url('fonts/Satoshi-Variable.woff2') format('woff2'); font-weight: 300 900; font-style: normal; font-display: block; }
 
 :root {
   --bg: #121212;
@@ -14,8 +18,7 @@
   --green: #30d158;
   --orange: #f5a623;
   --red: #ff6b6b;
-  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  --font: "Satoshi", sans-serif;
   color-scheme: dark;
 }
 
@@ -122,7 +125,7 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .folder + .folder { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .folder .what { flex: 1; min-width: 0; }
 .folder .t { font-weight: 550; }
-.path { color: var(--muted); font: 12px/1.4 var(--mono); word-break: break-all; user-select: text; }
+.path { color: var(--muted); font-size: 12.5px; line-height: 1.4; font-variant-numeric: tabular-nums; word-break: break-all; user-select: text; }
 
 .wifi { display: flex; gap: 14px; align-items: flex-start; }
 .wifi img { width: 132px; height: 132px; border-radius: 10px; background: #fff; padding: 6px; image-rendering: pixelated; flex: none; }
@@ -151,7 +154,7 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .input {
   width: 100%; min-height: 36px; padding: 7px 11px; border-radius: 10px;
   border: 1px solid var(--border-strong); background: var(--bg); color: var(--text);
-  font: 13px var(--mono); user-select: text;
+  font: inherit; font-size: 13.5px; font-variant-numeric: tabular-nums; user-select: text;
 }
 .input:focus { outline: none; border-color: var(--blue); }
 .input.port { width: 96px; flex: none; }
@@ -163,7 +166,7 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log {
   flex: 1; min-height: 0; margin: 0; overflow: auto; padding: 12px 14px; border-radius: 12px;
   background: #0b0b0b; border: 1px solid var(--border); color: var(--text-2);
-  font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; user-select: text;
+  font-size: 12.5px; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: pre-wrap; word-break: break-word; user-select: text;
 }
 
 .foot {

@@ -146,14 +146,21 @@ class LinuxDesktop {
    * Keys go to the window under this screen's pointer first: on a display
    * shared by several bots' screens, the keyboard's focus may have moved to
    * another bot's window since this one last clicked.
+   *
+   * No xdotool --sync, here or anywhere: X carries out a pointer move or a
+   * focus change as it gets it, before whatever comes after it, so there's
+   * nothing to wait for. And --sync polls for up to 15 seconds whenever what
+   * it looks for doesn't show exactly (the focus on that very window, say,
+   * with Chrome's windows on a display with no window manager): twice before
+   * each typing or key, which could hold typing up for half a minute.
    */
   async focusHere() {
     if (!this.region) return;
     const [x, y] = this.lastPoint || [this.region.x + Math.round(this.region.width / 2), this.region.y + Math.round(this.region.height / 2)];
     try {
-      const { stdout } = await this.x(['mousemove', '--sync', x, y, 'getmouselocation', '--shell']);
+      const { stdout } = await this.x(['mousemove', x, y, 'getmouselocation', '--shell'], 5000);
       const win = stdout.match(/WINDOW=(\d+)/)?.[1];
-      if (win) await this.x(['windowfocus', '--sync', win]);
+      if (win) await this.x(['windowfocus', win], 5000);
     } catch { /* keys go wherever the focus is */ }
   }
 
@@ -253,6 +260,18 @@ class LinuxDesktop {
     }
   }
 
+  /** The screen as a JPEG, saved by scrot itself (it goes by the file's name). */
+  async scrotJpeg(quality) {
+    const file = join(this.tmp, `shot-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+    const r = this.region;
+    try {
+      await run(this.tools.scrot, [...(r ? ['--autoselect', `${r.x},${r.y},${r.width},${r.height}`] : []), '--quality', String(quality), file], { env: this.env, timeoutMs: 15000 });
+      return readFileSync(file);
+    } finally {
+      rmSync(file, { force: true });
+    }
+  }
+
   async screenshot({ maxWidth = 1280, quality = 70 } = {}) {
     const info = await this.info();
     const t = this.tools;
@@ -262,6 +281,19 @@ class LinuxDesktop {
       const { stdout } = await run(cmd, [...pre, '-silent', '-window', 'root', ...this.crop(), '-resize', `${tw}x`, '-quality', String(quality), 'jpeg:-'], { env: this.env, binary: true, timeoutMs: 15000 });
       const size = imageSize(stdout) || { width: tw, height: Math.round((info.height * tw) / (info.width || tw)) };
       return { data: stdout.toString('base64'), mime: 'image/jpeg', width: size.width, height: size.height, screenWidth: info.width || size.width, screenHeight: info.height || size.height };
+    }
+    // Wanted at full size (a bot's own screen always is), scrot saves a JPEG
+    // itself: a fraction of a PNG's size, which the app's live view fetches
+    // every second or two. A scrot that can't, three times running, is left
+    // to its PNGs.
+    if (this.screenshotTool() === 'scrot' && info.width && tw >= info.width && (this.jpegFails || 0) < 3) {
+      const jpeg = await this.scrotJpeg(quality).catch(() => null);
+      const size = imageSize(jpeg);
+      if (size?.mime === 'image/jpeg') {
+        this.jpegFails = 0;
+        return { data: jpeg.toString('base64'), mime: 'image/jpeg', width: size.width, height: size.height, screenWidth: info.width, screenHeight: info.height || size.height };
+      }
+      this.jpegFails = (this.jpegFails || 0) + 1;
     }
     const png = await this.capturePng();
     const src = imageSize(png);
@@ -277,7 +309,7 @@ class LinuxDesktop {
 
   async move(x, y) {
     const [X, Y] = this.at(x, y);
-    await this.x(['mousemove', '--sync', X, Y]);
+    await this.x(['mousemove', X, Y]);
   }
 
   async click(x, y, { button = 'left', double = false } = {}) {
@@ -285,7 +317,7 @@ class LinuxDesktop {
     let [X, Y] = this.at(x, y);
     // Where this screen's pointer was: the pointer may be on another bot's screen now.
     if (this.region && !(Number.isFinite(X) && Number.isFinite(Y))) [X, Y] = this.lastPoint || this.at(Math.round(this.region.width / 2), Math.round(this.region.height / 2));
-    const move = Number.isFinite(X) && Number.isFinite(Y) ? ['mousemove', '--sync', X, Y] : [];
+    const move = Number.isFinite(X) && Number.isFinite(Y) ? ['mousemove', X, Y] : [];
     await this.x([...move, 'click', ...(double ? ['--repeat', 2, '--delay', 90] : []), b]);
   }
 
@@ -294,7 +326,7 @@ class LinuxDesktop {
     const [X2, Y2] = this.at(x2, y2);
     const mx = Math.round((X1 + X2) / 2);
     const my = Math.round((Y1 + Y2) / 2);
-    await this.x(['mousemove', '--sync', X1, Y1, 'mousedown', 1, 'sleep', 0.15, 'mousemove', mx, my, 'sleep', 0.08, 'mousemove', '--sync', X2, Y2, 'sleep', 0.12, 'mouseup', 1]);
+    await this.x(['mousemove', X1, Y1, 'mousedown', 1, 'sleep', 0.15, 'mousemove', mx, my, 'sleep', 0.08, 'mousemove', X2, Y2, 'sleep', 0.12, 'mouseup', 1]);
   }
 
   async type(text) {
@@ -312,7 +344,7 @@ class LinuxDesktop {
   async scroll(x, y, { direction = 'down', amount = 5 } = {}) {
     const b = { up: 4, down: 5, left: 6, right: 7 }[direction] || 5;
     const [X, Y] = this.at(x, y);
-    await this.x(['mousemove', '--sync', X, Y, 'click', '--repeat', Math.max(1, Math.min(50, amount)), '--delay', 40, b]);
+    await this.x(['mousemove', X, Y, 'click', '--repeat', Math.max(1, Math.min(50, amount)), '--delay', 40, b]);
   }
 
   async cursor() {

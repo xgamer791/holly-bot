@@ -102,7 +102,7 @@ function loadConfig(dataDir, newToken) {
 /** Web app files: embedded in the single-file build, or read from the repo in development. */
 function assetLoader() {
   const embedded = globalThis.__HOLLY_ASSETS__;
-  const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json', webmanifest: 'application/manifest+json', svg: 'image/svg+xml', png: 'image/png' };
+  const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json', webmanifest: 'application/manifest+json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', txt: 'text/plain; charset=utf-8' };
   const typeOf = (p) => TYPES[p.split('.').pop()] || 'application/octet-stream';
   if (embedded) {
     return (path) => {
