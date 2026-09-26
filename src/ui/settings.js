@@ -75,7 +75,8 @@ function AccountHeader({ acct, go }) {
 }
 
 /** Settings is a drawer from the left that pushes the app over, with a
- * handle to drag it closed (useDrawer in src/ui/components.js). */
+ * handle to drag it closed and no header on its first page (useDrawer in
+ * src/ui/components.js). */
 export function SettingsSheet({ onClose: remove, page: initialPage, provider: initialProvider }) {
   const app = useApp();
   const drawer = useDrawer(remove);
@@ -90,16 +91,16 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
     computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), data: mark('Data & Backup'),
     help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'),
   };
-  const left = top
-    ? html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`
-    : html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`;
+  // Settings itself has no header: tapping beside the drawer, or dragging its
+  // handle, closes it. Its pages have Back and their title.
+  const backButton = html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
     appearance: AppearancePage, language: LanguagePage, data: DataPage,
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage,
   };
   const Page = (top && pages[top.page]) || MainPage;
-  return html`<${Sheet} drawer=${drawer} title=${top ? tr(titles[top.page]) : tr('Settings')} left=${left} onClose=${onClose}>
+  return html`<${Sheet} drawer=${drawer} title=${top ? tr(titles[top.page]) : tr('Settings')} headless=${!top} left=${backButton} onClose=${onClose}>
     <${Page} go=${go} back=${back} onClose=${onClose} ...${top || {}} />
   <//>`;
 }

@@ -47,7 +47,12 @@ export function useDrawer(remove) {
     setDrag(null);
     timer.current = setTimeout(() => remove?.(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_MS);
   };
+  const dragged = useRef(false); // the click that ends a drag isn't a tap
   const handle = {
+    onClick() {
+      if (!dragged.current) close();
+      dragged.current = false;
+    },
     onPointerDown(e) {
       if (timer.current || !ref.current) return;
       e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -68,6 +73,7 @@ export function useDrawer(remove) {
       const d = drag.current;
       if (!d) return;
       drag.current = null;
+      dragged.current = d.moved;
       if (!d.moved) return close();
       if (d.dx < -d.w / 3 || d.v < -0.5) {
         // Already moving, so it carries on out without first slowing to a start.
@@ -97,7 +103,7 @@ export function Sheet({ title, onClose, children, footer, left, right, className
   }, [onClose]);
   return html`
     <div class=${`sheet-scrim ${drawer ? 'drawer-scrim' : ''}`} onClick=${onClose}></div>
-    <section ref=${drawer?.ref} class=${`sheet ${className} ${drawer ? 'drawer' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
+    <section ref=${drawer?.ref} class=${`sheet ${className} ${drawer ? 'drawer' : ''} ${headless ? 'headless' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
       ${!headless && html`
         <header class="sheet-head">
           ${left || html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`}
@@ -106,7 +112,7 @@ export function Sheet({ title, onClose, children, footer, left, right, className
         </header>`}
       <div class="sheet-body">${children}</div>
       ${footer && html`<footer class="sheet-foot">${footer}</footer>`}
-      ${drawer && html`<div class="drawer-handle" aria-hidden="true" ...${drawer.handle}><span></span></div>`}
+      ${drawer && html`<button class="drawer-handle" aria-label=${tr('Close')} ...${drawer.handle}><span></span></button>`}
     </section>`;
 }
 

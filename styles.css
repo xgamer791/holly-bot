@@ -306,7 +306,7 @@ svg { display: block; }
   @keyframes popc { from { opacity: 0; transform: translateX(-50%) scale(.96); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
 }
 /* Settings (src/ui/settings.js, useDrawer in src/ui/components.js): a drawer
-   from the left, full height, square-cornered and 50px short of the right
+   from the left, full height, square-cornered and 70px short of the right
    edge. It slides in over 450ms and pushes the app over to the right by its
    own width, dimming it, and slides back out the same way pulling the app
    back, the way out being the way in played backwards (the easing mirrored).
@@ -315,7 +315,7 @@ svg { display: block; }
    handle is dragged, --drawer-drag is how far it has come back (px, 0 or
    less) and --drawer-shown how much of it still shows. */
 :root {
-  --drawer-w: min(calc(100vw - 50px), 560px);
+  --drawer-w: min(calc(100vw - 70px), 560px);
   --drawer-in: cubic-bezier(.2, .8, .2, 1);
   --drawer-out: cubic-bezier(.8, 0, .8, .2);
 }
@@ -340,7 +340,7 @@ svg { display: block; }
 /* The handle: a tab on the drawer's right edge, halfway down, in the drawer's
    color with a grabber on it. The whole strip beside the drawer answers to it.
    It shows only while the drawer is open (closed, it would sit at the screen's edge). */
-.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 50px; display: flex; align-items: center; touch-action: none; cursor: grab; }
+.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 70px; display: flex; align-items: center; touch-action: none; cursor: grab; }
 .drawer-dragging .drawer-handle { cursor: grabbing; }
 .drawer-handle span { flex: none; width: 20px; height: 60px; border-radius: 0 10px 10px 0; background: var(--bg); box-shadow: 6px 0 12px -6px rgba(0, 0, 0, .3);
   display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .45s var(--drawer-out); }
@@ -382,6 +382,7 @@ button.row:active { background: var(--surface-2); }
    inside the drawer is made of the same rows, headings and notes. */
 .drawer .sheet-head { padding: 16px 20px 4px; min-height: 68px; gap: 14px; }
 .drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); }
+.drawer.headless .sheet-body { padding-top: 20px; } /* Settings itself: no header above it */
 .drawer .group { background: none; border-radius: 0; margin: 0; overflow: visible; }
 .drawer .group + .group { margin-top: 14px; }
 .drawer .group-label { margin: 28px 0 6px; color: var(--muted); font-size: 12px; line-height: 16px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
