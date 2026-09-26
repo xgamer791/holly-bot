@@ -14,7 +14,8 @@ import { firstWords, languageName, phrase, spoken } from './i18n.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 import {
-  BRIEF_PROMPT, BRIEF_VERSION, RULES_PROMPT, briefCurrent, briefInput, clipJob, newlyRefused, parseBrief, parseRulesCheck, rulesInput, shortJob,
+  BRIEF_PROMPT, BRIEF_VERSION, RULES_CHECK, RULES_PROMPT, briefCurrent, briefInput, clipJob, newlyRefused, parseBrief, parseRulesCheck, rulesInput,
+  shortJob,
 } from './brief.js';
 
 // App state: the single source of truth the UI renders from. Persists to
@@ -586,9 +587,12 @@ export class App {
 
   // ----- a bot's rules, against Holly Bot's own (src/core/brief.js) ----------------
 
-  /** Whether a bot's rules, as they are now, are yet to be checked. */
+  /** Whether a bot's rules, as they are now, are yet to be checked (by the
+   * current check: RULES_CHECK). */
   needsRulesCheck(agent) {
-    return !!agent && (agent.rules || '') !== (agent.rulesCheckFor ?? '');
+    if (!agent) return false;
+    if ((agent.rules || '') !== (agent.rulesCheckFor ?? '')) return true;
+    return !!agent.rules?.trim() && (agent.rulesCheck || 1) < RULES_CHECK;
   }
 
   /**
@@ -620,14 +624,19 @@ export class App {
         if (!fresh || (fresh.rules || '') !== rules) return;
         if (!refused) throw new Error("the answer wasn't the JSON asked for");
         const told = newlyRefused(refused, fresh.rulesRefused, fresh.rulesCheckFor, rules);
+        // The same rules checked again by a newer check (RULES_CHECK) that
+        // turns none of them down: the ones turned down before are fine now.
+        const lifted = fresh.rulesCheckFor === rules && !refused.length ? fresh.rulesRefused || [] : [];
         // Storage an account's devices share: only one of them tells the user.
         // That's settled before the check is kept: when the server can't be
         // reached (the claim throws), nothing is kept, and the check and the
         // telling are tried again later.
         const tell = told.length > 0 && (!this.db.claim || await this.db.claim(`rules:${agentId}`, fresh.rulesAt || 1, { strict: true }));
-        await this.updateAgent(agentId, { rulesRefused: refused, rulesCheckFor: rules });
+        const tellLifted = lifted.length > 0 && (!this.db.claim || await this.db.claim(`rules-lifted:${agentId}`, fresh.rulesAt || 1, { strict: true }));
+        await this.updateAgent(agentId, { rulesRefused: refused, rulesCheckFor: rules, rulesCheck: RULES_CHECK });
         this.retryNote(tries, rules, true);
         if (tell) await this.tellRefused(this.getAgent(agentId), told);
+        if (tellLifted) await this.tellLifted(this.getAgent(agentId), lifted);
       } catch (err) {
         if (err?.kind !== 'no_key') {
           console.warn('rules check', err?.message || err);
@@ -653,6 +662,25 @@ export class App {
         text: `[Note to you, not from the user: the user just wrote your rules, and ${one ? 'this one goes' : 'these go'} against Holly Bot's own rules for every bot, so you won't follow ${one ? 'it' : 'them'}:\n`
           + `${refused.map((r) => `- “${r.rule}”${r.why ? `: ${r.why}` : ''}`).join('\n')}\n`
           + `Tell the user now, in a few short sentences: flat out, that you won't follow ${one ? 'that rule' : 'those rules'}, and why, and that you'll keep the rest of your rules. Don't do anything else.]`,
+      }],
+    });
+    this.runtime.enqueue(thread.id, (halt) => this.runtime.runTurn({ agent: this.getAgent(agent.id) || agent, threadId: thread.id, halt }))
+      .catch((err) => console.warn('rules notice', err));
+  }
+
+  /** The bot says in its chat with the user that it follows these of their
+   * rules ([{ rule }]) after all: it said it wouldn't, and Holly Bot's own
+   * rules no longer stand in their way (RULES_CHECK). As tellRefused. */
+  async tellLifted(agent, lifted) {
+    const thread = await this.ensureDmThread(agent.id);
+    const one = lifted.length === 1;
+    await this.addMessage({
+      threadId: thread.id, authorType: 'system', authorId: 'rules', forModel: true, quiet: true,
+      parts: [{
+        type: 'text',
+        text: `[Note to you, not from the user: you told the user you wouldn't follow ${one ? 'this rule' : 'these rules'} of theirs, but Holly Bot's own rules no longer stand in ${one ? 'its' : 'their'} way, so you follow ${one ? 'it' : 'them'} from now on, like the rest of your rules:\n`
+          + `${lifted.map((r) => `- “${r.rule}”`).join('\n')}\n`
+          + `Tell the user now, in a sentence or two, that you'll follow ${one ? 'that rule' : 'those rules'} after all. Don't do anything else.]`,
       }],
     });
     this.runtime.enqueue(thread.id, (halt) => this.runtime.runTurn({ agent: this.getAgent(agent.id) || agent, threadId: thread.id, halt }))
