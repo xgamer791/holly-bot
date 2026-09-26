@@ -217,10 +217,11 @@ svg { display: block; }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
 /* The buttons at the top right (the computer, search, new): just the icon,
-   no bubble, all the same size, in the same space to tap. */
-.icon-btn { width: var(--tap); height: var(--tap); background: none; border: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--text); transition: opacity .15s, transform .1s; }
-.icon-btn:active { transform: scale(.9); opacity: .6; }
-.icon-btn svg { width: 24px; height: 24px; }
+   no bubble, all the same size, in the same space to tap (not .icon-btn,
+   the smaller gray buttons further down). */
+.top-btn { width: var(--tap); height: var(--tap); background: none; border: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--text); transition: opacity .15s, transform .1s; }
+.top-btn:active { transform: scale(.9); opacity: .6; }
+.top-btn svg { width: 24px; height: 24px; }
 /* The computer button at the top right (src/ui/computer-button.js): grayed out
    while there's no computer, the computer pulsing blue while it connects,
    solid green while connected. */

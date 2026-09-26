@@ -35,14 +35,14 @@ export function HomeScreen({ activeThreadId }) {
       <header class="topbar">
         ${profileName
           ? html`<button class="initials" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}>${initials(profileName)}</button>`
-          : html`<button class="icon-btn" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}><${Icon.gear} /></button>`}
+          : html`<button class="top-btn" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}><${Icon.gear} /></button>`}
         <div class="spacer"></div>
         <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
-        <button class="icon-btn" aria-label=${tr('Search')} onClick=${() => {
+        <button class="top-btn" aria-label=${tr('Search')} onClick=${() => {
           setSearching(!searching);
           setQuery('');
         }}><${Icon.search} /></button>
-        <button ref=${plusRef} class="icon-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
+        <button ref=${plusRef} class="top-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       </header>
       ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} items=${[
         { label: tr('New Bot'), onClick: () => ui.openSheet('createBot') },

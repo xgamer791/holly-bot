@@ -33,5 +33,5 @@ export function ComputerButton({ onClick }) {
     const t = setTimeout(() => redraw((n) => n + 1), Math.max(0, app.unreachableSince + RECONNECT_MS - Date.now()) + 50);
     return () => clearTimeout(t);
   }, [status, app.unreachableSince]);
-  return html`<button class=${`icon-btn computer-btn is-${status}`} aria-label=${tr(LABEL[status])} onClick=${onClick}><${Icon.laptop} /></button>`;
+  return html`<button class=${`top-btn computer-btn is-${status}`} aria-label=${tr(LABEL[status])} onClick=${onClick}><${Icon.laptop} /></button>`;
 }
