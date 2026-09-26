@@ -388,10 +388,13 @@ button.row:active { background: var(--surface-2); }
    inside the drawer are made of the same surfaces, rows, headings and notes. */
 /* Colours picked to read clearly on a phone: surfaces that stand apart from
    the background, descriptions and headings in a mid gray rather than a pale
-   one, and switches whose off state is plainly visible. */
+   one, and switches whose off state is plainly visible. In light, the
+   surfaces are the same gray as the app's other gray boxes (--surface-2), and
+   code on them is on white so it still shows. */
 .drawer { --card: #252528; --card-press: #303033; --card-line: rgba(255, 255, 255, .11); --track: #4a4a4f; --meter: rgba(255, 255, 255, .16); --sub: #aeaeb3; --chev: #7d7d82; --radius-group: 16px; }
 :root[data-theme="dark"] .drawer { --card: #2e2e31; --card-press: #39393c; --track: #545459; }
-:root[data-theme="light"] .drawer { --card: #ebebee; --card-press: #dfdfe3; --card-line: rgba(0, 0, 0, .1); --track: #b2b2b8; --meter: rgba(0, 0, 0, .12); --sub: #56565b; --chev: #86868b; }
+:root[data-theme="light"] .drawer { --card: var(--surface-2); --card-press: var(--surface-3); --card-line: rgba(0, 0, 0, .1); --track: #b2b2b8; --meter: rgba(0, 0, 0, .12); --sub: #56565b; --chev: #86868b; }
+:root[data-theme="light"] .drawer .group { --code-bg: #fff; }
 :root[data-theme="light"] .sheet.drawer { background: #fff; }
 .drawer .sheet-head { padding: 16px 16px 4px; min-height: 68px; gap: 14px; }
 .drawer .sheet-body { padding: 4px 16px calc(28px + var(--safe-bottom)); touch-action: pan-y; }
