@@ -52,7 +52,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 ### Put your bots on your computer
 
-**On Windows,** [download Holly-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe) and open it: it installs Holli Bot as a Windows app with Holli Bot Computer inside it, with no Node.js or terminal needed ([Holli Bot for Windows](#holli-bot-for-windows), below).
+**On Windows,** [download Holli-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holli-Bot-Setup.exe) and open it: it installs Holli Bot as a Windows app with Holli Bot Computer inside it, with no Node.js or terminal needed ([Holli Bot for Windows](#holli-bot-for-windows), below).
 
 **On a Mac or Linux,** or on Windows from a terminal:
 
@@ -88,7 +88,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 Holli Bot as a Windows app (`desktop/`), with Holli Bot Computer inside it: one app on the PC, next to Holli Bot on your phone, with no Node.js to install and no terminal to keep open.
 
-1. [Download Holly-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe) and open it. It installs for you (no administrator needed), puts Holli Bot in the Start menu and on the desktop, and opens it. The app isn't code-signed yet, so the first time Windows may say it protected your PC: **More info → Run anyway**.
+1. [Download Holli-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holli-Bot-Setup.exe) and open it. It installs for you (no administrator needed), puts Holli Bot in the Start menu and on the desktop, and opens it. The app isn't code-signed yet, so the first time Windows may say it protected your PC: **More info → Run anyway**.
 2. Sign in on Holli Bot with the Apple or Google account you use in Holli Bot. That links the PC to your account.
 3. Open Holli Bot on your phone and tap **Connect**. That's it.
 

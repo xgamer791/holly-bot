@@ -17,7 +17,7 @@ import {
 const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
 /** Holli Bot for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
-const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe';
+const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holli-Bot-Setup.exe';
 
 /** The Holli Bot account, re-rendering when it changes and refreshing who is
  * signed in from the database each time Settings opens. */
