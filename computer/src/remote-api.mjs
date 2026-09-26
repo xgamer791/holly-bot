@@ -175,7 +175,8 @@ export const RPC = {
   'providers.test': async (app, [id]) => (await app.providers.test(id)).map((m) => ({ id: m.id, name: m.name })),
   'providers.balance': (app, [id]) => app.providers.balance(id),
   'plugins.refresh': async (app) => {
-    await app.computer.mcp?.reload?.();
+    // Servers added, changed or stopped with an error start; the rest keep running.
+    await (app.computer.mcp?.sync ? app.computer.mcp.sync() : app.computer.mcp?.reload?.());
     await app.plugins.refresh();
     return plugins(app);
   },

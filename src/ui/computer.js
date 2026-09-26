@@ -428,6 +428,10 @@ function Screen({ agentId }) {
   const sending = useRef(false);
   const aboveKeyboard = useBoxAboveKeyboard();
   const inflight = useRef(false);
+  // Actions started, and those still on their way: the live view waits for
+  // them (its pictures would take the connection from theirs), and a picture
+  // it asked for before one started shows the screen from before it.
+  const acts = useRef({ started: 0, going: 0 });
   const asked = useRef(0); // how wide a picture the last request asked for
   const sharper = useRef(false); // a sharper picture is wanted once the one on its way is in
   const allOfIt = useRef(false); // zoomed in, the computer sent all the pixels it has
@@ -467,15 +471,18 @@ function Screen({ agentId }) {
   };
 
   const refresh = async (quiet = false) => {
-    if (inflight.current) return;
+    if (inflight.current || acts.current.going) return;
     inflight.current = true;
     if (!quiet) setBusy(true);
     const d = detail();
     asked.current = d.maxWidth;
+    const since = acts.current.started;
     try {
       // `show`: on a bot's own screen with nothing on it, its browser window opens (local-computer.mjs).
-      if (mode === 'desktop') show(await app.computer.desktopAction('screenshot', { ...d, agentId, show: own }), true, d);
-      else show(await app.computer.browser('screenshot', { ...d, ifRunning: true, agentId }), false, d);
+      const r = mode === 'desktop'
+        ? await app.computer.desktopAction('screenshot', { ...d, agentId, show: own })
+        : await app.computer.browser('screenshot', { ...d, ifRunning: true, agentId });
+      if (acts.current.started === since) show(r, mode === 'desktop', d);
     } catch (err) {
       if (!quiet) ui.toast(err.message, { error: true });
       setLive(false);
@@ -509,21 +516,27 @@ function Screen({ agentId }) {
   /** Does `action` on the screen showing; true once it's done. */
   const act = async (action, args = {}) => {
     setBusy(true);
+    const n = ++acts.current.started;
+    acts.current.going++;
     // x and y are in the picture showing; the one that comes back is as sharp as the view needs.
     const d = detail();
     asked.current = d.maxWidth;
     try {
-      if (mode === 'desktop') show(await app.computer.desktopAction(action, { ...args, ...d, imageWidth: shot?.width, agentId }), true, d);
+      let r;
+      if (mode === 'desktop') r = await app.computer.desktopAction(action, { ...args, ...d, imageWidth: shot?.width, agentId });
       else {
         // Act on the tab being shown; after that the view follows whichever tab the bots use.
         const tab = action === 'goto' && closed ? undefined : shot?.tab;
-        show(await app.computer.browser(action, { ...args, ...d, imageWidth: shot?.width, tab, quick: true, withScreenshot: true, agentId }), false, d);
+        r = await app.computer.browser(action, { ...args, ...d, imageWidth: shot?.width, tab, quick: true, withScreenshot: true, agentId });
       }
+      // Another action started since (a tap, then Type): its picture is the one to show.
+      if (acts.current.started === n) show(r, mode === 'desktop', d);
       return true;
     } catch (err) {
       ui.toast(err.message, { error: true });
       return false;
     } finally {
+      acts.current.going--;
       setBusy(false);
     }
   };

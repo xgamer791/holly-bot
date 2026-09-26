@@ -373,6 +373,15 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
     }
     if (p === '/v1/mcp' && req.method === 'GET') return json(res, 200, await computer.mcpList());
     if (p === '/v1/mcp/call') return json(res, 200, await computer.mcpCall(body.server, body.tool, body.arguments));
+    if (p === '/v1/mcp/servers') {
+      // A server fetched by npx the first time can take a while to start: the
+      // answer comes after half a minute at most, with it still 'starting',
+      // and the bots here get its tools once it's up.
+      const done = computer.mcpChange(body);
+      done.then(() => app.plugins?.refresh?.()).catch(() => {});
+      await Promise.race([done, wait(30_000)]);
+      return json(res, 200, await computer.mcpList());
+    }
     return json(res, 404, { error: `Unknown endpoint ${p}` });
   }
 

@@ -913,8 +913,12 @@ export class CdpBrowser {
     return { tab: tab.targetId.slice(0, 8), url: page.url, title: page.title, text: page.text, ...(note ? { note } : {}) };
   }
 
+  /** The page as the tab has it; with `o.quick`, only which tab and where
+   * (for someone watching the screen: reading a page's text can take a while). */
   async snapshot(o = {}) {
-    return this.read(await this.tabFor(o));
+    const tab = await this.tabFor(o);
+    if (o.quick) return { tab: tab.targetId.slice(0, 8), url: tab.url, title: tab.title };
+    return this.read(tab);
   }
 
   async goto(url, o = {}) {
