@@ -379,58 +379,65 @@ button.row:active { background: var(--surface-2); }
 .toggle.on::after { transform: translateX(18px); }
 
 /* ---------- inside the Settings drawer (src/ui/settings.js) ----------
-   On the app's own background (the status bar's colour too), each section is
-   a bubble, like the Workspace sheet's lists: a rounded card with a thin
-   outline and a line between its rows (white on the light theme, a shade
-   lighter than the background on the dark ones), under a heading in small
-   capitals. Usage and Sign Out are bubbles of their own. A row darkens while
-   it's pressed. Every page inside the drawer is made of the same bubbles,
-   rows, headings and notes. */
-.drawer { --card: #1c1c1e; --card-press: #29292b; --card-line: var(--border); }
+   A native-feeling settings list on a bright background: related settings
+   share a light gray surface with soft corners and no border, with thin
+   lines between rows set in to the text. Who is signed in and Usage open it,
+   small quiet headings name the sections below, and Sign Out has a surface
+   of its own. Every row has the same padding and height, and what sits at
+   its right (a value, chevron or switch) lines up on one edge. The pages
+   inside the drawer are made of the same surfaces, rows, headings and notes. */
+.drawer { --card: #1c1c1e; --card-press: #2a2a2d; --card-line: rgba(255, 255, 255, .09); --track: rgba(120, 120, 128, .36); --radius-group: 16px; }
 :root[data-theme="dark"] .drawer { --card: #262628; --card-press: #313134; }
-:root[data-theme="light"] .drawer { --card: #fff; --card-press: var(--surface-2); }
-.drawer .sheet-head { padding: 16px 20px 4px; min-height: 68px; gap: 14px; }
-.drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); touch-action: pan-y; }
-.drawer.headless .sheet-body { padding-top: 20px; } /* Settings itself: no header above it */
-.drawer .group { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; margin: 0; overflow: hidden; }
-.drawer .group + .group { margin-top: 12px; }
-.drawer .group-label { margin: 28px 16px 8px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
-.drawer .group-note { margin: 8px 16px 14px; font-size: 13px; line-height: 1.45; }
-.drawer .row { width: 100%; margin: 0; min-height: 52px; padding: 13px 16px; gap: 14px; border-radius: 0; }
-/* The line between rows, from the text's edge to the card's. */
-.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before {
-  display: block; left: 16px; right: 0; height: 1px; background: var(--card-line); }
+:root[data-theme="light"] .drawer { --card: #f2f2f4; --card-press: #e7e7ea; --card-line: rgba(0, 0, 0, .08); --track: rgba(120, 120, 128, .26); }
+:root[data-theme="light"] .sheet.drawer { background: #fff; }
+.drawer .sheet-head { padding: 16px 16px 4px; min-height: 68px; gap: 14px; }
+.drawer .sheet-body { padding: 4px 16px calc(28px + var(--safe-bottom)); touch-action: pan-y; }
+.drawer.headless .sheet-body { padding-top: 14px; } /* Settings itself: no header above it */
+.drawer .group { background: var(--card); border: 0; border-radius: var(--radius-group); margin: 0; overflow: hidden; }
+.drawer .group + .group { margin-top: 14px; }
+.drawer .group-label { margin: 22px 16px 7px; color: var(--muted); font-size: 13.5px; line-height: 18px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.drawer .group-note { margin: 7px 16px 12px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.drawer .row { width: 100%; margin: 0; min-height: 50px; padding: 9.5px 16px; gap: 12px; border-radius: 0; }
+/* The line between rows, from the text's edge to the surface's. */
+.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before, .drawer .drawer-account + .row::before {
+  content: ""; position: absolute; top: 0; left: 16px; right: 0; display: block; height: 1px; background: var(--card-line); }
 .drawer button.row:active { background: var(--card-press); }
 @media (hover: hover) { .drawer button.row:hover { background: var(--card-press); } }
-.drawer .row .label .t { font-size: 16.5px; line-height: 22px; }
-.drawer .row .label .s { margin-top: 2px; font-size: 13.5px; line-height: 18px; }
-.drawer .row .value { font-size: 15.5px; }
-.drawer .row .chev { width: 16px; height: 16px; }
+.drawer .row .label .t { color: var(--text); font-size: 16px; line-height: 21px; }
+.drawer .row .label .s { margin-top: 2px; color: var(--muted); font-size: 13px; line-height: 17.5px; }
+.drawer .row .value { color: var(--muted); font-size: 15px; line-height: 21px; }
+/* A chevron's stroke sits 5 px inside its box: pulled out to the edge a
+   switch ends on, and in towards a value. The external-link icon fills its box. */
+.drawer .row .chev { width: 16px; height: 16px; margin: 0 -5px 0 -9px; color: var(--dim); }
+.drawer .row .chev.ext { margin: 0 -1px 0 -4px; }
 .drawer .row > svg:first-child { flex: none; color: var(--text-2); }
-:root[data-theme="light"] .drawer .row.danger .t { color: var(--red-strong); }
+.drawer .row.danger .label .t { color: var(--red); }
+:root[data-theme="light"] .drawer .row.danger .label .t { color: var(--red-strong); }
+/* Switches the size and look of iOS's. */
+.drawer .toggle { width: 51px; height: 31px; border-radius: 16px; background: var(--track); }
+.drawer .toggle.on { background: var(--green); }
+.drawer .toggle::after { top: 2px; left: 2px; width: 27px; height: 27px; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .06); }
+.drawer .toggle.on::after { transform: translateX(20px); }
+/* Beside a title and a description, the switch lines up with the title. */
+.drawer .row:has(.label .s) .toggle { align-self: flex-start; margin-top: -5px; }
 .drawer .credits-card { margin: 4px 0 12px; padding: 0; border-radius: 0; background: none; }
 .drawer .bubble.plain-bot, :root[data-theme="light"] .drawer .bubble.plain-bot { padding: 0; border-radius: 0; background: none; }
 .drawer .mem { margin: 8px 0; padding: 0; border-radius: 0; background: none; }
 
-/* The top of Settings: who is signed in, then the usage meter in a bubble. */
-.drawer-account { display: flex; align-items: center; gap: 14px; padding: 4px 0 2px; }
-.drawer-account .initials { width: 56px; height: 56px; font-size: 20px; font-weight: 600; }
+/* The top of Settings, one surface: who is signed in, then Usage, a row
+   with what's left at its right and a slim meter under it. */
+.drawer-account { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.drawer-account .initials { width: 46px; height: 46px; font-size: 16px; font-weight: 600; letter-spacing: .3px; }
 .drawer-account .who { flex: 1; min-width: 0; }
-.drawer-account .name { font-size: 21px; line-height: 26px; font-weight: 650; letter-spacing: -.2px; overflow-wrap: anywhere; }
-.drawer-account .detail { margin-top: 1px; color: var(--muted); font-size: 14px; line-height: 19px; overflow-wrap: anywhere; }
-.drawer-usage { display: block; width: 100%; margin: 18px 0 0; padding: 14px 16px 16px; border: 1px solid var(--card-line); border-radius: 16px; background: var(--card); text-align: left; }
-.drawer-usage:active { background: var(--card-press); }
-@media (hover: hover) { .drawer-usage:hover { background: var(--card-press); } }
-.drawer-usage .usage-head { display: flex; align-items: center; gap: 8px; }
-.drawer-usage .t { flex: 1; font-size: 16.5px; line-height: 22px; }
-.drawer-usage .usage-left { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.drawer-usage .chev { flex: none; width: 16px; height: 16px; color: var(--dim); }
-.drawer-usage .credits-bar { display: block; height: 6px; margin-top: 12px; border-radius: 3px; }
+.drawer-account .name { font-size: 16.5px; line-height: 21px; font-weight: 600; overflow-wrap: anywhere; }
+.drawer-account .detail { margin-top: 1px; color: var(--muted); font-size: 13px; line-height: 17.5px; overflow-wrap: anywhere; }
+.drawer .usage-row { flex-wrap: wrap; row-gap: 9px; padding-bottom: 13px; }
+.drawer .usage-row .credits-bar { flex: 0 0 100%; height: 4px; margin: 0; border-radius: 2px; background: var(--card-line); }
 
-/* The bottom: Sign Out in a bubble of its own, then the app and its version. */
-.drawer-signout { margin-top: 28px; background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; overflow: hidden; }
-.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 22px 16px 0; color: var(--muted); font-size: 13px; }
-.drawer-foot .n { color: var(--text-2); font-size: 14px; font-weight: 600; }
+/* The bottom: Sign Out on a surface of its own, then the app and its version. */
+.drawer-signout { margin-top: 22px; background: var(--card); border-radius: var(--radius-group); overflow: hidden; }
+.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 18px 16px 0; color: var(--muted); font-size: 12.5px; }
+.drawer-foot .n { color: var(--text-2); font-size: 13.5px; font-weight: 600; }
 .drawer-foot .v { font-variant-numeric: tabular-nums; }
 
 /* ---------- forms ---------- */

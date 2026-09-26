@@ -53,27 +53,28 @@ function AccountHeader({ acct, go }) {
   const pct = credits ? creditsShare(credits) : null;
   const user = acct.user || {};
   const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
+  // One surface: who is signed in, and under it Usage, a row with a slim meter.
   return html`
-    ${acct.signedIn && html`<div class="drawer-account">
-      <span class="initials">${initials(user.name || user.email)}</span>
-      <div class="who">
-        <div class="name">${user.name || user.email || tr('Holly Bot account')}</div>
-        ${user.name && user.email && html`<div class="detail">${user.email}</div>`}
-        <div class="detail">${via ? tr('Signed in with {via}', { via }) : tr('Signed in')}</div>
-      </div>
-    </div>`}
-    <button class="drawer-usage" onClick=${() => go('usage')}>
-      <span class="usage-head">
-        <span class="t">${tr('Usage')}</span>
-        <span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span>
+    <div class="group account-group">
+      ${acct.signedIn && html`<div class="drawer-account">
+        <span class="initials">${initials(user.name || user.email)}</span>
+        <div class="who">
+          <div class="name">${user.name || user.email || tr('Holly Bot account')}</div>
+          ${user.name && user.email && html`<div class="detail">${user.email}</div>`}
+          <div class="detail">${via ? tr('Signed in with {via}', { via }) : tr('Signed in')}</div>
+        </div>
+      </div>`}
+      <button class="row usage-row" onClick=${() => go('usage')}>
+        <span class="label"><span class="t">${tr('Usage')}</span></span>
+        <span class="value">${pct == null ? '—' : tr('{pct}% left', { pct })}</span>
         <${Icon.chevron} class="chev" />
-      </span>
-      ${pct != null ? html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
-        <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
-      </span>`
-      // Its place kept while the credits load, so nothing under it moves when they come.
-      : here && html`<span class="credits-bar" aria-hidden="true"></span>`}
-    </button>`;
+        ${pct != null ? html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+          <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
+        </span>`
+        // Its place kept while the credits load, so nothing under it moves when they come.
+        : here && html`<span class="credits-bar" aria-hidden="true"></span>`}
+      </button>
+    </div>`;
 }
 
 /** Settings is a drawer from the left that pushes the app over, with no
@@ -145,7 +146,7 @@ function MainPage({ go, onClose }) {
     <${Group} label=${tr('Support')}>
       <${Row} title=${tr('Help Center')} onClick=${() => go('help')} />
       <${Row} title=${tr('Send Feedback')} chevron=${false} onClick=${() => window.open('https://github.com/xgamer791/holly-bot/issues/new', '_blank', 'noopener')}>
-        <${Icon.external} class="chev" />
+        <${Icon.external} class="chev ext" />
       <//>
       <${Row} title=${tr('Privacy Policy')} onClick=${() => go('privacy')} />
       <${Row} title=${tr('Terms of Service')} onClick=${() => go('terms')} />
