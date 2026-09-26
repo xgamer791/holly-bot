@@ -417,6 +417,7 @@ export default {
   "Scroll": "滚动",
   "Shortcut, e.g. {keys}": "快捷键，例如 {keys}",
   "Press": "按下",
+  "Backspace": "退格键",
   "Pause live view": "暂停实时画面",
   "Live view": "实时画面",
   "Refresh": "刷新",

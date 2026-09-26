@@ -781,7 +781,7 @@ async function bootWithoutAccount(link) {
   try {
     db = await DB.open();
   } catch (err) {
-    root.innerHTML = `<div style="padding:40px 24px;color:#ddd;font:16px -apple-system,system-ui,sans-serif;line-height:1.5">
+    root.innerHTML = `<div style="padding:40px 24px;color:#ddd;font:16px Satoshi,sans-serif;line-height:1.5">
       <h2>${tr("Holly Bot can't start")}</h2><p>${tr('This browser blocked local storage (IndexedDB), which Holly Bot needs here. Private browsing modes often do this — open the page in a normal window.')}</p><p style="color:#888">${String(err?.message || err).replace(/</g, '&lt;')}</p></div>`;
     return;
   }

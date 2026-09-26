@@ -19,6 +19,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="preload" href="vendor/fonts/satoshi/Satoshi-Variable.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="modulepreload" href="vendor/preact.js" />
   <link rel="modulepreload" href="src/core/app.js" />
 </head>
@@ -44,7 +45,7 @@
       }
     } catch (e) { /* storage blocked */ }
   </script>
-  <noscript><p style="color:#ddd;padding:24px;font-family:system-ui">Holly Bot needs JavaScript.</p></noscript>
+  <noscript><p style="color:#ddd;padding:24px;font-family:Satoshi,sans-serif">Holly Bot needs JavaScript.</p></noscript>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

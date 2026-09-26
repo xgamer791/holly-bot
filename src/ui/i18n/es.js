@@ -417,6 +417,7 @@ export default {
   "Scroll": "Desplazar",
   "Shortcut, e.g. {keys}": "Atajo, p. ej. {keys}",
   "Press": "Presionar",
+  "Backspace": "Retroceso",
   "Pause live view": "Pausar vista en vivo",
   "Live view": "Vista en vivo",
   "Refresh": "Actualizar",

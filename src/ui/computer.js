@@ -616,7 +616,7 @@ function Screen({ agentId }) {
       <button class="btn" onClick=${typeNow}>${tr('Type')}</button>
     </div>
     <div class="btn-row" style="margin-top:8px">
-      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => pressButton(k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
+      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" aria-label=${k === 'Backspace' ? tr('Backspace') : undefined} onClick=${() => pressButton(k)}>${k === 'Backspace' ? html`<${Icon.backspace} size="18" />` : k === 'Escape' ? 'Esc' : k}</button>`)}
       <button class="btn small" onClick=${() => scroll('up')}>↑ ${tr('Scroll')}</button>
       <button class="btn small" onClick=${() => scroll('down')}>↓ ${tr('Scroll')}</button>
       ${mode === 'browser' && html`<button class="btn small" onClick=${() => { typed.current = null; act('back'); }}>${tr('Back')}</button>`}
@@ -626,7 +626,7 @@ function Screen({ agentId }) {
       <button class="btn" disabled=${!keys} onClick=${pressShortcut}>${tr('Press')}</button>
     </div>
     <div class="btn-row" style="margin-top:12px">
-      <button class="btn small" onClick=${() => setLive(!live)}>${live ? `❚❚ ${tr('Pause live view')}` : `▶ ${tr('Live view')}`}</button>
+      <button class="btn small" onClick=${() => setLive(!live)}>${live ? html`<${Icon.pause} size="14" /> ${tr('Pause live view')}` : html`<${Icon.play} size="14" /> ${tr('Live view')}`}</button>
       <button class="btn small" disabled=${busy} onClick=${() => refresh()}><${Icon.refresh} size="16" /> ${tr('Refresh')}</button>
     </div>`;
 }
