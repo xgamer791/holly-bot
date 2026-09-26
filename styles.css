@@ -223,6 +223,9 @@ svg { display: block; }
 .top-btn { width: var(--tap); height: var(--tap); border-radius: 50%; background: var(--surface); border: 1px solid var(--border); padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--text); transition: background .15s, transform .1s; }
 .top-btn:active { transform: scale(.94); background: var(--surface-2); }
 .top-btn svg { width: 24px; height: 24px; }
+/* A soft shadow lifts the bubbles at the top (and a chat's Back) off the page. */
+.top-btn, .chat-topbar .circle-btn { box-shadow: 0 2px 8px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .25); }
+:root[data-theme="light"] .top-btn, :root[data-theme="light"] .chat-topbar .circle-btn { box-shadow: 0 2px 8px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06); }
 /* The computer button at the top right (src/ui/computer-button.js): grayed out
    while there's no computer, the computer pulsing blue while it connects,
    solid green while connected. */
