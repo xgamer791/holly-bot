@@ -33,14 +33,14 @@ export function HomeScreen({ activeThreadId }) {
   return html`
     <div class="pane-list" ...${pullMenu}>
       <header class="topbar">
-        <button class="initials menu-btn" aria-label=${tr('Menu')} onClick=${() => ui.openSheet('settings')}><${Icon.menu} size="20" /></button>
+        <button class="top-btn menu-btn" aria-label=${tr('Menu')} onClick=${() => ui.openSheet('settings')}><${Icon.menu} /></button>
         <div class="spacer"></div>
         <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
-        <button class="circle-btn" aria-label=${tr('Search')} onClick=${() => {
+        <button class="top-btn" aria-label=${tr('Search')} onClick=${() => {
           setSearching(!searching);
           setQuery('');
         }}><${Icon.search} /></button>
-        <button ref=${plusRef} class="circle-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
+        <button ref=${plusRef} class="top-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       </header>
       ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} items=${[
         { label: tr('New Bot'), onClick: () => ui.openSheet('createBot') },

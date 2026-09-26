@@ -19,8 +19,10 @@ export const Icon = {
   down: I(html`<path d="M6 9l6 6 6-6" />`),
   expand: I(html`<path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" />`),
   collapse: I(html`<path d="M4 14h6v6M20 10h-6V4M14 10l6.5-6.5M10 14l-6.5 6.5" />`),
-  plus: I(html`<path d="M12 5v14M5 12h14" />`, { sw: 2.2 }),
-  search: I(html`<circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />`, { sw: 2.2 }),
+  // Lucide's plus, search and laptop-minimal (lucide.dev, ISC): the buttons at the top right.
+  plus: I(html`<path d="M5 12h14" /><path d="M12 5v14" />`),
+  search: I(html`<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />`),
+  laptop: I(html`<rect width="18" height="12" x="3" y="4" rx="2" ry="2" /><line x1="2" x2="22" y1="20" y2="20" />`),
   x: I(html`<path d="M6 6l12 12M18 6L6 18" />`, { sw: 2.4 }),
   monitor: I(html`<rect x="3" y="4" width="18" height="12" rx="2.5" /><path d="M9 20h6M12 16v4" />`, { sw: 2.2 }),
   mic: I(html`<rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21" />`),
