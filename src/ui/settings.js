@@ -74,9 +74,10 @@ function AccountHeader({ acct, go }) {
     </button>`;
 }
 
-/** Settings is a drawer from the left that pushes the app over, with a
- * handle to drag it closed and no header on its first page (useDrawer in
- * src/ui/components.js). */
+/** Settings is a drawer from the left that pushes the app over, with no
+ * header on its first page: the menu button or a swipe right on the chat list
+ * pulls it out, a swipe left or a tap beside it puts it back (useDrawer and
+ * useDrawerPull in src/ui/components.js). */
 export function SettingsSheet({ onClose: remove, page: initialPage, provider: initialProvider }) {
   const app = useApp();
   const drawer = useDrawer(remove);
@@ -91,8 +92,8 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
     computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), data: mark('Data & Backup'),
     help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'),
   };
-  // Settings itself has no header: tapping beside the drawer, or dragging its
-  // handle, closes it. Its pages have Back and their title.
+  // Settings itself has no header: a swipe left, or a tap beside the drawer,
+  // closes it. Its pages have Back and their title.
   const backButton = html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,

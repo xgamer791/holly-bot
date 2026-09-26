@@ -73,7 +73,9 @@ export function Root({ app }) {
       else setRoute(parseHash());
     },
     openSheet(name, props = {}) {
-      setSheets((s) => [...s.filter((x) => !(x.name === name && name !== 'modelPicker')), { name, props, id: ++sheetSeq.current }]);
+      const id = ++sheetSeq.current;
+      setSheets((s) => [...s.filter((x) => !(x.name === name && name !== 'modelPicker')), { name, props, id }]);
+      return id;
     },
     closeSheet(id) {
       setSheets((s) => (id ? s.filter((x) => x.id !== id) : s.slice(0, -1)));

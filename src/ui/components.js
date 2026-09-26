@@ -3,6 +3,87 @@ import { Icon } from './icons.js';
 import { tr } from './i18n.js';
 
 const DRAWER_MS = 450;
+/** How far a finger goes (px) before a touch counts as a swipe one way or the other. */
+const SWIPE_SLOP = 8;
+/** What a swipe that starts on these isn't for: they take a finger themselves. */
+const OWN_TOUCH = 'input, textarea, select, [contenteditable]';
+/** A click this soon (ms) after a swipe ends is the swipe's, not a tap. */
+const SWIPE_CLICK_MS = 400;
+
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** The drawer's width: styles.css --drawer-w, measured once it's on screen. */
+const drawerWidth = () => document.querySelector('.sheet.drawer')?.offsetWidth || Math.min(innerWidth - 70, 560);
+
+/** The drawer on screen (useDrawer), for a swipe that pulled it out to hand over to. */
+const drawers = { current: null };
+
+/**
+ * Where the drawer is while a finger moves it: how far from fully open (px, 0
+ * or less), for styles.css (--drawer-drag, and --drawer-shown for the app's
+ * dimming). Set at most once a frame, however often the finger reports in;
+ * `now` sets it at once. null lets the page's classes place it again.
+ */
+let placing = 0;
+let placeTo = null;
+function applyPlace() {
+  placing = 0;
+  const style = document.documentElement.style;
+  style.setProperty('--drawer-drag', `${placeTo.drag}px`);
+  style.setProperty('--drawer-shown', String(Math.max(0, 1 + placeTo.drag / placeTo.w)));
+}
+function place(drag, w, now = false) {
+  if (drag == null) {
+    cancelAnimationFrame(placing);
+    placing = 0;
+    document.documentElement.style.removeProperty('--drawer-drag');
+    document.documentElement.style.removeProperty('--drawer-shown');
+    return;
+  }
+  placeTo = { drag, w };
+  if (now) {
+    cancelAnimationFrame(placing);
+    applyPlace();
+  } else if (!placing) {
+    placing = requestAnimationFrame(applyPlace);
+  }
+}
+
+/** A finger's sideways speed (px/ms), over its last 100 ms. */
+function tracker(x, t) {
+  const points = [{ x, t }];
+  return {
+    add(x2, t2) {
+      points.push({ x: x2, t: t2 });
+      while (points.length > 2 && t2 - points[0].t > 100) points.shift();
+    },
+    speed() {
+      const a = points[0];
+      const b = points[points.length - 1];
+      return b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;
+    },
+  };
+}
+
+/** How long the rest of the way takes after a swipe: `distance` px to go of a
+ * drawer `w` wide, the finger going `v` px/ms. The part of a whole slide that's
+ * left, and no slower than the finger: an ease-out (styles.css --drawer-in)
+ * starts about four times faster than it goes on average. */
+function settleMs(distance, v, w) {
+  if (reduceMotion()) return 0;
+  const d = Math.abs(distance);
+  let ms = DRAWER_MS * Math.min(1, d / w);
+  if (Math.abs(v) > 0.05) ms = Math.min(ms, (4 * d) / Math.abs(v));
+  return Math.round(Math.min(DRAWER_MS, Math.max(180, ms)));
+}
+
+/** The next slide takes `ms` (styles.css --drawer-ms), then back to 450 ms. */
+let slideTimer = 0;
+function slideFor(ms) {
+  const style = document.documentElement.style;
+  clearTimeout(slideTimer);
+  style.setProperty('--drawer-ms', `${ms}ms`);
+  slideTimer = setTimeout(() => style.removeProperty('--drawer-ms'), ms + 50);
+}
 
 /**
  * A sheet as a drawer from the left (Settings; pass it to Sheet as `drawer`).
@@ -10,87 +91,170 @@ const DRAWER_MS = 450;
  * the app back, 450 ms each; `close` plays that and then calls `remove` (at
  * once with Reduce Motion on). The page's `drawer-open` class says where it
  * is, so every move carries on from wherever it is (styles.css → .sheet.drawer).
- * The tab on its right edge (and the strip around it) drags it closed: let go
- * a third of the way over, or with a flick, and it closes, otherwise it
- * springs back. A tap there closes it.
+ * Swiping left on it, or on the strip of the app beside it, pushes it back,
+ * following the finger: let go a third of the way over, or with a flick, and it
+ * closes, otherwise it slides back open. A tap on the strip closes it. (Swiping
+ * right on the chat list pulls it out: useDrawerPull.)
  */
 export function useDrawer(remove) {
   const ref = useRef(null);
   const timer = useRef(null);
-  const drag = useRef(null);
+  const swipe = useRef(null);
+  const swipedAt = useRef(-Infinity); // when a swipe ended: a click it makes isn't a tap
   const root = document.documentElement;
-  // How far a drag has brought it back (px, 0 or less), and how much of it still shows.
-  const setDrag = (dx, w) => {
-    if (dx == null) {
-      root.style.removeProperty('--drawer-drag');
-      root.style.removeProperty('--drawer-shown');
-      return;
+  const close = ({ ms = reduceMotion() ? 0 : DRAWER_MS, flung = false } = {}) => {
+    if (timer.current) return;
+    // Let go of mid-swipe: already moving, so it carries on out easing off.
+    if (flung) {
+      root.classList.add('drawer-flung');
+      slideFor(ms);
     }
-    root.style.setProperty('--drawer-drag', `${dx}px`);
-    root.style.setProperty('--drawer-shown', String(Math.max(0, 1 + dx / w)));
+    root.classList.remove('drawer-open', 'drawer-dragging');
+    place(null);
+    timer.current = setTimeout(() => remove?.(), ms);
   };
+  const api = useRef({}).current;
+  api.close = close;
   useEffect(() => {
+    drawers.current = api;
     // It (and the app's dimming) has been drawn closed once, so there's
-    // somewhere to slide and fade in from.
+    // somewhere to slide and fade in from. Pulled out by a swipe, it's
+    // already where the finger is.
     root.classList.add('drawer-mounted');
     ref.current?.getBoundingClientRect();
     root.classList.add('drawer-open');
     return () => {
+      if (drawers.current === api) drawers.current = null;
       clearTimeout(timer.current);
       root.classList.remove('drawer-mounted', 'drawer-open', 'drawer-dragging', 'drawer-flung');
-      setDrag(null);
+      place(null);
     };
   }, []);
-  const close = () => {
-    if (timer.current) return;
-    root.classList.remove('drawer-open', 'drawer-dragging');
-    setDrag(null);
-    timer.current = setTimeout(() => remove?.(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_MS);
+  const end = (e, up) => {
+    const s = swipe.current;
+    if (!s || s.id !== e.pointerId) return;
+    swipe.current = null;
+    if (!s.sideways) return;
+    swipedAt.current = performance.now();
+    const v = up ? s.speed.speed() : 0;
+    if (v < -0.4 || (s.drag < -s.w / 3 && v < 0.4)) return close({ flung: true, ms: settleMs(s.w + s.drag, v, s.w) });
+    slideFor(settleMs(s.drag, v, s.w));
+    root.classList.remove('drawer-dragging');
+    place(null);
   };
-  const dragged = useRef(false); // the click that ends a drag isn't a tap
-  const handle = {
-    onClick() {
-      if (!dragged.current) close();
-      dragged.current = false;
-    },
+  // On the drawer and on the strip beside it.
+  const handlers = {
     onPointerDown(e) {
-      if (timer.current || !ref.current) return;
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-      drag.current = { x: e.clientX, y: e.clientY, w: ref.current.offsetWidth, dx: 0, v: 0, t: e.timeStamp, moved: false };
-      root.classList.add('drawer-dragging');
+      swipe.current = null;
+      if (e.pointerType === 'mouse' || timer.current || !ref.current || e.target.closest?.(OWN_TOUCH)) return;
+      swipe.current = { id: e.pointerId, x: e.clientX, y: e.clientY, w: ref.current.offsetWidth, drag: 0, sideways: null, speed: tracker(e.clientX, e.timeStamp) };
     },
     onPointerMove(e) {
-      const d = drag.current;
-      if (!d) return;
-      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) d.moved = true;
-      const dx = Math.min(0, e.clientX - d.x);
-      d.v = (dx - d.dx) / Math.max(1, e.timeStamp - d.t);
-      d.dx = dx;
-      d.t = e.timeStamp;
-      setDrag(dx, d.w);
-    },
-    onPointerUp() {
-      const d = drag.current;
-      if (!d) return;
-      drag.current = null;
-      dragged.current = d.moved;
-      if (!d.moved) return close();
-      if (d.dx < -d.w / 3 || d.v < -0.5) {
-        // Already moving, so it carries on out without first slowing to a start.
-        root.classList.add('drawer-flung');
-        return close();
+      const s = swipe.current;
+      if (!s || s.id !== e.pointerId) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (s.sideways === null) {
+        if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
+        // Up and down is the drawer's scrolling; only a swipe to the left moves it.
+        if (!(dx < 0 && Math.abs(dx) > Math.abs(dy))) {
+          swipe.current = null;
+          return;
+        }
+        s.sideways = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        root.classList.add('drawer-dragging');
       }
-      root.classList.remove('drawer-dragging');
-      setDrag(null);
+      s.speed.add(e.clientX, e.timeStamp);
+      s.drag = Math.max(-s.w, Math.min(0, dx));
+      place(s.drag, s.w);
     },
-    onPointerCancel() {
-      if (!drag.current) return;
-      drag.current = null;
-      root.classList.remove('drawer-dragging');
-      setDrag(null);
+    onPointerUp: (e) => end(e, true),
+    onPointerCancel: (e) => end(e, false),
+    onClickCapture(e) {
+      if (performance.now() - swipedAt.current > SWIPE_CLICK_MS) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
     },
   };
-  return { ref, close, handle };
+  return { ref, close, handlers };
+}
+
+/**
+ * Swiping right on the chat list pulls the drawer (Settings) out from the left,
+ * following the finger: let go a third of the way out, or with a flick, and it
+ * opens, otherwise it slides back. `open()` puts the drawer on screen and gives
+ * its sheet's id, `dismiss(id)` takes it off again; up-and-down moves are left
+ * to the list's scrolling, and a touch while `busy()` (a chat showing Delete)
+ * isn't for the drawer. Returns the handlers for the list.
+ */
+export function useDrawerPull(open, dismiss, busy) {
+  const pull = useRef(null);
+  const pulledAt = useRef(-Infinity); // when a swipe ended: a click it makes isn't a tap
+  const root = document.documentElement;
+  const end = (e, up) => {
+    const p = pull.current;
+    if (!p || p.id !== e.pointerId) return;
+    pull.current = null;
+    if (!p.on) return;
+    pulledAt.current = performance.now();
+    const v = up ? p.speed.speed() : 0;
+    if (v > 0.4 || (p.drag > -p.w * (2 / 3) && v > -0.4)) {
+      // The rest of the way out.
+      slideFor(settleMs(p.drag, v, p.w));
+      root.classList.remove('drawer-dragging');
+      place(null);
+      return;
+    }
+    const ms = settleMs(p.w + p.drag, v, p.w);
+    if (drawers.current) return drawers.current.close({ flung: true, ms });
+    // Let go of before the drawer got there: it isn't wanted after all.
+    dismiss(p.sheet);
+    root.classList.add('drawer-flung');
+    slideFor(ms);
+    root.classList.remove('drawer-open', 'drawer-dragging');
+    place(null);
+    setTimeout(() => {
+      if (!drawers.current) root.classList.remove('drawer-mounted', 'drawer-flung');
+    }, ms);
+  };
+  return {
+    onPointerDown(e) {
+      pull.current = null;
+      if (e.pointerType === 'mouse' || busy() || root.classList.contains('drawer-mounted') || e.target.closest?.(OWN_TOUCH)) return;
+      pull.current = { id: e.pointerId, x: e.clientX, y: e.clientY, on: null, drag: 0, w: 0, sheet: null, speed: tracker(e.clientX, e.timeStamp) };
+    },
+    onPointerMove(e) {
+      const p = pull.current;
+      if (!p || p.id !== e.pointerId) return;
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      if (p.on === null) {
+        if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
+        if (!(dx > 0 && Math.abs(dx) > Math.abs(dy))) {
+          pull.current = null;
+          return;
+        }
+        // Where the finger is before the drawer is there, so the app doesn't jump.
+        p.on = true;
+        p.w = drawerWidth();
+        p.drag = Math.min(0, dx - p.w);
+        place(p.drag, p.w, true);
+        root.classList.add('drawer-mounted', 'drawer-open', 'drawer-dragging');
+        p.sheet = open();
+      }
+      p.speed.add(e.clientX, e.timeStamp);
+      p.drag = Math.max(-p.w, Math.min(0, dx - p.w));
+      place(p.drag, p.w);
+    },
+    onPointerUp: (e) => end(e, true),
+    onPointerCancel: (e) => end(e, false),
+    onClickCapture(e) {
+      if (performance.now() - pulledAt.current > SWIPE_CLICK_MS) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    },
+  };
 }
 
 export function Sheet({ title, onClose, children, footer, left, right, className = '', headless = false, drawer = null }) {
@@ -102,8 +266,9 @@ export function Sheet({ title, onClose, children, footer, left, right, className
     return () => removeEventListener('keydown', onKey);
   }, [onClose]);
   return html`
-    <div class=${`sheet-scrim ${drawer ? 'drawer-scrim' : ''}`} onClick=${onClose}></div>
-    <section ref=${drawer?.ref} class=${`sheet ${className} ${drawer ? 'drawer' : ''} ${headless ? 'headless' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')}>
+    <div class=${`sheet-scrim ${drawer ? 'drawer-scrim' : ''}`} onClick=${onClose} ...${drawer?.handlers}></div>
+    <section ref=${drawer?.ref} class=${`sheet ${className} ${drawer ? 'drawer' : ''} ${headless ? 'headless' : ''}`} role="dialog" aria-modal="true" aria-label=${title || tr('Sheet')} ...${drawer?.handlers}>
+      ${drawer && html`<button class="sr-only" onClick=${onClose}>${tr('Close')}</button>`}
       ${!headless && html`
         <header class="sheet-head">
           ${left || html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`}
@@ -112,7 +277,6 @@ export function Sheet({ title, onClose, children, footer, left, right, className
         </header>`}
       <div class="sheet-body">${children}</div>
       ${footer && html`<footer class="sheet-foot">${footer}</footer>`}
-      ${drawer && html`<button class="drawer-handle" aria-label=${tr('Close')} ...${drawer.handle}><span></span></button>`}
     </section>`;
 }
 

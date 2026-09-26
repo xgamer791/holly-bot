@@ -2,8 +2,7 @@ import { html, useState, useRef } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
 import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
-import { Popover } from './components.js';
-import { initials } from '../core/util.js';
+import { Popover, useDrawerPull } from './components.js';
 import { chiefOf } from '../core/chief.js';
 import { ComputerButton } from './computer-button.js';
 import { dayOrTime, phraseOr, tr } from './i18n.js';
@@ -17,6 +16,8 @@ export function HomeScreen({ activeThreadId }) {
   const [menu, setMenu] = useState(null);
   const [swiped, setSwiped] = useState(null); // the row swiped open to show Delete
   const plusRef = useRef(null);
+  // Swiping right pulls the menu (Settings) out from the left, unless it's closing a chat's Delete.
+  const pullMenu = useDrawerPull(() => ui.openSheet('settings'), (id) => ui.closeSheet(id), () => swiped !== null);
 
   const q = query.trim().toLowerCase();
   const chief = chiefOf(app);
@@ -28,12 +29,11 @@ export function HomeScreen({ activeThreadId }) {
     const title = threadTitle(app, t).toLowerCase();
     return title.includes(q) || (t.preview?.text || '').toLowerCase().includes(q);
   }).sort((a, b) => chiefChat(b) - chiefChat(a));
-  const profileName = app.settings.profile?.name || '';
 
   return html`
-    <div class="pane-list">
+    <div class="pane-list" ...${pullMenu}>
       <header class="topbar">
-        <button class="initials" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}>${profileName ? initials(profileName) : html`<${Icon.gear} size="20" />`}</button>
+        <button class="initials menu-btn" aria-label=${tr('Menu')} onClick=${() => ui.openSheet('settings')}><${Icon.menu} size="20" /></button>
         <div class="spacer"></div>
         <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
         <button class="circle-btn" aria-label=${tr('Search')} onClick=${() => {

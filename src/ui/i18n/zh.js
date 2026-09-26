@@ -485,6 +485,7 @@ export default {
   "Clear this group chat?": "清空这个群聊？",
   "Delete group": "删除群聊",
   "Bots and their memories are not affected.": "机器人及其记忆不受影响。",
+  "Menu": "菜单",
   "Settings": "设置",
   "New": "新建",
   "New Bot": "新建机器人",

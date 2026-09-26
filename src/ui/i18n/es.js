@@ -485,6 +485,7 @@ export default {
   "Clear this group chat?": "¿Borrar este chat grupal?",
   "Delete group": "Eliminar grupo",
   "Bots and their memories are not affected.": "Los bots y sus recuerdos no se ven afectados.",
+  "Menu": "Menú",
   "Settings": "Ajustes",
   "New": "Nuevo",
   "New Bot": "Nuevo bot",
