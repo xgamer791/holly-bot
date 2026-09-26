@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+  <meta name="color-scheme" content="dark" />
+  <title>Holly Computer</title>
+  <link rel="stylesheet" href="status.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 100 100" aria-hidden="true"><path d="M27 82C14 82 5 74 5 63C5 53 12 46 22 45C22 32 33 22 46 23C53 15 67 14 75 23C85 25 92 33 91 43C97 47 99 54 97 62C95 74 86 82 74 82C68 88 58 89 50 84C43 88 33 88 27 82Z" fill="#1482FF"/><line x1="36.5" y1="67" x2="31" y2="50.8" stroke="#ffffff" stroke-width="7.2" stroke-linecap="round"/><line x1="54.5" y1="62" x2="49" y2="45.8" stroke="#ffffff" stroke-width="7.2" stroke-linecap="round"/></svg>
+      <div class="names">
+        <h1>Holly Computer</h1>
+        <div class="sub" id="sub"></div>
+      </div>
+      <span class="pill" id="pill"><span class="dot"></span><span id="pill-text"></span></span>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="open"></button>
+      <button class="btn" id="run"></button>
+    </div>
+  </header>
+  <div id="banners"></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="status" id="tab-status"></button>
+    <button role="tab" data-tab="settings" id="tab-settings"></button>
+    <button role="tab" data-tab="activity" id="tab-activity"></button>
+  </nav>
+  <main>
+    <section class="page" id="page-status" role="tabpanel"></section>
+    <section class="page" id="page-settings" role="tabpanel" hidden></section>
+    <section class="page" id="page-activity" role="tabpanel" hidden>
+      <div class="log-tools">
+        <span class="hint" id="log-hint"></span>
+        <button class="btn small" id="log-copy"></button>
+        <button class="btn small" id="log-folder"></button>
+      </div>
+      <pre class="log" id="log"></pre>
+    </section>
+  </main>
+  <footer class="foot">
+    <span id="foot-version"></span>
+    <button class="link" id="quit"></button>
+  </footer>
+  <script src="status.js"></script>
+</body>
+</html>

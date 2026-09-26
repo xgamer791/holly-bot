@@ -16,10 +16,10 @@ const COMPUTER_STATES = {
   running: "on, but you're not working on it: to have their bots work there, the user connects Holly Bot to it (Settings → Bot Computer, or the Workspace button in a chat), which the app also offers to do when the computer comes on",
   unreachable: "says it's on, but Holly Bot can't reach it right now: the user should check it's on and online. Holly Computer opens a new connection by itself when its old one stops working, and Holly Bot connects as soon as it answers",
   starting: 'on, and opening its connection: Holly Bot can use it in a minute or so',
-  blocked: "on, but that computer's network blocks the secure tunnel Holly Computer uses (Cloudflare Tunnel, outbound port 7844), so Holly Bot can't reach it: the user should allow that port on that network, use another network, or start Holly Computer with --public-url",
-  hidden: "on, but Holly Computer runs there without --tunnel, so Holly Bot can't reach it: the user should restart it with --tunnel",
-  off: "off: Holly Computer isn't running there. Once the user starts it (node holly-computer.mjs), Holly Bot connects to it (the first time, the app asks them to tap Connect)",
-  old: 'its Holly Computer is out of date: the user should download holly-computer.mjs again and start it',
+  blocked: "on, but that computer's network blocks the secure tunnel Holly Computer uses (Cloudflare Tunnel, outbound port 7844), so Holly Bot can't reach it: the user should allow that port on that network, use another network, or start Holly Computer with --public-url (in the Holly Computer app on Windows: Your own address, in its Settings)",
+  hidden: "on, but Holly Computer runs there without --tunnel, so Holly Bot can't reach it: the user should restart it with --tunnel (in the Holly Computer app on Windows: turn on Secure tunnel in its Settings)",
+  off: "off: Holly Computer isn't running there. Once the user starts it (the Holly Computer app on Windows, or node holly-computer.mjs), Holly Bot connects to it (the first time, the app asks them to tap Connect)",
+  old: 'its Holly Computer is out of date: the user should restart it (the Holly Computer app on Windows updates itself as it starts), or download holly-computer.mjs again and start it',
 };
 
 /** One of the user's computers, the way they'd say it: "their Windows PC",
@@ -238,7 +238,7 @@ export function buildSystemPrompt({ app, agent, thread, tools }) {
       : 'Right now you\'re not working on any of their computers, so you have no shell, files or browser of one of theirs to use.'),
     ...(otherPcs.length
       ? [`${herePc ? 'Their other computers' : 'Their computers'} linked to Holly Bot:`, ...otherPcs.map((c) => `- ${c.name} (${computerKind(c)}): ${COMPUTER_STATES[c.state] || COMPUTER_STATES.off}.`)]
-      : herePc ? [] : ['No computer of theirs is linked to Holly Bot yet: they can run Holly Computer on their PC or Mac and sign in on the page it opens (Settings → Bot Computer shows how).']),
+      : herePc ? [] : ['No computer of theirs is linked to Holly Bot yet: they can run Holly Computer on their PC or Mac (on Windows, the Holly Computer app installs it) and sign in on the page it opens (Settings → Bot Computer shows how).']),
     'When they ask whether you\'re connected to one of their computers, which one you\'re on, or whether you can use it (by its name, or as "my PC", "my Windows PC", "my Mac", "my laptop", "the server"), answer plainly from this, never "I don\'t know": yes or no, and which one, by name. '
     + 'If you\'re not on the one they mean, say which you\'re on (or that you\'re on none), whether theirs is on, and how to get Holly Bot connected to it. '
     + 'All their bots work on the computer Holly Bot is connected to. If you can\'t tell which computer they mean, say what you know and ask. '

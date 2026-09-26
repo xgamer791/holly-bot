@@ -1,0 +1,84 @@
+{
+  "name": "holly-computer",
+  "productName": "Holly Computer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Holly Computer for Windows: your Holly bots live on this PC around the clock, and you control them from your phone.",
+  "author": "Holly Bot",
+  "homepage": "https://github.com/xgamer791/holly-bot#holly-computer-for-windows",
+  "type": "module",
+  "main": "app/main.cjs",
+  "scripts": {
+    "stage": "node scripts/stage.mjs",
+    "dist": "node scripts/stage.mjs && electron-builder --win nsis --x64 --publish never",
+    "start": "node scripts/stage.mjs && electron .",
+    "icons": "node scripts/icons.mjs"
+  },
+  "config": {
+    "node": "24.21.0"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "extract-zip": "2.0.1",
+    "qrcode-generator": "1.4.4"
+  },
+  "build": {
+    "appId": "com.xgamer791.hollycomputer",
+    "productName": "Holly Computer",
+    "copyright": "Holly Bot",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "app/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "stage/computer",
+        "to": "computer"
+      },
+      {
+        "from": "stage/node",
+        "to": "node"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Holly-Computer-Setup.exe",
+      "shortcutName": "Holly Computer",
+      "uninstallDisplayName": "Holly Computer",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "xgamer791",
+        "repo": "holly-bot",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

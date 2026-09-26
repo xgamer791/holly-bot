@@ -6,3 +6,7 @@ playwright-report/
 *.log
 .env.local
 .env
+desktop/app/
+desktop/stage/
+desktop/dist/
+desktop/.cache/

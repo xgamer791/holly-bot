@@ -1,9 +1,11 @@
 // The app's words and their translations (src/ui/i18n.js). Finds all the
 // English the app shows: tr('…'), trx('…'), trn(n, '…', '…'), phrase('…') and
-// mark('…') in src/, and the server's own words, new ConvexError("…") in
-// convex/, which the app translates as it shows them. Then it checks each
-// dictionary in src/ui/i18n/ against them: what's missing, what nothing uses
-// any more, and translations whose {names} or **bold** don't match the English.
+// mark('…') in src/ and in desktop/src/ (Holly Computer for Windows, which
+// uses the same dictionaries), and the server's own words, new
+// ConvexError("…") in convex/, which the app translates as it shows them.
+// Then it checks each dictionary in src/ui/i18n/ against them: what's missing,
+// what nothing uses any more, and translations whose {names} or **bold**
+// don't match the English.
 //
 //   node scripts/i18n.mjs                    the report (exits 1 if anything is missing or wrong)
 //   node scripts/i18n.mjs --keys             the English, as a JSON array, in the order it's found
@@ -71,6 +73,7 @@ function english() {
   const problems = [];
   const sources = [
     ...listFiles(join(root, 'src'), (n) => n.endsWith('.js')),
+    ...listFiles(join(root, 'desktop', 'src'), (n) => n.endsWith('.js')),
     ...listFiles(join(root, 'convex'), (n) => n.endsWith('.ts') && !n.endsWith('.d.ts') && !n.endsWith('.test.ts')),
   ];
   for (const file of sources) {
