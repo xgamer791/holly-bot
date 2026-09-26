@@ -1,21 +1,40 @@
 import { extractJson, truncate } from './util.js';
 
-// A bot's job and its rules, in the user's own words (as they create the bot,
-// or later in its profile or its memory), and the briefing Holli Bot's AI
-// writes it from them. The bot keeps its job and rules in its memory and reads
-// both in full at the start of every conversation, the way an instructions
-// file like CLAUDE.md is read (src/core/prompts.js Your rules, Your job): its
-// rules are hard rules it must keep, its job is what it's for. Each can be up
-// to 2,000 words. App.briefSoon has the AI read them, once for each version,
-// and write the briefing (the bot's role, what it does, how it works, what to
-// keep an eye on and what to ask first) and a summary of the job: what the
-// bot's profile shows while its job is folded away, and what the other bots
-// see next to its name.
+// A bot's Bot Memory (its job: what it's for and what it should know, kept
+// as `description`) and its rules, in the user's own words (as they create
+// the bot, or later in its profile or its memory), and the briefing Holli
+// Bot's AI writes it from them. The bot keeps both in its memory and reads
+// them in full at the start of every conversation, the way an instructions
+// file like CLAUDE.md is read (src/core/prompts.js Your rules, Your Bot
+// Memory): its rules are hard rules it must keep, its Bot Memory is what it's
+// for. Each can be up to 1,000 words. App.briefSoon has the AI read them,
+// once for each version, and write the briefing (the bot's role, what it
+// does, how it works, what to keep an eye on and what to ask first) and a
+// summary of the job: what the bot's profile shows while its Bot Memory is
+// folded away, and what the other bots see next to its name.
+//
+// A bot from the Bot Store (`store`: src/ui/store.js) came pre-trained. Its
+// pre-trained memory is kept apart from the rest, on Holli Bot's server,
+// which adds it to the bot's requests to the AI (convex/ai.ts): the app never
+// has it, and nobody can read, change or erase it. Its own Bot Memory and
+// rules are the user's, like any bot's, with room for 10,000 words each, and
+// its tagline says what it does.
 
-/** How long a bot's job, or its rules, can be: 2,000 words (and 20,000
- * characters, so a wall of text without spaces can't pass for a few words). */
-export const JOB_WORDS = 2000;
-export const JOB_CHARS = 20000;
+/** How long a bot's Bot Memory, or its rules, can be: 1,000 words (and
+ * 10,000 characters, so a wall of text without spaces can't pass for a few
+ * words). A Bot Store bot's: 10,000 words (and 100,000 characters). */
+export const JOB_WORDS = 1000;
+export const JOB_CHARS = 10000;
+export const STORE_WORDS = 10000;
+export const STORE_CHARS = 100000;
+
+/** How many words (and characters) `agent`'s Bot Memory and rules can be. */
+export function wordsFor(agent) {
+  return agent?.store ? STORE_WORDS : JOB_WORDS;
+}
+export function charsFor(agent) {
+  return agent?.store ? STORE_CHARS : JOB_CHARS;
+}
 
 /** Briefings from before job summaries (1.28) are written again, once, for one. */
 export const BRIEF_VERSION = 2;
@@ -46,9 +65,16 @@ export function clipWords(text, max = JOB_WORDS) {
   return s;
 }
 
-/** A job, or rules, as they're kept: JOB_WORDS words and JOB_CHARS characters at most. */
-export function clipJob(text) {
-  return clipWords(String(text || '').slice(0, JOB_CHARS));
+/** A Bot Memory, or rules, as they're kept: `words` words and `chars` characters at most. */
+export function clipJob(text, words = JOB_WORDS, chars = JOB_CHARS) {
+  return clipWords(String(text || '').slice(0, chars), words);
+}
+
+/** A Bot Store bot's tag ({ id, name, tagline }: which bot it came as), or null. */
+export function storeTag(value) {
+  const id = String(value?.id || '');
+  if (!/^[\w-]{1,64}$/.test(id)) return null;
+  return { id, name: String(value.name || '').slice(0, 40), tagline: String(value.tagline || '').replace(/\s+/g, ' ').trim().slice(0, 120) };
 }
 
 /** Whether a job reads at a glance: then it's shown as it is, not summarized. */
@@ -69,8 +95,11 @@ export function jobSummary(agent) {
 }
 
 /** A bot's job in a line, for the other bots and for lists: its summary, or
- * the job itself, `max` characters at most. */
+ * the job itself, `max` characters at most. A Bot Store bot's is its
+ * tagline, what it was pre-trained for. */
 export function jobLine(agent, max = 200) {
+  const tagline = String(agent?.store?.tagline || '').trim();
+  if (tagline) return truncate(tagline, max);
   const job = String(agent?.description || '').replace(/\s+/g, ' ').trim();
   return job ? truncate(jobSummary(agent) || job, max) : '';
 }

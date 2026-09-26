@@ -88,7 +88,24 @@ async function openApp() {
   if (/^#\/(subscribe|setup|chief)\b/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
   const connected = await finishConnecting();
   if (connected) notice = connected;
+  const bought = takeStoreReturn();
+  if (bought) notice = { ...notice, store: bought };
   return startAccount();
+}
+
+/** Back from buying a bot on Stripe Checkout (convex/store.ts checkout):
+ * ?store=done&bot=…&session=…, or ?store=cancelled&bot=…. Takes it off the
+ * address; once the app opens, the Bot Store opens on that bot and, when it's
+ * paid for, adds it to the user's bots (src/ui/store.js). */
+function takeStoreReturn() {
+  const url = new URL(location.href);
+  const store = url.searchParams.get('store');
+  if (!store) return null;
+  const bot = url.searchParams.get('bot') || '';
+  const session = store === 'done' ? url.searchParams.get('session') || '' : '';
+  for (const name of ['store', 'bot', 'session']) url.searchParams.delete(name);
+  history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  return { bot, session, cancelled: store !== 'done' };
 }
 
 /** Marks the next launch as one of the white pages' (the subscription page,

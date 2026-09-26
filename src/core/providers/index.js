@@ -281,7 +281,7 @@ export class ProviderHub {
     }
   }
 
-  async send({ cfg, system, messages, tools, serverTools = [], reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking }, provider) {
+  async send({ cfg, system, messages, tools, serverTools = [], reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking, store }, provider) {
     const { model } = cfg;
     const req = {
       provider, model, system, messages, tools, serverTools, reasoningEffort, maxTokens, temperature, signal, onEvent, json, thinking,
@@ -296,6 +296,9 @@ export class ProviderHub {
       if (provider.thinkingParam) {
         extraBody.thinking = { type: thinking === false ? 'disabled' : 'enabled' };
       }
+      // A Bot Store bot (`store`: which one): Holli Bot's server adds its
+      // pre-trained memory, which the app never has (convex/ai.ts).
+      if (provider.credits && store) extraBody.store = store;
       // "max" is DeepSeek's (effortMap); an OpenAI-style effort tops out at "high".
       const effort = provider.effortMap ? provider.effortMap[reasoningEffort]
         : provider.reasoningEffort ? (reasoningEffort === 'max' ? 'high' : reasoningEffort) : undefined;

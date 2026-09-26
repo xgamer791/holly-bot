@@ -2,6 +2,7 @@ import { html, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useAsync, useTopics } from './hooks.js';
 import { Sheet, Tabs, Field, downloadBlob } from './components.js';
 import { AgentText } from './create-bot.js';
+import { LockedMemory } from './bot-profile.js';
 import { jobSummary } from '../core/brief.js';
 import { Icon } from './icons.js';
 import { SHARED_ID, MEMORY_TYPES } from '../core/memory/store.js';
@@ -89,8 +90,8 @@ function MemoryList({ ownerId, agent, shared = false }) {
   };
 
   const exportMd = () => {
-    // A bot's own memory starts with its job and rules, as it reads them.
-    const kept = shared ? [] : [[tr('Job'), agent.description], [tr('Rules'), agent.rules]].filter(([, text]) => text?.trim()).map(([title, text]) => `## ${title}\n\n${text.trim()}\n\n`);
+    // A bot's own memory starts with its Bot Memory and rules, as it reads them (a Bot Store bot's pre-trained memory stays private).
+    const kept = shared ? [] : [[tr('Bot Memory'), agent.description], [tr('Rules'), agent.rules]].filter(([, text]) => text?.trim()).map(([title, text]) => `## ${title}\n\n${text.trim()}\n\n`);
     const list = all.map((m) => `- (${m.type}, ${new Date(m.createdAt).toISOString().slice(0, 10)}${m.pinned ? ', pinned' : ''}) ${m.text}`).join('\n');
     const md = `# ${shared ? tr('Team memory') : tr('{name} memory', { name: agent.name })}\n\n${kept.join('')}${kept.length ? `## ${tr('Memories')}\n\n${list}` : list}\n`;
     downloadBlob(new Blob([md], { type: 'text/markdown' }), `${shared ? 'team' : agent.name.toLowerCase().replace(/\W+/g, '-')}-memory.md`);
@@ -171,9 +172,10 @@ function CoreMemory({ agent }) {
   ];
   return html`
     <p class="hint" style="font-size:14px;margin:4px 4px 6px">${tr("Core memory is always in {name}'s context (unlike long-term memories, which are recalled when relevant).", { name: agent.name })}</p>
-    <${Field} label=${tr('Job')} hint=${tr('Its job, in your words. {name} reads it in full at the start of every chat.', { name: agent.name })}>
-      <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr("Bot's job")}
-        placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} />
+    ${agent.store && html`<${Field} label=${tr('Pre-trained memory')}><${LockedMemory} /><//>`}
+    <${Field} label=${tr('Bot Memory')} hint=${tr('Its job, in your words. {name} reads it in full at the start of every chat.', { name: agent.name })}>
+      <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr('Bot Memory')}
+        placeholder=${agent.store ? tr('e.g. My family is vegetarian, and we shop on Saturdays') : tr('e.g. Plan my meals for the week and make the shopping list')} />
     <//>
     <${Field} label=${tr('Rules')} hint=${tr("Hard rules {name} must always follow, unless one goes against Holli Bot's own safety and behavior rules. It reads them in full at the start of every chat.", { name: agent.name })}>
       <${AgentText} key=${`rules_${agent.id}`} agent=${agent} field="rules" rules label=${tr("Bot's rules")}

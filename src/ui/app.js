@@ -10,6 +10,7 @@ import { ComputerSheet } from './computer.js';
 import { WorkspaceSheet } from './workspace.js';
 import { RoutinesSheet } from './routines.js';
 import { GroupInfoSheet } from './group-info.js';
+import { StoreSheet } from './store.js';
 import { Dialog, Toasts } from './components.js';
 import { Avatar, avatarSvgString } from './avatar.js';
 import { threadTitle } from './home.js';
@@ -27,6 +28,7 @@ const SHEETS = {
   workspace: WorkspaceSheet,
   routines: RoutinesSheet,
   groupInfo: GroupInfoSheet,
+  store: StoreSheet,
 };
 
 function parseHash() {
@@ -80,6 +82,10 @@ export function Root({ app }) {
     closeSheet(id) {
       setSheets((s) => (id ? s.filter((x) => x.id !== id) : s.slice(0, -1)));
     },
+    /** Every sheet, Settings too: to go straight to a chat (src/ui/store.js). */
+    closeAll() {
+      setSheets([]);
+    },
     toast(text, opts = {}) {
       const id = Math.random().toString(36).slice(2);
       setToasts((t) => [...t.slice(-2), { id, text, ...opts }]);
@@ -124,13 +130,15 @@ export function Root({ app }) {
   }), []);
 
   // Something to say once the app is open, such as how connecting Gmail,
-  // Outlook or GitHub went (src/main.js), and where to look.
+  // Outlook or GitHub went (src/main.js), and where to look; or, back from
+  // buying a bot, the Bot Store, to finish adding it (src/ui/store.js).
   useEffect(() => {
     const notice = app.startupNotice;
     if (!notice) return;
     app.startupNotice = null;
     if (notice.page) ui.openSheet('settings', { page: notice.page });
-    ui.toast(notice.text, { error: !!notice.error });
+    if (notice.store) ui.openSheet('store', { purchase: notice.store });
+    if (notice.text) ui.toast(notice.text, { error: !!notice.error });
   }, []);
 
   // Service worker notification clicks → open the chat.

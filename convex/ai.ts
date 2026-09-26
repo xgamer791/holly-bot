@@ -2,6 +2,7 @@ import { getAuthSessionId, getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { MODELS, RENAMED, costOf, promptTokens, usageOf, type Usage } from "./lib/credits";
+import { withMemory } from "./lib/store";
 
 // Holli Bot's AI: DeepSeek, on Holli Bot's own key (DEEPSEEK_API_KEY), paid
 // for with each account's monthly credits (convex/credits.ts). The app and
@@ -86,6 +87,16 @@ export const chat = httpAction(async (ctx, request) => {
   const stream = body.stream === true;
   const out: Record<string, unknown> = { model };
   for (const name of PASSED) if (body[name] !== undefined) out[name] = body[name];
+  // A bot from the Bot Store (`store`: which one): its pre-trained memory,
+  // which never leaves this server, goes into its instructions here, for an
+  // account that bought it (convex/store.ts memoryFor, lib/store.ts withMemory).
+  if (typeof body.store === "string" && /^[\w-]{1,64}$/.test(body.store)) {
+    const memory = await ctx.runQuery(internal.store.memoryFor, { userId, bot: body.store }).catch((err) => {
+      console.error(`Bot Store memory for ${userId} (${body.store}): ${err instanceof Error ? err.message : err}`);
+      return null;
+    });
+    if (memory) out.messages = withMemory(out.messages, memory);
+  }
   out.max_tokens = Math.min(MAX_TOKENS, Math.max(1, Math.floor(Number(body.max_tokens) || DEFAULT_TOKENS)));
   if (stream) Object.assign(out, { stream: true, stream_options: { include_usage: true } });
 

@@ -115,6 +115,10 @@ export const deleteAccount = mutation({
     for (const state of await ctx.db.query("connectorStates").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       await ctx.db.delete(state._id);
     }
+    // Its Bot Store purchases (convex/store.ts): Stripe keeps the payments.
+    for (const purchase of await ctx.db.query("storePurchases").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(purchase._id);
+    }
     // The subscription ends with the account: Stripe is asked to delete its
     // customer, which cancels the subscription at once (convex/billing.ts),
     // and its servers are deleted at Vultr (convex/servers.ts).

@@ -407,6 +407,7 @@ export class Runtime {
           serverTools: app.providers.serverToolsFor(c, agent),
           reasoningEffort: effortOf(app, agent),
           maxTokens: agent.maxTokens || undefined,
+          store: agent.store?.id,
           signal: controller.signal,
           onEvent: (e) => this.onStreamEvent(msg, step, e),
         });
@@ -530,6 +531,7 @@ export class Runtime {
         tools,
         reasoningEffort: effortOf(app, agent),
         maxTokens: agent.maxTokens || undefined,
+        store: agent.store?.id,
         signal,
         onEvent: (e) => {
           if (e.type === 'text' || e.type === 'thinking') this.onStreamEvent(msg, step, e);

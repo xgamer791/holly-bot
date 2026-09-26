@@ -2,21 +2,22 @@ import { html, useEffect, useLayoutEffect, useRef, useState } from '../../vendor
 import { useApp, useUi } from './hooks.js';
 import { Avatar, SHAPES, SHAPE_KEYS, COLORS, COLOR_KEYS, COLOR_NAMES, THINKING } from './avatar.js';
 import { THINKING_KEYS } from '../core/constants.js';
-import { JOB_CHARS, JOB_WORDS, clipWords, jobLine, wordCount } from '../core/brief.js';
+import { JOB_CHARS, JOB_WORDS, charsFor, clipWords, jobLine, wordCount, wordsFor } from '../core/brief.js';
 import { Sheet, Field, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { number, tr, trn } from './i18n.js';
 
 /**
- * A bot's job, or its rules, in the user's words (src/core/brief.js): folded
- * away to a few lines (for a long job, the summary Holli Bot's AI wrote of it,
- * `summary`), which open to the whole of it, to read or edit, in a box that
- * grows to fit it. Empty, it's open, to be written in. `value` and `onInput`:
- * the text as it's written; `onDone`: once it's written (the box loses focus,
- * or folds away). JOB_WORDS words at most, which it counts. `big`: as in
- * Create New Bot.
+ * A bot's Bot Memory (its job), or its rules, in the user's words
+ * (src/core/brief.js): folded away to a few lines (for a long one, the
+ * summary Holli Bot's AI wrote of it, `summary`), which open to the whole of
+ * it, to read or edit, in a box that grows to fit it. Empty, it's open, to be
+ * written in. `value` and `onInput`: the text as it's written; `onDone`: once
+ * it's written (the box loses focus, or folds away). `max` words at most, and
+ * `chars` characters, which it counts (one from before, when they could be
+ * longer, can only get shorter). `big`: as in Create New Bot.
  */
-export function JobBox({ value, onInput, onDone, summary = '', placeholder, label, big = false, rules = false }) {
+export function JobBox({ value, onInput, onDone, summary = '', placeholder, label, big = false, rules = false, max = JOB_WORDS, chars = JOB_CHARS }) {
   const [open, setOpen] = useState(() => !value.trim());
   const text = value.trim();
   const cls = `job-box${big ? ' big' : ''}${rules ? ' rules' : ''}`;
@@ -33,10 +34,10 @@ export function JobBox({ value, onInput, onDone, summary = '', placeholder, labe
   const words = wordCount(value);
   return html`
     <div class=${`${cls} open`}>
-      <${WordsArea} value=${value} onInput=${onInput} onDone=${onDone} placeholder=${placeholder} label=${label} />
+      <${WordsArea} value=${value} onInput=${onInput} onDone=${onDone} placeholder=${placeholder} label=${label} max=${max} chars=${chars} />
       ${text && html`
         <div class="job-meta">
-          <span class=${words >= JOB_WORDS ? 'full' : ''}>${tr('{count} / {max} words', { count: number(words), max: number(JOB_WORDS) })}</span>
+          <span class=${words >= max ? 'full' : ''}>${tr('{count} / {max} words', { count: number(words), max: number(max) })}</span>
           <button class="job-toggle" aria-label=${tr('Minimize')} aria-expanded="true" onClick=${() => {
             onDone?.(value);
             setOpen(false);
@@ -46,10 +47,11 @@ export function JobBox({ value, onInput, onDone, summary = '', placeholder, labe
 }
 
 /**
- * A bot's job or rules (`field`: 'description' or 'rules') in its profile or
- * its memory, in a JobBox: saved once written (the box loses focus or folds
- * away, or the sheet closes), and a new job or new rules get the bot a new
+ * A bot's Bot Memory or rules (`field`: 'description' or 'rules') in its
+ * profile or its memory, in a JobBox: saved once written (the box loses focus
+ * or folds away, or the sheet closes), and new ones get the bot a new
  * briefing (src/core/app.js updateAgent). `summary`: of the job as it's saved.
+ * As many words as the bot has room for (a Bot Store bot's 10,000).
  */
 export function AgentText({ agent, field, summary = '', ...props }) {
   const app = useApp();
@@ -68,15 +70,15 @@ export function AgentText({ agent, field, summary = '', ...props }) {
   };
   // What's being written as the sheet closes is kept too.
   useEffect(() => save, []);
-  return html`<${JobBox} ...${props} value=${text} summary=${text.trim() === saved.trim() ? summary : ''} onDone=${save} onInput=${(v) => {
+  return html`<${JobBox} ...${props} max=${wordsFor(agent)} chars=${charsFor(agent)} value=${text} summary=${text.trim() === saved.trim() ? summary : ''} onDone=${save} onInput=${(v) => {
     draft.current = v;
     setText(v);
   }} />`;
 }
 
-/** The box a job or rules are written in: it grows to fit what's in it, and
- * takes JOB_WORDS words at most (limitWords). */
-function WordsArea({ value, onInput, onDone, placeholder, label }) {
+/** The box a Bot Memory or rules are written in: it grows to fit what's in
+ * it, and takes `max` words (and `chars` characters) at most (limitWords). */
+function WordsArea({ value, onInput, onDone, placeholder, label, max, chars }) {
   const ref = useRef(null);
   // The text as it was before the edit being made (an IME composition keeps
   // it until it's done), and as it was last passed on.
@@ -90,22 +92,24 @@ function WordsArea({ value, onInput, onDone, placeholder, label }) {
     return () => removeEventListener('resize', refit);
   }, []);
   const edit = (el, composing) => {
-    const next = composing ? el.value : limitWords(el, before.current);
+    const next = composing ? el.value : limitWords(el, before.current, max);
     if (!composing) before.current = next;
     sent.current = next;
     onInput(next);
   };
-  return html`<textarea ref=${ref} class="job-area" rows="1" maxlength=${JOB_CHARS} value=${value} placeholder=${placeholder} aria-label=${label}
+  return html`<textarea ref=${ref} class="job-area" rows="1" maxlength=${Math.max(chars, value.length)} value=${value} placeholder=${placeholder} aria-label=${label}
     onInput=${(e) => edit(e.currentTarget, e.isComposing)} oncompositionend=${(e) => edit(e.currentTarget, false)}
     onBlur=${(e) => onDone?.(e.currentTarget.value)}></textarea>`;
 }
 
-/** What's in the box `el` after an edit, JOB_WORDS words at most: an edit
- * that goes past them keeps what was there, and as much of what came in as
- * fits, the way maxlength does with characters. `before`: the text before it. */
-function limitWords(el, before) {
+/** What's in the box `el` after an edit, `max` words at most: an edit that
+ * goes past them keeps what was there, and as much of what came in as fits,
+ * the way maxlength does with characters. `before`: the text before it,
+ * which, from when there was more room, may be longer: it can only get shorter. */
+function limitWords(el, before, max) {
   const next = el.value;
-  if (wordCount(next) <= JOB_WORDS) return next;
+  const cap = Math.max(max, wordCount(before));
+  if (wordCount(next) <= cap) return next;
   // What the edit changed: what's between the text that stayed the same at the start and at the end.
   let start = 0;
   while (start < before.length && start < next.length && before[start] === next[start]) start++;
@@ -113,12 +117,12 @@ function limitWords(el, before) {
   while (end < before.length - start && end < next.length - start && before[before.length - 1 - end] === next[next.length - 1 - end]) end++;
   const head = next.slice(0, start);
   const tail = next.slice(next.length - end);
-  const room = JOB_WORDS - wordCount(head + tail);
+  const room = cap - wordCount(head + tail);
   const kept = head + (room > 0 ? clipWords(next.slice(start, next.length - end), room) : '');
   let out = kept + tail;
   let caret = kept.length;
-  if (wordCount(out) > JOB_WORDS) {
-    out = clipWords(before);
+  if (wordCount(out) > cap) {
+    out = clipWords(before, cap);
     caret = Math.min(start, out.length);
   }
   el.value = out;
@@ -199,7 +203,7 @@ export function CreateBotSheet({ onClose }) {
       return;
     }
     setBusy(true);
-    // Its job and rules: kept in its memory and read before every chat, and Holli Bot's AI briefs it on them (src/core/brief.js).
+    // Its Bot Memory and rules: kept in its memory and read before every chat, and Holli Bot's AI briefs it on them (src/core/brief.js).
     const agent = await app.createAgent({ name: name.trim(), description: job.trim(), rules: rules.trim(), shape, color, thinking });
     onClose();
     ui.navigate(`#/chat/dm_${agent.id}`);
@@ -211,9 +215,11 @@ export function CreateBotSheet({ onClose }) {
       <div class="create-preview"><${Avatar} shape=${shape} color=${color} size=${Math.min(170, Math.round(innerWidth * 0.36))} live working=${preview || busy} anim=${thinking} /></div>
       <input class="name-input" placeholder=${tr('Name your Bot')} maxlength="40" value=${name} aria-label=${tr('Bot name')}
         onInput=${(e) => setName(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && create()} />
-      <${JobBox} big value=${job} onInput=${setJob} label=${tr("Bot's job")}
-        placeholder=${tr("What's its job? e.g. Plan my meals for the week and make the shopping list")} />
+      <div class="job-label">${tr('Bot Memory')}</div>
+      <${JobBox} big value=${job} onInput=${setJob} label=${tr('Bot Memory')}
+        placeholder=${tr('What should it know and do? e.g. Plan my meals for the week and make the shopping list')} />
       <div class="hint job-hint">${tr('It keeps this in its memory and reads it before every chat, so it knows exactly what its role is.')}</div>
+      <div class="job-label">${tr('Rules')}</div>
       <${JobBox} big rules value=${rules} onInput=${setRules} label=${tr("Bot's rules")}
         placeholder=${tr('Rules it must always follow (optional), e.g. Never send an email without my OK')} />
       <div class="hint job-hint">${tr("Hard rules it keeps in its memory and follows in every chat. If one goes against Holli Bot's own rules, it won't follow it, and it will tell you why.")}</div>

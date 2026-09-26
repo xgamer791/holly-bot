@@ -29,10 +29,13 @@ import type * as lib_oauth from "../lib/oauth.js";
 import type * as lib_plans from "../lib/plans.js";
 import type * as lib_records from "../lib/records.js";
 import type * as lib_seal from "../lib/seal.js";
+import type * as lib_store from "../lib/store.js";
+import type * as lib_storeSamples from "../lib/storeSamples.js";
 import type * as lib_stripe from "../lib/stripe.js";
 import type * as lib_subscription from "../lib/subscription.js";
 import type * as lib_vultr from "../lib/vultr.js";
 import type * as servers from "../servers.js";
+import type * as store from "../store.js";
 import type * as uploads from "../uploads.js";
 
 import type {
@@ -63,10 +66,13 @@ declare const fullApi: ApiFromModules<{
   "lib/plans": typeof lib_plans;
   "lib/records": typeof lib_records;
   "lib/seal": typeof lib_seal;
+  "lib/store": typeof lib_store;
+  "lib/storeSamples": typeof lib_storeSamples;
   "lib/stripe": typeof lib_stripe;
   "lib/subscription": typeof lib_subscription;
   "lib/vultr": typeof lib_vultr;
   servers: typeof servers;
+  store: typeof store;
   uploads: typeof uploads;
 }>;
 

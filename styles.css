@@ -1051,3 +1051,132 @@ html.signed-out #boot { background: #fff !important; }
 .ws-empty b { color: var(--text); font-size: 17px; }
 .ws-empty p { margin: 0 0 8px; max-width: 300px; line-height: 1.4; }
 .ws-empty-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--surface-2); color: var(--text); display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- a bot's Bot Memory (src/ui/create-bot.js, src/ui/bot-profile.js) ---------- */
+.job-label { margin: 22px 6px -4px; color: var(--muted); font-size: 14px; font-weight: 600; }
+/* A Bot Store bot's pre-trained memory: private, so a card that says so in place of a box. */
+.memory-locked { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.memory-locked .what { flex: 1; min-width: 0; }
+.memory-locked .t { font-size: 16px; font-weight: 600; }
+.memory-locked .s { margin-top: 3px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.memory-locked .lock, .sb-memory .lock { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; color: #fff;
+  background: linear-gradient(145deg, #8b88ff 0%, #5e5ce6 55%, #4643c9 100%); }
+
+/* ---------- the Bot Store (src/ui/store.js) ----------
+   Apple's App Store in Holli Bot's colors: the date over a large title, the
+   featured bots on big cards in their own color, category chips, every bot
+   as an app icon (a white bot on its color) with the App Store's round price
+   button, and a page for each bot: its icon, a strip of facts, what it can
+   do, about it, and the fine print. */
+.sheet.store { --sb-bg: #0c0c0e; --sb-card: #1c1c1e; --sb-pill: #2c2c2e; --sb-line: rgba(255, 255, 255, .1); --sb-sub: #8e8e93; --sb-strong: #b4b4b9; --sb-blue: #0a84ff; background: var(--sb-bg); }
+:root[data-theme="dark"] .sheet.store { --sb-bg: #1c1c1e; --sb-card: #2c2c2e; --sb-pill: #3a3a3c; }
+:root[data-theme="light"] .sheet.store { --sb-bg: #ffffff; --sb-card: #f2f2f7; --sb-pill: #eef0f4; --sb-line: rgba(60, 60, 67, .16); --sb-sub: #6e6e73; --sb-strong: #86868b; --sb-blue: #007aff; }
+@media (min-width: 900px) { .sheet.store { width: 640px; } }
+.sheet.store .sheet-head { min-height: 64px; padding-bottom: 2px; }
+.sheet.store .sheet-head .circle-btn { background: var(--sb-pill); border: 0; }
+.sheet.store .sheet-body { padding-top: 0; }
+.sb-head-link { padding: 8px 4px; color: var(--sb-blue); font-size: 17px; font-weight: 600; }
+
+.sb-top { padding: 0 2px 2px; }
+.sb-date { color: var(--sb-sub); font-size: 13px; line-height: 16px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.sb-title { margin: 2px 0 0; font-size: 34px; line-height: 40px; font-weight: 800; letter-spacing: -.02em; }
+.sb-lead { margin: 6px 0 0; color: var(--sb-sub); font-size: 15.5px; line-height: 1.4; }
+
+/* The featured bots: big cards that snap into place as they're swiped. */
+.sb-cards { display: flex; gap: 12px; margin: 18px -18px 0; padding: 0 18px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 18px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sb-cards::-webkit-scrollbar { display: none; }
+.sb-card { position: relative; flex: 0 0 min(86%, 440px); min-height: 250px; display: flex; flex-direction: column; padding: 18px 18px 14px; border-radius: 22px; color: #fff; overflow: hidden;
+  scroll-snap-align: start; cursor: pointer; box-shadow: 0 10px 30px rgba(0, 0, 0, .28); transition: transform .2s; }
+:root[data-theme="light"] .sb-card { box-shadow: 0 10px 28px rgba(0, 0, 0, .14); }
+.sb-cards .sb-card:only-child { flex-basis: 100%; }
+.sb-card:active { transform: scale(.98); }
+.sb-card-text { position: relative; z-index: 1; max-width: 58%; }
+.sb-eyebrow { color: rgba(255, 255, 255, .78); font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.sb-card-name { margin-top: 4px; font-size: 27px; line-height: 31px; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.sb-card-tag { margin-top: 6px; color: rgba(255, 255, 255, .9); font-size: 15px; line-height: 1.35; }
+.sb-card-art { position: absolute; right: -6px; top: 50%; transform: translateY(-60%); filter: drop-shadow(0 12px 24px rgba(0, 0, 0, .25)); pointer-events: none; }
+.sb-card-foot { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 16px; }
+.sb-card-foot > span { flex: 1; min-width: 0; color: rgba(255, 255, 255, .8); font-size: 13px; line-height: 17px; }
+
+.sb-chips { display: flex; gap: 8px; margin: 22px -18px 0; padding: 0 18px; overflow-x: auto; scrollbar-width: none; }
+.sb-chips::-webkit-scrollbar { display: none; }
+.sb-chip { flex: none; height: 34px; padding: 0 15px; border-radius: 17px; background: var(--sb-pill); color: var(--text); font-size: 14.5px; font-weight: 600; white-space: nowrap; transition: background .2s, color .2s; }
+.sb-chip.on { background: var(--text); color: var(--sb-bg); }
+
+.sb-h2 { margin: 26px 0 4px; font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -.01em; }
+
+/* Bots in a list, as in the App Store: icon, name, what it does, and its button. */
+.sb-list { margin-top: 2px; }
+.sb-row { position: relative; display: flex; align-items: center; gap: 14px; padding: 11px 0; cursor: pointer; }
+.sb-row + .sb-row::before { content: ""; position: absolute; top: 0; left: 78px; right: 0; height: 1px; background: var(--sb-line); }
+.sb-list.small .sb-row + .sb-row::before { left: 62px; }
+.sb-row:active { opacity: .7; }
+.sb-row .meta { flex: 1; min-width: 0; }
+.sb-row .n { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-row .d { margin-top: 1px; color: var(--sb-sub); font-size: 14px; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sb-row .c { margin-top: 3px; color: var(--sb-sub); font-size: 12px; line-height: 15px; }
+.sb-row .chev { width: 18px; height: 18px; flex: none; color: var(--dim); }
+
+/* A bot as an app icon: a white bot on its color, with a soft sheen. */
+.sb-tile { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden;
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .14), 0 1px 3px rgba(0, 0, 0, .2); }
+.sb-tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 48%); pointer-events: none; }
+:root[data-theme="light"] .sb-tile { box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .08), 0 1px 3px rgba(0, 0, 0, .12); }
+
+/* The App Store's button: the price, which turns blue as Buy, then Get or Open. */
+.sb-get { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 76px; height: 30px; padding: 0 14px; border-radius: 15px;
+  background: var(--sb-pill); color: var(--sb-blue); font-size: 15px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums;
+  transition: background .2s, color .2s, min-width .25s ease, transform .1s; }
+.sb-get:active { transform: scale(.96); }
+.sb-get:disabled { opacity: .5; }
+.sb-get.buy { min-width: 86px; background: var(--sb-blue); color: #fff; }
+.sb-get.big { min-width: 86px; height: 34px; padding: 0 18px; border-radius: 17px; font-size: 16px; }
+.sb-get.big.buy { min-width: 100px; }
+.sb-get.on-card { background: rgba(255, 255, 255, .24); color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.sb-get.on-card.buy { background: #fff; color: #111; }
+.sb-get.on-card .spinner { border-color: rgba(255, 255, 255, .4); border-top-color: #fff; }
+
+/* A bot's page. */
+.sb-hero { display: flex; align-items: flex-start; gap: 16px; margin: 4px 0 18px; }
+.sb-hero-text { flex: 1; min-width: 0; padding-top: 2px; }
+.sb-hero h1 { margin: 0; font-size: 24px; line-height: 29px; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.sb-hero p { margin: 3px 0 0; color: var(--sb-sub); font-size: 15px; line-height: 1.35; }
+.sb-hero-buy { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.sb-once { max-width: 96px; color: var(--sb-sub); font-size: 12px; line-height: 15px; }
+.sb-facts { display: flex; margin: 0 -18px; padding: 10px 6px; overflow-x: auto; border-top: 1px solid var(--sb-line); border-bottom: 1px solid var(--sb-line); scrollbar-width: none; }
+.sb-facts::-webkit-scrollbar { display: none; }
+.sb-fact { position: relative; flex: 1 0 25%; min-width: 92px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 8px; text-align: center; }
+.sb-fact + .sb-fact::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 1px; background: var(--sb-line); }
+.sb-fact .k { color: var(--sb-sub); font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.sb-fact .v { display: flex; align-items: center; height: 28px; color: var(--sb-strong); font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sb-fact .s { max-width: 100%; color: var(--sb-sub); font-size: 12px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-checks { margin: 4px 0 0; padding: 0; list-style: none; }
+.sb-checks li { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 16px; line-height: 1.4; }
+.sb-checks li svg { flex: none; margin-top: 2px; color: var(--green); }
+:root[data-theme="light"] .sb-checks li svg { color: #28a745; }
+.sb-about { margin: 6px 0 0; font-size: 16px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.sb-about.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.sb-more { margin-top: 2px; color: var(--sb-blue); font-size: 15px; font-weight: 600; }
+.sb-memory { display: flex; align-items: flex-start; gap: 12px; margin: 26px 0 4px; padding: 16px; border-radius: 18px; background: var(--sb-card); }
+.sb-memory b { font-size: 16px; font-weight: 700; }
+.sb-memory p { margin: 4px 0 0; color: var(--sb-sub); font-size: 14.5px; line-height: 1.45; }
+.sb-info { margin: 4px 0 0; }
+.sb-info div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--sb-line); font-size: 15px; line-height: 1.35; }
+.sb-info dt { flex: none; color: var(--sb-sub); }
+.sb-info dd { margin: 0; text-align: right; }
+.sb-owner { margin-top: 22px; }
+.sb-foot { margin: 22px 2px 4px; color: var(--sb-sub); font-size: 13px; line-height: 1.45; }
+.sb-note { margin: 12px 2px; color: var(--sb-sub); font-size: 14px; line-height: 1.45; }
+.sb-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 50vh; padding: 0 20px; color: var(--sb-sub); font-size: 16px; text-align: center; }
+.sb-empty p { margin: 0; max-width: 320px; line-height: 1.45; }
+
+/* The owner's pages: their bots, and a bot to add or change. */
+.sb-edit-preview { display: flex; justify-content: center; margin: 6px 0 18px; }
+.sheet.store .field label { color: var(--sb-sub); }
+.sheet.store .input, .sheet.store .textarea, .sheet.store .select { background: var(--sb-card); }
+.sheet.store .textarea.sb-long { min-height: 220px; }
+.sheet.store .group { background: var(--sb-card); }
+.sb-hint-row { display: flex; justify-content: space-between; gap: 12px; }
+.sb-count { flex: none; font-variant-numeric: tabular-nums; }
+.sb-count.full { color: var(--orange); }
+@media (prefers-reduced-motion: reduce) { .sb-card, .sb-get, .sb-chip { transition: none; } }

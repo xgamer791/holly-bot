@@ -7,6 +7,7 @@ import { isAllowedRedirect } from "./auth";
 import { requireUserId } from "./lib/auth";
 import { PLANS, planById, priceVariable, type Interval, type Plan, type PlanId } from "./lib/plans";
 import { StripeError, call, subscriptionState, verifySignature, type SubscriptionState } from "./lib/stripe";
+import { storeSession } from "./lib/store";
 import { ENDED, hasAccess, isExempt, liveMode, needsCheck, subscriberOf } from "./lib/subscription";
 import { planServer, serverView } from "./servers";
 
@@ -35,8 +36,8 @@ const RETRY_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 3_600_000, 12 * 3_600_000
 /** Handled events are remembered this long (Stripe retries for three days). */
 const EVENT_DAYS = 30;
 
-const secretKey = () => process.env.STRIPE_SECRET_KEY?.trim() || undefined;
-const modeOf = (key: string) => (/_live_/.test(key) ? "live" : "test");
+export const secretKey = () => process.env.STRIPE_SECRET_KEY?.trim() || undefined;
+export const modeOf = (key: string) => (/_live_/.test(key) ? "live" : "test");
 const interval = v.union(v.literal("month"), v.literal("year"));
 const INTERVALS: Interval[] = ["month", "year"];
 
@@ -330,23 +331,23 @@ export const sweepEvents = internalMutation({
 });
 
 /** A problem at Stripe, in words for the app; the details go to the log. */
-function asError(err: unknown, fallback: string): ConvexError<string> {
+export function asError(err: unknown, fallback: string): ConvexError<string> {
   if (err instanceof ConvexError) return err;
   console.error(`Stripe: ${err instanceof Error ? err.message : String(err)}`);
   return new ConvexError(fallback);
 }
 
-const missingCustomer = (err: unknown) => err instanceof StripeError && err.code === "resource_missing" && /customer/i.test(err.message);
+export const missingCustomer = (err: unknown) => err instanceof StripeError && err.code === "resource_missing" && /customer/i.test(err.message);
 
 /** Where Stripe sends the person back to: the app, with what happened. */
-function backTo(returnTo: string, params: Record<string, string>): string {
+export function backTo(returnTo: string, params: Record<string, string>): string {
   const url = new URL(returnTo);
   url.hash = "";
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
   return url.toString();
 }
 
-async function newCustomer(ctx: ActionCtx, key: string, me: { userId: string; email?: string; name?: string }, again = false): Promise<string> {
+export async function newCustomer(ctx: ActionCtx, key: string, me: { userId: string; email?: string; name?: string }, again = false): Promise<string> {
   const customer = await call(
     key,
     "POST",
@@ -519,6 +520,8 @@ const idOf = (value: any): string | undefined => (typeof value === "string" ? va
  *   invoice.payment_failed          past due: the server stays, and the app asks
  *                                   for a new card
  *   customer.subscription.deleted   canceled: the server is deleted
+ * and a Bot Store purchase (checkout.session.completed, mode=payment):
+ * the bot is the buyer's (convex/store.ts record).
  * Answering with an error makes Stripe try again later.
  */
 export const webhook = httpAction(async (ctx, request) => {
@@ -542,6 +545,20 @@ export const webhook = httpAction(async (ctx, request) => {
   const type = String(event?.type ?? "");
   if (!id || (await ctx.runQuery(internal.billing.seen, { eventId: id }))) return reply("ok");
   const object = event?.data?.object ?? {};
+  // A Bot Store purchase (convex/store.ts): the bot is the buyer's once it's
+  // paid for, which a card or wallet payment is as the session completes.
+  const bought = (type === "checkout.session.completed" || type === "checkout.session.async_payment_succeeded") ? storeSession(object) : null;
+  if (bought) {
+    if (!bought.paid) return reply("ok");
+    try {
+      const result = await ctx.runMutation(internal.store.record, { purchase: bought, event: { id, type } });
+      if (result !== "ok" && result !== "repeat" && result !== "known") console.log(`Stripe webhook ${type} ${id}: ${result}`);
+    } catch (err) {
+      console.error(`Stripe webhook ${type} ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      return reply("Try again later", 500);
+    }
+    return reply("ok");
+  }
   let subscriptionId: string | undefined;
   let userHint: string | undefined;
   if (type === "checkout.session.completed") {

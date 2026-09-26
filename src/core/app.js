@@ -14,7 +14,7 @@ import { firstWords, languageName, phrase, spoken } from './i18n.js';
 import { estimateCost } from './pricing.js';
 import { BUILTIN_TOOLS } from './tools/index.js';
 import {
-  BRIEF_PROMPT, BRIEF_VERSION, RULES_CHECK, RULES_PROMPT, briefCurrent, briefInput, clipJob, newlyRefused, parseBrief, parseRulesCheck, rulesInput,
+  BRIEF_PROMPT, BRIEF_VERSION, RULES_CHECK, RULES_PROMPT, briefCurrent, briefInput, charsFor, clipJob, newlyRefused, parseBrief, parseRulesCheck, rulesInput, storeTag, wordCount, wordsFor,
   shortJob,
 } from './brief.js';
 
@@ -382,15 +382,20 @@ export class App {
     const t = now();
     const tools = {};
     for (const [k, v] of Object.entries(TOOL_GROUPS)) tools[k] = v.default;
+    // A bot from the Bot Store (src/ui/store.js): its pre-trained memory
+    // stays on Holli Bot's server (src/core/brief.js), and its own Bot Memory
+    // and rules have more room.
+    const store = storeTag(data.store);
     const agent = {
       id: uid('bot'),
       name: String(data.name || 'Bot').trim().slice(0, 40),
       shape: SHAPE_KEYS_CORE.includes(data.shape) ? data.shape : SHAPE_KEYS_CORE[Math.floor(Math.random() * SHAPE_KEYS_CORE.length)],
       color: COLOR_KEYS_CORE.includes(data.color) ? data.color : 'green',
       thinking: THINKING_KEYS.includes(data.thinking) ? data.thinking : THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)],
-      // Its job, and the hard rules it must keep, in the user's words (src/core/brief.js).
-      description: clipJob(data.description),
-      rules: clipJob(data.rules),
+      // Its Bot Memory (its job), and the hard rules it must keep, in the user's words (src/core/brief.js).
+      description: clipJob(data.description, wordsFor({ store }), charsFor({ store })),
+      rules: clipJob(data.rules, wordsFor({ store }), charsFor({ store })),
+      ...(store ? { store } : {}),
       rulesAt: t,
       persona: data.persona || '',
       provider: data.provider || '',
@@ -477,6 +482,7 @@ export class App {
         system: lang === 'en' ? FOCUS_PROMPT : `${FOCUS_PROMPT} Write the options in ${languageName(lang)}.`,
         prompt: [
           `Name: ${agent.name}`,
+          agent.store?.tagline && `What it was trained for: ${agent.store.tagline}`,
           agent.description && `Job: ${truncate(agent.description, 1000)}`,
           agent.persona && `Instructions: ${truncate(agent.persona, 600)}`,
         ].filter(Boolean).join('\n'),
@@ -498,8 +504,22 @@ export class App {
   async updateAgent(id, patch) {
     const a = this.agents.get(id);
     if (!a) throw new Error('Bot not found');
-    // Its job and rules, as they're kept (src/core/brief.js), and when its rules last changed (checkRulesSoon).
-    for (const key of ['description', 'rules']) if (key in patch) patch = { ...patch, [key]: clipJob(patch[key]) };
+    // What a Bot Store bot came as stays as it is; a bot made without it (by
+    // an older Holli Bot Computer) gets it once (src/ui/store.js).
+    if ('store' in patch) {
+      const { store, ...rest } = patch;
+      const tag = a.store ? null : storeTag(store);
+      patch = tag ? { ...rest, store: tag } : rest;
+    }
+    // Its Bot Memory and rules, as they're kept (src/core/brief.js): no longer
+    // than they may be, or than they were already (from when they could be
+    // longer, until they're cut), and when its rules last changed (checkRulesSoon).
+    const room = { ...a, ...patch };
+    for (const key of ['description', 'rules']) {
+      if (!(key in patch)) continue;
+      const was = String(a[key] || '');
+      patch = { ...patch, [key]: clipJob(patch[key], Math.max(wordsFor(room), wordCount(was)), Math.max(charsFor(room), was.length)) };
+    }
     if ('rules' in patch && patch.rules !== (a.rules || '')) patch = { ...patch, rulesAt: now() };
     const next = { ...a, ...patch, updatedAt: now() };
     this.agents.set(id, next);
@@ -520,7 +540,8 @@ export class App {
    * of its job or rules (or, for a long job, before summaries). The Chief
    * Coordinator has its own instructions (src/core/chief.js). */
   needsBrief(agent) {
-    if (!agent || agent.role === 'chief' || !agent.description?.trim()) return false;
+    // A Bot Store bot came pre-trained: its briefing is its pre-trained memory.
+    if (!agent || agent.role === 'chief' || agent.store || !agent.description?.trim()) return false;
     return !briefCurrent(agent) || (!shortJob(agent.description) && (agent.briefV || 1) < BRIEF_VERSION);
   }
 

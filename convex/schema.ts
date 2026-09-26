@@ -240,4 +240,58 @@ export default defineSchema({
     value: v.string(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  /**
+   * The Bot Store's bots (convex/store.ts, convex/lib/store.ts), the owner's
+   * to add, change and hide in the app. `slug` is what purchases and the bots
+   * made from it know it by. `memory`, its pre-trained Bot Memory, never
+   * leaves the server: Holli Bot's AI adds it to the requests of the bots
+   * made from it (convex/ai.ts). `rules` go to the buyer. `price` is in US
+   * cents. Only `listed` ones are on sale; until one is, the sample bots
+   * (convex/lib/storeSamples.ts) are.
+   */
+  storeBots: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    tagline: v.string(),
+    about: v.string(),
+    category: v.string(),
+    shape: v.string(),
+    color: v.string(),
+    thinking: v.optional(v.string()),
+    price: v.number(),
+    highlights: v.array(v.string()),
+    memory: v.string(),
+    rules: v.string(),
+    featured: v.boolean(),
+    listed: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_listed", ["listed"]),
+
+  /**
+   * Bot Store purchases: each account's bots, bought once through Stripe
+   * Checkout (convex/store.ts). A bought bot can be added to the account's
+   * bots again whenever it's gone, and its memory comes with it. Like a
+   * subscription, one counts only in its own Stripe mode (`livemode`).
+   */
+  storePurchases: defineTable({
+    userId: v.id("users"),
+    bot: v.string(),
+    /** The bot's name when it was bought. */
+    name: v.string(),
+    amount: v.number(),
+    currency: v.string(),
+    livemode: v.boolean(),
+    sessionId: v.string(),
+    paymentIntent: v.optional(v.string()),
+    paidAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_bot", ["userId", "bot"])
+    .index("by_session", ["sessionId"])
+    .index("by_bot", ["bot"]),
 });

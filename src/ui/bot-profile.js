@@ -36,11 +36,14 @@ export function BotProfileSheet({ agentId, onClose }) {
         <div class="row"><div class="label"><div class="t">${tr('Name')}</div></div>
           <input type="text" value=${agent.name} maxlength="40" aria-label=${tr('Name')} onChange=${(e) => e.currentTarget.value.trim() && save({ name: e.currentTarget.value.trim() })} /></div>
       <//>
-      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. It keeps this in its memory and reads it before every chat, and Holli Bot's AI briefs it on it.")}>
-        <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr("Bot's job")}
-          placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} />
+      ${agent.store && html`<${Field} label=${tr('Pre-trained memory')}><${LockedMemory} /><//>`}
+      <${Field} label=${tr('Bot Memory')} hint=${!chief && (agent.store
+        ? tr('What else it should know and do, in your words, on top of what it was trained for. It reads it before every chat.')
+        : tr("What it's for, in your words. It keeps this in its memory and reads it before every chat, and Holli Bot's AI briefs it on it."))}>
+        <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr('Bot Memory')}
+          placeholder=${agent.store ? tr('e.g. My family is vegetarian, and we shop on Saturdays') : tr('e.g. Plan my meals for the week and make the shopping list')} />
       <//>
-      ${!chief && agent.description?.trim() && html`<${Briefing} agent=${agent} />`}
+      ${!chief && !agent.store && agent.description?.trim() && html`<${Briefing} agent=${agent} />`}
       <${Field} label=${tr('Rules')} hint=${tr("Hard rules it must always follow, in your words. It keeps them in its memory and reads them before every chat. If one goes against Holli Bot's own safety and behavior rules, it won't follow that one, and it will tell you why in your chat.")}>
         <${AgentText} key=${`rules_${agent.id}`} agent=${agent} field="rules" rules label=${tr("Bot's rules")}
           placeholder=${tr('e.g. Never send an email without my OK')} />
@@ -97,6 +100,20 @@ export function BotProfileSheet({ agentId, onClose }) {
         }} />
       <//>
     <//>`;
+}
+
+/** A Bot Store bot's pre-trained memory: kept apart from the rest of its
+ * memory, on Holli Bot's server, where nobody can read, change or erase it
+ * (src/core/brief.js). */
+export function LockedMemory() {
+  return html`
+    <div class="memory-locked">
+      <span class="lock"><${Icon.lock} size="18" /></span>
+      <div class="what">
+        <div class="t">${tr('Pre-trained by the Bot Store')}</div>
+        <div class="s">${tr("Kept apart from its other memory, and private: it can't be seen, changed or erased. It reads it before every chat. Its Bot Memory and rules below are yours.")}</div>
+      </div>
+    </div>`;
 }
 
 /** The briefing Holli Bot's AI wrote the bot from its job and rules

@@ -122,6 +122,7 @@ function MainPage({ go, onClose }) {
   return html`
     <${AccountHeader} acct=${acct} go=${go} />
     <${Group} label=${tr('Bots')}>
+      <${Row} title=${tr('Bot Store')} sub=${tr('Pre-trained bots, ready to work')} onClick=${() => ui.openSheet('store', {})} />
       <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
       <${Row} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
     <//>
