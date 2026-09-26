@@ -138,6 +138,13 @@ export class ComputerClient {
   mcpCall(server, tool, args, { signal } = {}) {
     return this.request('/v1/mcp/call', { server, tool, arguments: args }, { signal });
   }
+
+  /** Adds ({ op: 'add', servers: { name: { command, args, env } } }), switches
+   * on or off ({ op: 'enable', name, enabled }) or removes ({ op: 'remove',
+   * name }) local MCP servers on the computer (capabilities.mcpConfig). */
+  mcpChange(change, { signal } = {}) {
+    return this.request('/v1/mcp/servers', change, { signal });
+  }
 }
 
 /** Commands that only read state run without approval even when Auto-review is on. */

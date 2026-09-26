@@ -117,6 +117,30 @@ class StdioServer {
   }
 }
 
+/** An error the app is shown, with the HTTP status that goes with it. */
+function problem(status, message) {
+  return Object.assign(new Error(message), { status });
+}
+
+/** One server's settings as the app sent them, checked and tidied: a command
+ * to run, its arguments, environment and folder, and whether it's off. */
+function checkSpec(name, spec) {
+  if (typeof name !== 'string' || !name.trim() || name.length > 64) throw problem(400, 'Give each server a name, up to 64 characters.');
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw problem(400, `"${name}" has no settings.`);
+  if (typeof spec.command !== 'string' || !spec.command.trim()) throw problem(400, `"${name}" needs a command to run, such as npx.`);
+  if (spec.args != null && !Array.isArray(spec.args)) throw problem(400, `"${name}": args must be a list.`);
+  const env = spec.env ?? {};
+  if (typeof env !== 'object' || Array.isArray(env) || Object.values(env).some((v) => v != null && typeof v === 'object')) {
+    throw problem(400, `"${name}": env must give each variable a value.`);
+  }
+  if (spec.cwd != null && typeof spec.cwd !== 'string') throw problem(400, `"${name}": cwd must be a folder.`);
+  const out = { command: spec.command.trim(), args: (spec.args || []).map(String) };
+  if (Object.keys(env).length) out.env = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, String(v ?? '')]));
+  if (spec.cwd) out.cwd = spec.cwd;
+  if (spec.disabled === true) out.disabled = true;
+  return out;
+}
+
 export class McpHost {
   constructor({ configPath, log = console }) {
     this.configPath = configPath;
@@ -124,27 +148,80 @@ export class McpHost {
     this.servers = new Map();
   }
 
-  readConfig() {
+  /** The whole file (creating it the first time); `strict` throws when it can't be read rather than treating it as empty. */
+  readFile(strict = false) {
     if (!existsSync(this.configPath)) {
       mkdirSync(dirname(this.configPath), { recursive: true });
-      writeFileSync(this.configPath, `${JSON.stringify({ mcpServers: {} }, null, 2)}\n`);
+      writeFileSync(this.configPath, `${JSON.stringify({ mcpServers: {} }, null, 2)}\n`, { mode: 0o600 });
     }
     try {
-      return JSON.parse(readFileSync(this.configPath, 'utf8')).mcpServers || {};
+      const data = JSON.parse(readFileSync(this.configPath, 'utf8'));
+      return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
     } catch (err) {
+      if (strict) throw problem(409, `Holly Computer can't read ${this.configPath} (${err.message}). Fix or delete that file first.`);
       this.log.warn?.(`Could not parse ${this.configPath}: ${err.message}`);
       return {};
     }
   }
 
-  async start() {
-    const cfg = this.readConfig();
-    await Promise.all(Object.entries(cfg).filter(([, spec]) => spec && spec.command && spec.disabled !== true).map(async ([name, spec]) => {
+  /** The servers in the file, by name. */
+  readConfig() {
+    return this.readFile().mcpServers || {};
+  }
+
+  /**
+   * Changes the servers in the file as the app asks: `add` (`servers` by
+   * name, replacing any with the same name), `enable` (`name`, `enabled`) or
+   * `remove` (`name`). Everything else in the file stays. The secrets in it
+   * (env) stay on this computer: the app is only ever sent names and tools.
+   * Resolves once what changed has started or stopped (sync).
+   */
+  async change({ op, servers, name, enabled } = {}) {
+    const file = this.readFile(true);
+    const cfg = { ...(file.mcpServers || {}) };
+    if (op === 'add') {
+      if (!servers || typeof servers !== 'object' || !Object.keys(servers).length) throw problem(400, 'No servers to add.');
+      for (const [n, spec] of Object.entries(servers)) cfg[n.trim()] = checkSpec(n.trim(), spec);
+    } else if (op === 'enable' || op === 'remove') {
+      if (!cfg[name]) throw problem(404, `No MCP server named ${name} on this computer.`);
+      if (op === 'remove') delete cfg[name];
+      else if (enabled) {
+        const { disabled, ...rest } = cfg[name];
+        cfg[name] = rest;
+      } else cfg[name] = { ...cfg[name], disabled: true };
+    } else throw problem(400, `Unknown change "${op}".`);
+    writeFileSync(this.configPath, `${JSON.stringify({ ...file, mcpServers: cfg }, null, 2)}\n`, { mode: 0o600 });
+    return this.sync();
+  }
+
+  /**
+   * Runs what the file lists. Servers taken out or switched off stop; new or
+   * changed ones start, and so do ones that stopped with an error; the rest
+   * keep running as they are. Resolves once the ones starting are up (or
+   * failed).
+   */
+  async sync() {
+    const want = new Map(Object.entries(this.readConfig()).filter(([, spec]) => spec && spec.command && spec.disabled !== true));
+    for (const [name, s] of this.servers) {
+      if (JSON.stringify(want.get(name)) !== JSON.stringify(s.spec)) {
+        s.stop();
+        this.servers.delete(name);
+      }
+    }
+    await Promise.all([...want].map(async ([name, spec]) => {
+      const running = this.servers.get(name);
+      if (running && running.status !== 'error') return;
+      running?.stop();
       const s = new StdioServer(name, spec, this.log);
       this.servers.set(name, s);
       await s.start();
       this.log.log?.(`  plugin ${name}: ${s.status === 'ok' ? `${s.tools.length} tools` : `error — ${s.error}`}`);
     }));
+    return this.list();
+  }
+
+  async start() {
+    await this.sync();
   }
 
   async reload() {
@@ -153,8 +230,13 @@ export class McpHost {
     await this.start();
   }
 
+  /** Each server: running ones with their state and tools, and the ones switched off in the file as 'off'. */
   list() {
-    return [...this.servers.values()].map((s) => ({ name: s.name, status: s.status, error: s.error, tools: s.tools }));
+    const out = [...this.servers.values()].map((s) => ({ name: s.name, status: s.status, error: s.error, tools: s.tools }));
+    for (const [name, spec] of Object.entries(this.readConfig())) {
+      if (spec?.disabled === true && !this.servers.has(name)) out.push({ name, status: 'off', error: '', tools: [] });
+    }
+    return out;
   }
 
   async call(server, tool, args) {

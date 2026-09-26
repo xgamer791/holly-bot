@@ -169,6 +169,8 @@ export class LocalComputer {
         desktop: !!desktopInfo?.inputAvailable,
         browser: !!chrome,
         mcp: true,
+        // The app can add, switch off and remove local MCP servers (/v1/mcp/servers).
+        mcpConfig: true,
         // Each bot has a screen of its own (and its own Chrome) rather than sharing this one.
         screens: !!this.screens,
         memory: true,
@@ -428,6 +430,12 @@ export class LocalComputer {
 
   async mcpCall(server, tool, args) {
     return this.mcp.call(server, tool, args);
+  }
+
+  /** Adds, switches on or off, or removes local MCP servers in mcp.json, as
+   * the app asks (McpHost.change); resolves once they've started or stopped. */
+  mcpChange(change) {
+    return this.mcp.change(change);
   }
 
   async close() {
