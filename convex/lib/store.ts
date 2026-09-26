@@ -24,8 +24,10 @@ export const CATEGORIES = ["productivity", "business", "money", "health", "food"
 export const LIMITS = {
   name: 40,
   tagline: 80,
-  /** Its page in the store: an article, in Markdown (src/ui/store.js BotPage). */
-  about: 12_000,
+  /** Its page in the store, an article in Markdown (src/ui/store.js BotPage):
+   * words, and characters, as for the memory and rules below. */
+  aboutWords: 8_000,
+  aboutChars: 80_000,
   highlights: 6,
   highlight: 90,
   /** The pre-trained memory, and the rules a bot comes with: words, and
@@ -137,7 +139,7 @@ export function cleanBot(input: Record<string, unknown>): Omit<StoreBot, "slug" 
   const price = Math.round(Number(input.price));
   if (!Number.isFinite(price) || price < LIMITS.minPrice || price > LIMITS.maxPrice) throw new ConvexError("A bot sells for $10 to $1,000.");
   const about = text(input.about);
-  if (about.length > LIMITS.about) throw new ConvexError("About can be 12,000 characters at most.");
+  if (about.length > LIMITS.aboutChars || wordCount(about) > LIMITS.aboutWords) throw new ConvexError("About can be 8,000 words at most.");
   const memory = text(input.memory);
   if (!memory) throw new ConvexError("Write the bot's pre-trained memory: what it knows and does.");
   if (tooLong(memory)) throw new ConvexError("A pre-trained memory can be 10,000 words at most.");

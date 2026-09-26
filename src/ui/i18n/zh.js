@@ -1156,7 +1156,7 @@ export default {
   "Give the bot a tagline: a line on what it does.": "请给机器人写一句标语：说明它做什么。",
   "Pick a category.": "请选择类别。",
   "A bot sells for $10 to $1,000.": "机器人的售价须在 10 到 1,000 美元之间。",
-  "About can be 12,000 characters at most.": "简介最多 12,000 个字符。",
+  "About can be 8,000 words at most.": "简介最多 8,000 字。",
   "Write the bot's pre-trained memory: what it knows and does.": "请写下机器人的预训练记忆：它知道什么、做什么。",
   "A pre-trained memory can be 10,000 words at most.": "预训练记忆最多 10,000 字。",
   "Rules can be 10,000 words at most.": "规则最多 10,000 字。",

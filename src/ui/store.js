@@ -38,8 +38,10 @@ const CATEGORIES = {
 };
 const categoryName = (id) => (CATEGORIES[id] ? tr(CATEGORIES[id].name) : id);
 
-/** How long a bot's about can be, in characters (convex/lib/store.ts LIMITS.about). */
-const ABOUT_CHARS = 12000;
+/** How long a bot's about can be: words, and characters (convex/lib/store.ts
+ * LIMITS.aboutWords and aboutChars). */
+const ABOUT_WORDS = 8000;
+const ABOUT_CHARS = 80000;
 
 /** How long a price stays turned into Buy, untouched. */
 const ARMED_MS = 5000;
@@ -421,9 +423,9 @@ function EditPage({ store, id, list }) {
       setSaving(false);
     }
   };
-  const count = (text) => {
+  const count = (text, max = STORE_WORDS) => {
     const words = wordCount(text);
-    return html`<span class=${`sb-count ${words > STORE_WORDS ? 'full' : ''}`}>${tr('{count} / {max} words', { count: number(words), max: number(STORE_WORDS) })}</span>`;
+    return html`<span class=${`sb-count ${words > max ? 'full' : ''}`}>${tr('{count} / {max} words', { count: number(words), max: number(max) })}</span>`;
   };
   return html`
     <div class="sb-edit-preview"><${BotTile} bot=${bot} size=${96} live /></div>
@@ -441,7 +443,7 @@ function EditPage({ store, id, list }) {
       <div class="hint">${tr('At least $10. Buyers pay once.')}</div></div>
     <div class="field"><label>${tr('About')}</label>
       <textarea class="textarea sb-long" maxlength=${ABOUT_CHARS} value=${bot.about} placeholder=${tr('What it does for people and how, for its page in the store: about 1,000 words works well')} onInput=${(e) => set({ about: e.currentTarget.value })}></textarea>
-      <div class="hint sb-hint-row"><span>${tr('Its page shows it as an article. The first paragraph leads; ## starts a section, - a list, 1. a step, > something to say to it, and **bold** is bold.')}</span><span class="sb-count">${trn(wordCount(bot.about), '{n} word', '{n} words')}</span></div></div>
+      <div class="hint sb-hint-row"><span>${tr('Its page shows it as an article. The first paragraph leads; ## starts a section, - a list, 1. a step, > something to say to it, and **bold** is bold.')}</span>${count(bot.about, ABOUT_WORDS)}</div></div>
     <div class="field"><label>${tr('What it can do')}</label>
       <textarea class="textarea" value=${lines} placeholder=${tr('One a line, up to 6')} onInput=${(e) => setLines(e.currentTarget.value)}></textarea></div>
     <div class="field"><label>${tr('Pre-trained memory')}</label>

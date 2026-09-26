@@ -1156,7 +1156,7 @@ export default {
   "Give the bot a tagline: a line on what it does.": "Ponle un eslogan al bot: una línea sobre lo que hace.",
   "Pick a category.": "Elige una categoría.",
   "A bot sells for $10 to $1,000.": "Un bot se vende por entre 10 y 1.000 USD.",
-  "About can be 12,000 characters at most.": "«Acerca de» puede tener como máximo 12.000 caracteres.",
+  "About can be 8,000 words at most.": "«Acerca de» puede tener como máximo 8.000 palabras.",
   "Write the bot's pre-trained memory: what it knows and does.": "Escribe la memoria preentrenada del bot: lo que sabe y hace.",
   "A pre-trained memory can be 10,000 words at most.": "Una memoria preentrenada puede tener como máximo 10.000 palabras.",
   "Rules can be 10,000 words at most.": "Las reglas pueden tener como máximo 10.000 palabras.",
