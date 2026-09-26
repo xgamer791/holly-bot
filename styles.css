@@ -379,22 +379,27 @@ button.row:active { background: var(--surface-2); }
 .toggle.on::after { transform: translateX(18px); }
 
 /* ---------- inside the Settings drawer (src/ui/settings.js) ----------
-   A flat menu on the app's own background, in sections: a heading in small
-   capitals over rows of a title (with a line under it when there's more to
-   say) and a value, switch or chevron. No cards, no icons and no lines
-   between rows; a row lights up, rounded, while it's pressed. Every page
-   inside the drawer is made of the same rows, headings and notes. */
+   On the app's own background (the status bar's colour too), each section is
+   a bubble: a card a shade off the background, rounded, with a hairline
+   between its rows, under a heading in small capitals. Usage and Sign Out
+   are bubbles of their own. A row darkens while it's pressed. Every page
+   inside the drawer is made of the same bubbles, rows, headings and notes. */
+.drawer { --card: #1c1c1e; --card-press: #29292b; --card-line: rgba(255, 255, 255, .1); }
+:root[data-theme="dark"] .drawer { --card: #262628; --card-press: #313134; --card-line: rgba(255, 255, 255, .1); }
+:root[data-theme="light"] .drawer { --card: #f0f0f3; --card-press: #e4e4e8; --card-line: rgba(0, 0, 0, .12); }
 .drawer .sheet-head { padding: 16px 20px 4px; min-height: 68px; gap: 14px; }
 .drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); touch-action: pan-y; }
 .drawer.headless .sheet-body { padding-top: 20px; } /* Settings itself: no header above it */
-.drawer .group { background: none; border-radius: 0; margin: 0; overflow: visible; }
-.drawer .group + .group { margin-top: 14px; }
-.drawer .group-label { margin: 28px 0 6px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
-.drawer .group-note { margin: 6px 0 8px; font-size: 13px; line-height: 1.45; }
-.drawer .row { width: calc(100% + 20px); margin: 0 -10px; min-height: 50px; padding: 11px 10px; gap: 14px; border-radius: 12px; }
-.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before { display: none; }
-.drawer button.row:active { background: var(--surface-2); }
-@media (hover: hover) { .drawer button.row:hover { background: var(--surface-2); } }
+.drawer .group { background: var(--card); border-radius: 16px; margin: 0; overflow: hidden; }
+.drawer .group + .group { margin-top: 12px; }
+.drawer .group-label { margin: 28px 16px 8px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.drawer .group-note { margin: 8px 16px 14px; font-size: 13px; line-height: 1.45; }
+.drawer .row { width: 100%; margin: 0; min-height: 52px; padding: 13px 16px; gap: 14px; border-radius: 0; }
+/* The hairline between rows: half a pixel, from the text's edge to the card's. */
+.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before {
+  display: block; left: 16px; right: 0; height: 1px; background: var(--card-line); transform: scaleY(.5); transform-origin: 0 0; }
+.drawer button.row:active { background: var(--card-press); }
+@media (hover: hover) { .drawer button.row:hover { background: var(--card-press); } }
 .drawer .row .label .t { font-size: 16.5px; line-height: 22px; }
 .drawer .row .label .s { margin-top: 2px; font-size: 13.5px; line-height: 18px; }
 .drawer .row .value { font-size: 15.5px; }
@@ -405,24 +410,24 @@ button.row:active { background: var(--surface-2); }
 .drawer .bubble.plain-bot, :root[data-theme="light"] .drawer .bubble.plain-bot { padding: 0; border-radius: 0; background: none; }
 .drawer .mem { margin: 8px 0; padding: 0; border-radius: 0; background: none; }
 
-/* The top of Settings: who is signed in, then the usage meter. */
+/* The top of Settings: who is signed in, then the usage meter in a bubble. */
 .drawer-account { display: flex; align-items: center; gap: 14px; padding: 4px 0 2px; }
 .drawer-account .initials { width: 56px; height: 56px; font-size: 20px; font-weight: 600; }
 .drawer-account .who { flex: 1; min-width: 0; }
 .drawer-account .name { font-size: 21px; line-height: 26px; font-weight: 650; letter-spacing: -.2px; overflow-wrap: anywhere; }
 .drawer-account .detail { margin-top: 1px; color: var(--muted); font-size: 14px; line-height: 19px; overflow-wrap: anywhere; }
-.drawer-usage { display: block; width: calc(100% + 20px); margin: 16px -10px 0; padding: 12px 10px 14px; border-radius: 12px; text-align: left; }
-.drawer-usage:active { background: var(--surface-2); }
-@media (hover: hover) { .drawer-usage:hover { background: var(--surface-2); } }
+.drawer-usage { display: block; width: 100%; margin: 18px 0 0; padding: 14px 16px 16px; border-radius: 16px; background: var(--card); text-align: left; }
+.drawer-usage:active { background: var(--card-press); }
+@media (hover: hover) { .drawer-usage:hover { background: var(--card-press); } }
 .drawer-usage .usage-head { display: flex; align-items: center; gap: 8px; }
 .drawer-usage .t { flex: 1; font-size: 16.5px; line-height: 22px; }
 .drawer-usage .usage-left { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .drawer-usage .chev { flex: none; width: 16px; height: 16px; color: var(--dim); }
-.drawer-usage .credits-bar { display: block; height: 6px; margin-top: 10px; border-radius: 3px; }
+.drawer-usage .credits-bar { display: block; height: 6px; margin-top: 12px; border-radius: 3px; background: var(--card-line); }
 
-/* The bottom: Sign Out on its own under a line, then the app and its version. */
-.drawer-signout { margin-top: 28px; padding-top: 10px; border-top: 1px solid var(--border); }
-.drawer-foot { display: flex; align-items: center; gap: 8px; margin-top: 22px; color: var(--muted); font-size: 13px; }
+/* The bottom: Sign Out in a bubble of its own, then the app and its version. */
+.drawer-signout { margin-top: 28px; background: var(--card); border-radius: 16px; overflow: hidden; }
+.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 22px 16px 0; color: var(--muted); font-size: 13px; }
 .drawer-foot .n { color: var(--text-2); font-size: 14px; font-weight: 600; }
 .drawer-foot .v { font-variant-numeric: tabular-nums; }
 
