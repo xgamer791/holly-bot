@@ -34,6 +34,13 @@ const SHEETS = {
   plans: PlansPage,
 };
 
+/** How long a sheet takes to slide up, and back down as it closes (styles.css
+ * .sheet-layer): the drawer's 450 ms. */
+const SHEET_MS = 450;
+/** Sheets that don't slide down as they close: Settings is a drawer, which
+ * slides back out itself before it's closed (useDrawer, src/ui/components.js). */
+const SLIDES_ITSELF = new Set(['settings']);
+
 function parseHash() {
   const h = location.hash || '#/';
   const m = h.match(/^#\/chat\/([^/?]+)/);
@@ -86,8 +93,19 @@ export function Root({ app }) {
       setSheets((s) => [...s.filter((x) => !(x.name === name && name !== 'modelPicker')), { name, props, id }]);
       return id;
     },
+    /** Closes sheet `id` (or the top one): it slides down, and goes once it
+     * has (at once with Reduce Motion on). Taps go past it meanwhile. */
     closeSheet(id) {
-      setSheets((s) => (id ? s.filter((x) => x.id !== id) : s.slice(0, -1)));
+      const ms = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : SHEET_MS;
+      const until = Date.now() + ms;
+      setSheets((s) => {
+        const target = id ? s.find((x) => x.id === id) : [...s].reverse().find((x) => !x.closing);
+        if (!target || target.closing) return s;
+        if (!ms || SLIDES_ITSELF.has(target.name)) return s.filter((x) => x !== target);
+        return s.map((x) => (x === target ? { ...x, closing: until } : x));
+      });
+      setTimeout(() => setSheets((s) => (s.some((x) => x.closing && x.closing <= Date.now())
+        ? s.filter((x) => !x.closing || x.closing > Date.now()) : s)), ms + 20);
     },
     /** Every sheet, Settings too: to go straight to a chat (src/ui/store.js). */
     closeAll() {
@@ -233,7 +251,7 @@ export function Root({ app }) {
         </div>
         ${sheets.map((s) => {
           const C = SHEETS[s.name];
-          return C ? html`<${C} key=${s.id} ...${s.props} onClose=${() => ui.closeSheet(s.id)} />` : null;
+          return C ? html`<div key=${s.id} class=${`sheet-layer${s.closing ? ' closing' : ''}`}><${C} ...${s.props} onClose=${() => ui.closeSheet(s.id)} /></div>` : null;
         })}
         ${dialog && html`<${Dialog} ...${dialog} />`}
         <${Toasts} toasts=${toasts} onDismiss=${(id) => setToasts((t) => t.filter((x) => x.id !== id))} />

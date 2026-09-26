@@ -18,6 +18,7 @@ export const Icon = {
   back: I(html`<path d="m15 18-6-6 6-6" />`), // chevron-left
   menu: I(html`<path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" />`), // menu
   chevron: I(html`<path d="m9 18 6-6-6-6" />`), // chevron-right
+  arrow: I(html`<path d="M5 12h14" /><path d="m12 5 7 7-7 7" />`), // arrow-right
   down: I(html`<path d="m6 9 6 6 6-6" />`), // chevron-down
   expand: I(html`<path d="M15 3h6v6" /><path d="m21 3-7 7" /><path d="m3 21 7-7" /><path d="M9 21H3v-6" />`), // maximize-2
   collapse: I(html`<path d="m14 10 7-7" /><path d="M20 10h-6V4" /><path d="m3 21 7-7" /><path d="M4 14h6v6" />`), // minimize-2

@@ -2,6 +2,7 @@ import { html, useState, useEffect, useLayoutEffect, useRef } from '../../vendor
 import { useApp, useUi, useAsync, useTopics } from './hooks.js';
 import { Sheet, Tabs, downloadBlob, Group, Row } from './components.js';
 import { Icon, fileIcon } from './icons.js';
+import { Avatar } from './avatar.js';
 import { Markdown } from './markdown.js';
 import { formatBytes, truncate } from '../core/util.js';
 import { fileToBlob, isTextPath } from '../core/files.js';
@@ -16,7 +17,7 @@ const CAPABILITIES = {
 export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: initialTab }) {
   const app = useApp();
   const ui = useUi();
-  useTopics(['computer', 'settings', 'agents', 'runs']);
+  useTopics(['computer', 'settings', 'agents', 'runs', 'credits']);
   const agent = agentId ? app.getAgent(agentId) : null;
   const connected = app.computer.connected;
   const caps = app.computer.info?.capabilities || {};
@@ -30,12 +31,14 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
     ...(connected ? [{ value: 'terminal', label: tr('Terminal') }] : []),
     { value: 'about', label: connected ? app.computer.info?.hostname || tr('Computer') : tr('Set up') },
   ];
+  // On Free with no computer: where the bots could work (ComputerChoice).
+  const choosing = tab === 'about' && !connected && app.credits?.plan === 'free';
   return html`
     <${Sheet} title=${agent ? tr("{name}'s computer", { name: agent.name }) : tr('Computer')} onClose=${onClose}
       footer=${tab === 'screen' && caps.memory ? html`<${RamMeter} />` : null}
       right=${busy ? html`<button class="btn small danger" onClick=${() => Promise.resolve(app.runtime.stopAll()).then(() => ui.toast(tr('Stopped all bots')), (err) => ui.toast(err.message, { error: true }))}>${tr('Stop all')}</button>`
-        : html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? tr('Online') : tr('Browser only')}</span>`}>
-      <${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />
+        : !choosing && html`<span class=${`status-pill ${connected ? 'ok' : ''}`}><span class="d"></span>${connected ? tr('Online') : tr('Browser only')}</span>`}>
+      ${tabs.length > 1 && html`<${Tabs} value=${tab} onChange=${(t) => { setTab(t); setOpenFile(null); }} tabs=${tabs} />`}
       ${tab === 'screen' && html`<${Screen} agentId=${agent?.id} />`}
       ${tab === 'files' && agent && (openFile
         ? html`<${FilePreview} fileId=${openFile} onBack=${() => setOpenFile(null)} />`
@@ -43,7 +46,9 @@ export function ComputerSheet({ agentId, onClose, fileId: initialFile, tab: init
       ${tab === 'files' && !agent && openFile && html`<${FilePreview} fileId=${openFile} />`}
       ${tab === 'activity' && agent && html`<${ActivityLog} agentId=${agentId} />`}
       ${tab === 'terminal' && html`<${Terminal} />`}
-      ${tab === 'about' && html`<${ComputerAbout} onSetup=${() => ui.openSheet('settings', { page: 'computer' })} />`}
+      ${tab === 'about' && (choosing
+        ? html`<${ComputerChoice} onSetup=${() => ui.openSheet('settings', { page: 'computer' })} />`
+        : html`<${ComputerAbout} onSetup=${() => ui.openSheet('settings', { page: 'computer' })} />`)}
     <//>`;
 }
 
@@ -691,21 +696,71 @@ function RamMeter() {
     </div>`;
 }
 
-function ComputerAbout({ onSetup }) {
+/**
+ * Where a Free account's bots can work, as the computer button opens with no
+ * computer connected: a hosted virtual machine, which comes with a paid plan
+ * (the plan page), on top and boldest; then a computer of their own
+ * (Settings → Bot Computer). Until then they work in this app.
+ */
+function ComputerChoice({ onSetup }) {
   const app = useApp();
   const ui = useUi();
+  const points = [
+    [Icon.zap, tr('Always on'), tr('Your bots keep working around the clock, even with your phone locked.')],
+    [Icon.monitor, tr('A screen and browser of their own'), tr('Bots browse, click and type on a desktop in the cloud.')],
+    [Icon.sparkle, tr('More AI, deeper thinking'), tr('More AI credits every month, and DeepSeek V4 Pro.')],
+  ];
+  return html`
+    <div class="pc-choice">
+      <p class="pc-eyebrow">${tr('Your workspace')}</p>
+      <h1 class="pc-title">${tr('Choose where your bots work.')}</h1>
+      <p class="pc-lead">${tr('Give them a computer in the cloud that never sleeps, or connect one you already own.')}</p>
+
+      <section class="pc-card hosted">
+        <div class="pc-card-head">
+          <${Avatar} shape="cloud" color="blue" size=${54} live />
+          <div>
+            <h2>${tr('Hosted virtual machine')}</h2>
+            <span class="pc-badge paid">${tr('Paid plan')}</span>
+          </div>
+        </div>
+        <p class="pc-text">${tr('A computer in the cloud for your bots, set up for you in minutes.')}</p>
+        <ul class="pc-points">
+          ${points.map(([PointIcon, title, text]) => html`
+            <li key=${title}><span class="pc-icon"><${PointIcon} /></span><div><b>${title}</b><span>${text}</span></div></li>`)}
+        </ul>
+        <button class="btn primary big block" onClick=${() => ui.openSheet('plans')}>${tr('See plans')} <${Icon.arrow} size=${20} /></button>
+        <p class="pc-note"><${Icon.check} size=${14} sw=${2.6} /> ${tr('Nothing to install. Cancel anytime.')}</p>
+      </section>
+
+      <section class="pc-card own">
+        <div class="pc-card-head">
+          <span class="pc-device"><${Icon.laptop} size=${26} /></span>
+          <div>
+            <h2>${tr('Your computer')}</h2>
+            <span class="pc-badge">${tr('Free')}</span>
+          </div>
+        </div>
+        <p class="pc-text">${tr('Connect your Mac, PC or Linux computer and let your bots use its apps and files, with your approval for risky actions.')}</p>
+        <button class="btn block" onClick=${onSetup}>${tr('Connect my computer')} <${Icon.arrow} size=${18} /></button>
+        <p class="pc-note">${tr('Keep it on and online while your bots work.')}</p>
+      </section>
+
+      ${app.computer.error && html`<p class="pc-error">${app.computer.error}</p>`}
+      <p class="pc-foot"><${Icon.shield} size=${16} /><span>${tr('Until then, your bots work in this app: their own drive, a code sandbox, web search and memory.')}</span></p>
+    </div>`;
+}
+
+function ComputerAbout({ onSetup }) {
+  const app = useApp();
   const info = app.computer.info;
   if (!app.computer.connected) {
-    // On Free there's no server with the plan: a computer of your own, or a paid plan's.
     return html`
       <div class="welcome">
         <p>${tr('Right now this bot works entirely in your browser: its own drive, a Python/JavaScript sandbox, web search and memory.')}</p>
         <p>${trx('Connect a **Bot Computer** — your own PC, Mac, Linux box or server running the small {program} companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.', { program: 'Holli Bot Computer' })}</p>
         ${app.computer.error && html`<p style="color:var(--red)">${app.computer.error}</p>`}
         <button class="btn primary" onClick=${onSetup}>${tr('Set up Bot Computer')}</button>
-        ${app.credits?.plan === 'free' && html`
-          <p style="margin-top:18px">${tr('Paid plans come with a server of your own that runs your bots around the clock, with nothing to set up.')}</p>
-          <button class="btn" onClick=${() => ui.openSheet('plans')}>${tr('Upgrade Plan')}</button>`}
       </div>`;
   }
   const caps = info?.capabilities || {};
