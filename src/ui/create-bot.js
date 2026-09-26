@@ -1,5 +1,5 @@
 import { html, useEffect, useLayoutEffect, useRef, useState } from '../../vendor/preact.js';
-import { useApp, useUi, haptic } from './hooks.js';
+import { useApp, useUi } from './hooks.js';
 import { Avatar, SHAPES, SHAPE_KEYS, COLORS, COLOR_KEYS, COLOR_NAMES, THINKING } from './avatar.js';
 import { THINKING_KEYS } from '../core/constants.js';
 import { JOB_CHARS, JOB_WORDS, clipWords, jobLine, wordCount } from '../core/brief.js';
@@ -199,7 +199,6 @@ export function CreateBotSheet({ onClose }) {
       return;
     }
     setBusy(true);
-    haptic(app, 'heavy');
     // Its job and rules: kept in its memory and read before every chat, and Holly Bot's AI briefs it on them (src/core/brief.js).
     const agent = await app.createAgent({ name: name.trim(), description: job.trim(), rules: rules.trim(), shape, color, thinking });
     onClose();
@@ -219,8 +218,8 @@ export function CreateBotSheet({ onClose }) {
         placeholder=${tr('Rules it must always follow (optional), e.g. Never send an email without my OK')} />
       <div class="hint job-hint">${tr("Hard rules it keeps in its memory and follows in every chat. If one goes against Holly Bot's own rules, it won't follow it, and it will tell you why.")}</div>
       <${LookPicker} shape=${shape} color=${color} thinking=${thinking}
-        onShape=${(s) => { setShape(s); haptic(app); }} onColor=${(c) => { setColor(c); haptic(app); }}
-        onThinking=${(k) => { setThinking(k); play(); haptic(app); }} />
+        onShape=${setShape} onColor=${setColor}
+        onThinking=${(k) => { setThinking(k); play(); }} />
     <//>`;
 }
 

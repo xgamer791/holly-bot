@@ -7,7 +7,6 @@ import { AI_MODELS } from '../core/providers/index.js';
 import { initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
 import { resolveLanguage } from '../core/i18n.js';
-import { voices } from './speech.js';
 import { MODEL_NAMES } from './bot-profile.js';
 import {
   RemoteApp, chooseComputer, computerConnection, computerState, declineComputer, isPaired, probeComputer, reachComputer, runHere, sameComputer, saveConnection,
@@ -88,16 +87,16 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
   const back = () => setStack(stack.slice(0, -1));
   const titles = {
     usage: mark('Usage'), keys: mark('Usage'), plugins: mark('Plugins'),
-    computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), haptics: mark('Haptics'), data: mark('Data & Backup'),
-    memory: mark('Memory & Context'), help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'), voice: mark('Voice'),
+    computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), data: mark('Data & Backup'),
+    memory: mark('Memory & Context'), help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'),
   };
   const left = top
     ? html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`
     : html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
-    appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, data: DataPage, memory: MemorySettingsPage,
-    help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
+    appearance: AppearancePage, language: LanguagePage, data: DataPage, memory: MemorySettingsPage,
+    help: HelpPage, privacy: PrivacyPage, terms: TermsPage,
   };
   const Page = (top && pages[top.page]) || MainPage;
   return html`<${Sheet} drawer=${drawer} title=${top ? tr(titles[top.page]) : tr('Settings')} left=${left} onClose=${onClose}>
@@ -140,8 +139,6 @@ function MainPage({ go, onClose }) {
       }} />
       <${Row} title=${tr('Appearance')} value=${tr(APPEARANCE[s.appearance] || APPEARANCE.system)} onClick=${() => go('appearance')} />
       <${Row} title=${tr('Language')} value=${lang === 'system' ? tr('System') : LANGUAGES.find((l) => l.code === lang)?.name || tr('System')} onClick=${() => go('language')} />
-      <${Row} title=${tr('Voice')} value=${s.voice?.name ? s.voice.name.split(' ')[0] : tr('Default')} onClick=${() => go('voice')} />
-      <${Row} title=${tr('Haptics')} value=${s.haptics ? tr('On') : tr('Off')} onClick=${() => go('haptics')} />
     <//>
     <${Group} label=${tr('Support')}>
       <${Row} title=${tr('Help Center')} onClick=${() => go('help')} />
@@ -845,31 +842,6 @@ function LanguagePage() {
       </button>
     </div>
     <div class="group-note">${tr('Your bots write to you in this language too, and reply in whatever language you write to them.')}</div>`;
-}
-
-function HapticsPage() {
-  const app = useApp();
-  return html`<${Group}><${Row} title=${tr('Haptics')} sub=${tr('Light vibration on taps (Android and some browsers)')} toggle=${!!app.settings.haptics} onToggle=${(v) => app.saveSettings({ haptics: v })} /><//>`;
-}
-
-function VoicePage() {
-  const app = useApp();
-  const [list, setList] = useState(voices());
-  useEffect(() => {
-    if (typeof speechSynthesis === 'undefined') return undefined;
-    const on = () => setList(voices());
-    speechSynthesis.addEventListener?.('voiceschanged', on);
-    return () => speechSynthesis.removeEventListener?.('voiceschanged', on);
-  }, []);
-  const cur = app.settings.voice || {};
-  return html`
-    <${Field} label=${tr('Read-aloud voice')}>
-      <select class="select" value=${cur.name || ''} onChange=${(e) => app.saveSettings({ voice: { ...cur, name: e.currentTarget.value } })}>
-        <option value="">${tr('Default')}</option>
-        ${list.map((v) => html`<option value=${v.name}>${v.name} (${v.lang})</option>`)}
-      </select>
-    <//>
-    <${Field} label=${tr('Speed {rate}×', { rate: cur.rate || 1.05 })}><input type="range" min="0.7" max="1.6" step="0.05" value=${cur.rate || 1.05} onInput=${(e) => app.saveSettings({ voice: { ...cur, rate: +e.currentTarget.value } })} /><//>`;
 }
 
 function MemorySettingsPage() {

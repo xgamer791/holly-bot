@@ -70,13 +70,13 @@ export function plainForSpeech(text) {
     .trim();
 }
 
-export function voices() {
+function voices() {
   return typeof speechSynthesis !== 'undefined' ? speechSynthesis.getVoices() : [];
 }
 
-/** A voice for the app's language when none is chosen: a good US English one
- * in English; otherwise one that speaks the language, this device's own
- * variant of it first. */
+/** The voice for the app's language: a good US English one in English;
+ * otherwise one that speaks the language, this device's own variant of it
+ * first. */
 function defaultVoice() {
   const all = voices();
   if (language() === 'en') return all.find((v) => /en[-_]US/i.test(v.lang) && /Samantha|Google US|Natural|Premium|Enhanced/i.test(v.name)) || null;
@@ -89,8 +89,9 @@ export function stopSpeaking() {
   if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
 }
 
-/** Speak text with the browser voice. Resolves when done. */
-export function speak(text, app, { rate } = {}) {
+/** Speak text with the browser voice for the app's language (defaultVoice).
+ * Resolves when done. */
+export function speak(text) {
   return new Promise((resolve) => {
     if (typeof speechSynthesis === 'undefined') return resolve();
     stopSpeaking();
@@ -98,15 +99,14 @@ export function speak(text, app, { rate } = {}) {
     if (!clean) return resolve();
     // Split into sentences so long replies don't get cut off by some engines.
     const chunks = clean.match(/[^.!?。！？]+[.!?。！？]*\s*/g) || [clean];
-    const pref = app?.settings?.voice?.name;
-    const voice = voices().find((v) => v.name === pref) || defaultVoice();
+    const voice = defaultVoice();
     let i = 0;
     const next = () => {
       if (i >= chunks.length) return resolve();
       const u = new SpeechSynthesisUtterance(chunks[i++]);
       if (voice) u.voice = voice;
       else if (language() !== 'en') u.lang = locale();
-      u.rate = rate || app?.settings?.voice?.rate || 1.05;
+      u.rate = 1.05;
       u.onend = next;
       u.onerror = () => resolve();
       speechSynthesis.speak(u);

@@ -1,5 +1,5 @@
 import { html, useState, useEffect } from '../../vendor/preact.js';
-import { useApp, useUi, useAsync, haptic } from './hooks.js';
+import { useApp, useUi, useAsync } from './hooks.js';
 import { Avatar, botActivity, thinkingOf } from './avatar.js';
 import { Icon, fileIcon } from './icons.js';
 import { Markdown } from './markdown.js';
@@ -99,7 +99,7 @@ function BotMessage({ msg, thread, showAuthor, isLast }) {
       </div>
       ${!streaming && text && msg.status !== 'error' && html`<div class="msg-actions">
         <button aria-label=${tr('Copy')} onClick=${() => copyText(text).then(() => ui.toast(tr('Copied')))}><${Icon.copy} /></button>
-        <button aria-label=${tr('Read aloud')} onClick=${() => speak(text, app)}><${Icon.wave} /></button>
+        <button aria-label=${tr('Read aloud')} onClick=${() => speak(text)}><${Icon.wave} /></button>
         ${isLast && thread?.kind !== 'agents' && html`<button aria-label=${tr('Regenerate')} onClick=${() => ui.regenerate(msg)}><${Icon.retry} /></button>`}
       </div>`}
     </div>`;
@@ -115,7 +115,6 @@ function Stopped({ thread, agent, text, isLast }) {
   const canContinue = isLast && agent && thread?.kind !== 'agents' && !app.runtime.isThreadBusy(thread.id);
   if (!canContinue) return text ? null : html`<div class="notice" style="align-self:flex-start">${tr('Stopped.')}</div>`;
   const carryOn = async () => {
-    haptic(app);
     const words = thread.kind === 'group' ? `@${agent.name.replace(/\s+/g, '')} Continue` : 'Continue';
     try {
       await app.runtime.send(thread.id, { text: words });
@@ -197,7 +196,6 @@ function QuestionCard({ call, msg }) {
   const options = pending.options || [];
 
   const pick = (opt) => {
-    haptic(app);
     if (pending.multiple) {
       setMulti((m) => (m.includes(opt) ? m.filter((x) => x !== opt) : [...m, opt]));
       return;
@@ -243,7 +241,6 @@ function ApprovalCard({ call, msg }) {
   const def = BUILTIN_TOOLS.find((t) => t.name === call.name);
   const always = !(typeof def?.alwaysAsk === 'function' ? def.alwaysAsk(call.args || {}) : def?.alwaysAsk);
   const decide = (d) => {
-    haptic(app, 'heavy');
     app.runtime.approve(msg.id, call.id, d);
   };
   const label = phraseOr(call.say, call.label);
