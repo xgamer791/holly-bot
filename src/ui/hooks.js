@@ -76,9 +76,3 @@ export function useMedia(query) {
   return match;
 }
 
-export function haptic(app, kind = 'light') {
-  if (!app?.settings?.haptics) return;
-  try {
-    navigator.vibrate?.(kind === 'heavy' ? 18 : 8);
-  } catch { /* unsupported */ }
-}

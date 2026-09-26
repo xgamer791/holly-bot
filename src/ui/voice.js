@@ -1,5 +1,5 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
-import { useApp, useUi, haptic } from './hooks.js';
+import { useApp, useUi } from './hooks.js';
 import { Avatar, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { listen, speak, stopSpeaking, sttSupported } from './speech.js';
@@ -51,7 +51,6 @@ export function VoiceMode({ thread, agent, onClose }) {
   const send = async (text) => {
     setPhase('thinking');
     setReply('');
-    haptic(app);
     try {
       await app.runtime.send(thread.id, { text });
       const msgs = await app.loadMessages(thread.id);
@@ -66,12 +65,12 @@ export function VoiceMode({ thread, agent, onClose }) {
       }
       if (last?.status === 'waiting') {
         setPhase('idle');
-        await speak(tr('I need your input on screen.'), app);
+        await speak(tr('I need your input on screen.'));
         return;
       }
       if (answer) {
         setPhase('speaking');
-        await speak(answer, app);
+        await speak(answer);
       }
       if (open.current) startListening();
     } catch (err) {

@@ -1,5 +1,5 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../vendor/preact.js';
-import { AppCtx, UiCtx, useMedia, haptic } from './hooks.js';
+import { AppCtx, UiCtx, useMedia } from './hooks.js';
 import { HomeScreen } from './home.js';
 import { ChatScreen } from './chat.js';
 import { CreateBotSheet, NewGroupSheet } from './create-bot.js';
@@ -145,7 +145,6 @@ export function Root({ app }) {
   asking.current = !!dialog;
   useEffect(() => app.on('computer-offer', async (offer) => {
     if (asking.current) return offer.later();
-    haptic(app);
     const yes = await ui.confirm({
       title: tr('Connect to {name}?', { name: offer.name }),
       message: tr('{name} is on. Connect, and your bots run there, using its apps, files, browser, screen, mouse and keyboard.', { name: offer.name }),
@@ -172,7 +171,6 @@ export function Root({ app }) {
       ui.toast(tr('Holly Bot on your {device} connected to {name}.', { device, name }));
       return;
     }
-    haptic(app);
     ui.confirm({
       title: tr('Connected to your {device}', { device }),
       message: tr('Holly Bot on your {device} is connected to {name}. Your bots run here, and you can use them from your {device}.', { device, name }),
