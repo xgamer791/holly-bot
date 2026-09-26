@@ -7,7 +7,8 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 
-const LATEST = 'https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs';
+/** The latest build, on the Holly Bot site (Holly Computer for Windows fetches it too: desktop/src/computer.js). */
+export const LATEST = 'https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs';
 
 /** The app version a build was made from, from its header ("… (app 1.11.0). …"). */
 export function buildVersion(text) {

@@ -16,6 +16,8 @@ import {
 
 const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
+/** Holly Computer for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
+const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Computer-Setup.exe';
 
 /** The Holly Bot account, re-rendering when it changes and refreshing who is
  * signed in from the database each time Settings opens. */
@@ -767,7 +769,9 @@ function ComputerPage() {
         : html`<p>${trx('**Put your bots on your computer.** Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
-      <p style="margin-top:0">${trx('1. Install {node} on the computer.', { node: html`<a href="https://nodejs.org" target="_blank" rel="noopener">${tr('Node.js 22 or newer')}</a>` })}</p>
+      <p style="margin-top:0">${trx('**Windows:** download {app} on the computer and open it. It installs Holly Computer, which starts with Windows and runs in the taskbar’s corner, with no Node.js or terminal needed. Then sign in on the Holly Bot window it opens.', { app: html`<a href=${WINDOWS_SETUP} rel="noopener">${tr('Holly Computer for Windows')}</a>` })}</p>
+      <p>${trx('**Mac, Linux, or Windows from a terminal:**')}</p>
+      <p>${trx('1. Install {node} on the computer.', { node: html`<a href="https://nodejs.org" target="_blank" rel="noopener">${tr('Node.js 22 or newer')}</a>` })}</p>
       <p>${trx('2. Download {file} and run it. Or paste this into a terminal:', { file: html`<a href=${scriptUrl} download>holly-computer.mjs</a>` })}</p>
       ${[
         [tr('Mac or Linux (Terminal)'), `curl -fsSLO ${scriptUrl} && node holly-computer.mjs`],

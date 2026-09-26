@@ -14,7 +14,7 @@ const walk = (dir) => {
     else if (/\.(m?js)$/.test(name) && name !== 'holly-computer.mjs') files.push(p);
   }
 };
-for (const d of ['src', 'computer/src', 'scripts', 'tests']) walk(join(root, d));
+for (const d of ['src', 'computer/src', 'scripts', 'tests', 'desktop/src', 'desktop/scripts']) walk(join(root, d));
 files.push(join(root, 'sw.js'));
 let bad = 0;
 for (const f of files) {

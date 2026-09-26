@@ -21,6 +21,22 @@ import { latestVersion, newerVersion, runLatest } from './update.mjs';
 /** How often a Holly Bot server looks for a newer Holly Computer. */
 const UPDATE_EVERY = 5 * 60_000;
 
+/**
+ * Holly Computer for Windows (desktop/) runs this file itself, with a channel
+ * to it (HOLLY_DESKTOP=1 and Node's IPC). It updates the file before starting
+ * it, shows how things stand here in its window (tellDesktop), and says when
+ * to stop (it quits or restarts, or Windows signs out), so the account still
+ * hears that this computer stopped.
+ */
+const DESKTOP = process.env.HOLLY_DESKTOP === '1' && typeof process.send === 'function';
+
+function tellDesktop(message) {
+  if (!DESKTOP || !process.connected) return;
+  try {
+    process.send(message);
+  } catch { /* the app is gone: 'disconnect' stops this one */ }
+}
+
 const USAGE = `Holly Computer — your Holly bots live on this computer; control them from your phone.
 
 Usage: node holly-computer.mjs [options]
@@ -164,7 +180,8 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
   // The single-file build runs the latest one (computer/src/update.mjs).
-  if (args.update && globalThis.__HOLLY_BUNDLE__ && await runLatest({ file: fileURLToPath(import.meta.url), argv })) return null;
+  // Holly Computer for Windows has already fetched it.
+  if (args.update && globalThis.__HOLLY_BUNDLE__ && !DESKTOP && await runLatest({ file: fileURLToPath(import.meta.url), argv })) return null;
   const dataDir = resolve(expand(args.data || join(os.homedir(), '.holly')));
   const workspace = resolve(expand(args.workspace || defaultWorkspace()));
   mkdirSync(dataDir, { recursive: true });
@@ -196,7 +213,13 @@ export async function main(argv = process.argv.slice(2)) {
     },
   };
   const server = createHollyServer({ app, home, computer, token: cfg.token, assets: assetLoader(), serverInfo });
-  home.onSwap = (next) => server.setApp(next);
+  // What Holly Computer for Windows shows of how things stand here (below).
+  let tellState = () => {};
+  home.onSwap = (next) => {
+    server.setApp(next);
+    // Linked or unlinked.
+    tellState();
+  };
   await new Promise((ok, fail) => {
     server.once('error', fail);
     server.listen(args.port, args.host, ok);
@@ -205,6 +228,11 @@ export async function main(argv = process.argv.slice(2)) {
 
   const port = server.address().port;
   const local = `http://localhost:${port}/`;
+  const signIn = link(local, '', cfg.token);
+  // A Wi-Fi address can't sign in (Apple and Google can't send a sign-in back
+  // to it), so it goes by this link alone.
+  const lan = args.host === '0.0.0.0' ? lanAddress() : null;
+  const wifi = lan ? link(`http://${lan}:${port}/`, '', cfg.token) : null;
   const caps = computer.info.capabilities;
   console.log(`  Workspace: ${workspace}`);
   console.log(`  Data:      ${dataDir}`);
@@ -215,70 +243,9 @@ export async function main(argv = process.argv.slice(2)) {
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
   console.log('');
 
-  // Linked, it tells the account where the account's devices can reach it,
-  // so Holly Bot on each of them connects by itself (or asks to, the first
-  // time): no link to open or QR code to scan. A quick tunnel's address is
-  // told only while it works, and a new tunnel opens when it stops working
-  // (computer/src/tunnel.mjs); without one, the account hears why.
   let publicUrl = args.publicUrl ? args.publicUrl.replace(/\/+$/, '') : null;
   let tunnel = null;
-  if (args.tunnel && !publicUrl) {
-    let started = false;
-    tunnel = new TunnelKeeper({
-      port,
-      host: args.host,
-      instance: serverInfo.instance,
-      bin: () => ensureCloudflared(dataDir),
-      ownBin: () => ensureCloudflared(dataDir, { own: true }),
-      onChange: ({ url, state }) => {
-        if (state === 'stopped') return;
-        home.setAddress(url, { tunnel: state });
-        // Once it's started, what changes is said here too.
-        if (url && started) console.log('  The secure tunnel is open: your phone can reach this computer.');
-      },
-    });
-    process.on('exit', () => tunnel.stop());
-    console.log('  Opening a secure tunnel so your phone can reach this computer…');
-    // Straight away, so an address from before (a run that ended without
-    // saying so) isn't tried meanwhile.
-    home.setAddress(null, { tunnel: 'starting' });
-    publicUrl = await tunnel.start({ waitMs: 90_000 });
-    started = true;
-  } else {
-    home.setAddress(publicUrl, { tunnel: 'off' });
-  }
-  const name = cfg.name;
-  const signIn = link(local, '', cfg.token);
-  if (!account.linked) {
-    // Signed in on its own page, the computer links itself to that account
-    // (src/main.js), and the phone signed in to the same one asks to connect.
-    console.log(args.open
-      ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holly Bot.`
-      : `  On this computer, open this page and sign in with the Apple or Google account you use in Holly Bot:\n    ${signIn}`);
-    console.log(`  Then open Holly Bot on your phone and tap Connect. After that it connects to ${name} by itself.`);
-  } else if (publicUrl) {
-    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account. It connects to ${name} by itself,`);
-    console.log('  or asks you to tap Connect the first time.');
-  }
-  if (!publicUrl && !tunnel) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
-  else if (!publicUrl && tunnel.state !== 'blocked') console.log('  The secure tunnel is taking a while. Your phone can connect as soon as it\'s open.');
-  const lan = args.host === '0.0.0.0' ? lanAddress() : null;
-  if (lan) {
-    // A Wi-Fi address can't sign in (Apple and Google can't send a sign-in
-    // back to it), so it goes by this link alone.
-    const wifi = link(`http://${lan}:${port}/`, '', cfg.token);
-    console.log(`\n  On a phone on the same Wi-Fi, without signing in, scan or open:\n    ${wifi}\n`);
-    console.log(qrText(wifi).split('\n').map((l) => `    ${l}`).join('\n'));
-  }
-  if (lan || (!account.linked && !args.open)) {
-    console.log('\n  Keep that link private, like a password: anyone who has it can control this computer and see your');
-    console.log('  bots, chats and files. If it gets out, restart with --new-token and it stops working.');
-  }
-  const awake = args.awake && args.port !== 0 ? keepAwake() : null;
-  if (awake?.active) console.log('\n  Keeping this computer awake while Holly Computer runs (start with --allow-sleep to turn that off).');
-  console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
-  if (args.open && !account.linked) openBrowser(signIn);
-
+  let awake = null;
   let stopping = false;
   const shutdown = async () => {
     if (stopping) return;
@@ -296,18 +263,132 @@ export async function main(argv = process.argv.slice(2)) {
   // Its terminal window closed: the account still hears it stopped, so the
   // phone doesn't try to reach it (Windows allows a few seconds for this).
   process.on('SIGHUP', shutdown);
+  // Holly Computer for Windows has a newer version ready (below): this one
+  // stops for it once no bot is working, and the app starts that one.
+  let restartTimer = null;
+  const restartWhenIdle = () => {
+    clearTimeout(restartTimer);
+    if (home.app?.runtime.activeRuns().length) {
+      restartTimer = setTimeout(restartWhenIdle, 30_000);
+      return;
+    }
+    console.log('\n  Restarting to run the newer Holly Computer.');
+    shutdown();
+  };
+  if (DESKTOP) {
+    process.on('message', (message) => {
+      if (message?.type === 'stop') shutdown();
+      else if (message?.type === 'restart') restartWhenIdle();
+    });
+    // The app is gone (it quit, or something went wrong there): so is this.
+    process.on('disconnect', shutdown);
+  }
+
+  // Holly Computer for Windows hears how things stand here as they change:
+  // its page (with the pairing token, which it keeps to itself), whether
+  // this computer is linked, where the account's devices can reach it (the
+  // tunnel's state: 'starting', 'up' or 'blocked'; 'own' for --public-url;
+  // 'off' for none), the Wi-Fi link, and what bots can use here.
+  tellState = () => tellDesktop({
+    type: 'state',
+    version: VERSION,
+    name: cfg.name,
+    page: signIn,
+    port,
+    workspace,
+    dataDir,
+    linked: account.linked,
+    tunnel: tunnel ? tunnel.state : publicUrl ? 'own' : 'off',
+    address: tunnel ? tunnel.url : publicUrl,
+    wifi,
+    can: computer.info.capabilities,
+    notes: computer.info.notes || [],
+  });
+  // Linked, it tells the account where the account's devices can reach it,
+  // so Holly Bot on each of them connects by itself (or asks to, the first
+  // time): no link to open or QR code to scan. A quick tunnel's address is
+  // told only while it works, and a new tunnel opens when it stops working
+  // (computer/src/tunnel.mjs); without one, the account hears why.
+  if (args.tunnel && !publicUrl) {
+    let started = false;
+    tunnel = new TunnelKeeper({
+      port,
+      host: args.host,
+      instance: serverInfo.instance,
+      bin: () => ensureCloudflared(dataDir),
+      ownBin: () => ensureCloudflared(dataDir, { own: true }),
+      onChange: ({ url, state }) => {
+        if (state === 'stopped') return;
+        home.setAddress(url, { tunnel: state });
+        // Once it's started, what changes is said here too.
+        if (url && started) console.log('  The secure tunnel is open: your phone can reach this computer.');
+        tellState();
+      },
+    });
+    process.on('exit', () => tunnel.stop());
+    console.log('  Opening a secure tunnel so your phone can reach this computer…');
+    // Straight away, so an address from before (a run that ended without
+    // saying so) isn't tried meanwhile.
+    home.setAddress(null, { tunnel: 'starting' });
+    tellState();
+    publicUrl = await tunnel.start({ waitMs: 90_000 });
+    started = true;
+    // Asked to stop meanwhile (Holly Computer for Windows quitting).
+    if (stopping) return null;
+  } else {
+    home.setAddress(publicUrl, { tunnel: 'off' });
+  }
+  const name = cfg.name;
+  if (!account.linked) {
+    // Signed in on its own page, the computer links itself to that account
+    // (src/main.js), and the phone signed in to the same one asks to connect.
+    // Holly Computer for Windows opens that page in a window of its own.
+    console.log(DESKTOP
+      ? '  Sign in on the Holly Bot window, with the Apple or Google account you use in Holly Bot.'
+      : args.open
+        ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holly Bot.`
+        : `  On this computer, open this page and sign in with the Apple or Google account you use in Holly Bot:\n    ${signIn}`);
+    console.log(`  Then open Holly Bot on your phone and tap Connect. After that it connects to ${name} by itself.`);
+  } else if (publicUrl) {
+    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account. It connects to ${name} by itself,`);
+    console.log('  or asks you to tap Connect the first time.');
+  }
+  if (!publicUrl && !tunnel) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
+  else if (!publicUrl && tunnel.state !== 'blocked') console.log('  The secure tunnel is taking a while. Your phone can connect as soon as it\'s open.');
+  if (wifi) {
+    console.log(`\n  On a phone on the same Wi-Fi, without signing in, scan or open:\n    ${wifi}\n`);
+    // Holly Computer for Windows shows the code in its window.
+    if (!DESKTOP) console.log(qrText(wifi).split('\n').map((l) => `    ${l}`).join('\n'));
+  }
+  if (wifi || (!account.linked && !args.open && !DESKTOP)) {
+    console.log('\n  Keep that link private, like a password: anyone who has it can control this computer and see your');
+    console.log('  bots, chats and files. If it gets out, restart with --new-token and it stops working.');
+  }
+  awake = args.awake && args.port !== 0 ? keepAwake() : null;
+  if (awake?.active) console.log(`\n  Keeping this computer awake while Holly Computer runs (${DESKTOP ? 'its settings turn that off' : 'start with --allow-sleep to turn that off'}).`);
+  if (!DESKTOP) console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
+  if (args.open && !account.linked) openBrowser(signIn);
+
   // Run by systemd (a Holly Bot server: convex/lib/cloudinit.ts), which starts
   // it again with the latest build: once a newer one is out and no bot is
   // working, it stops for that, so a fix reaches servers without waiting for
-  // one to restart. Elsewhere it updates as it starts (runLatest).
-  if (args.update && globalThis.__HOLLY_BUNDLE__ && process.env.INVOCATION_ID) {
+  // one to restart. Run by Holly Computer for Windows, which runs around the
+  // clock too, it tells the app, which fetches that one and then has this
+  // one restart (restartWhenIdle). Elsewhere it updates as it starts
+  // (runLatest).
+  if (args.update && globalThis.__HOLLY_BUNDLE__ && (process.env.INVOCATION_ID || DESKTOP)) {
     setInterval(async () => {
       const latest = await latestVersion();
       if (!latest || !newerVersion(latest, VERSION) || home.app?.runtime.activeRuns().length) return;
+      if (DESKTOP) {
+        tellDesktop({ type: 'update', version: latest });
+        return;
+      }
       console.log(`\n  Holly Computer ${latest} is out: restarting to run it.`);
       shutdown();
     }, UPDATE_EVERY).unref();
   }
+  tellState();
   return { app, home, server, computer, tunnel, db: app.db, token: cfg.token, url: local };
 }
 
