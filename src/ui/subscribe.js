@@ -5,14 +5,16 @@ import { Icon } from './icons.js';
 import { dateText, mark, number, tr, trx } from './i18n.js';
 
 // The plan page, on the same white page as signing in. Every account starts
-// on Free (convex/lib/plans.ts FREE), and this is where it upgrades: Upgrade
-// Plan at the top of Settings opens it over the app (PlansPage), and so do
-// the notes that say a paid plan would do more. Plans are the server's,
-// paid month to month or, for less, yearly, through Stripe Checkout
-// (convex/billing.ts). Back from paying, src/main.js shows it while it waits
-// for Stripe's word, then opens the app, while the subscriber's computer is
-// set up. On a paid plan it shows the plan, and Manage Billing leads to
-// Stripe's billing portal; so does a payment that didn't go through.
+// on Free (convex/lib/plans.ts FREE), and this is where it upgrades: a new
+// account comes here first, before its first bot, and picks a plan or Free
+// (src/main.js showPlans); Upgrade Plan at the top of Settings opens it over
+// the app (PlansPage), and so do the notes that say a paid plan would do
+// more. Plans are the server's, paid month to month or, for less, yearly,
+// through Stripe Checkout (convex/billing.ts). Back from paying, src/main.js
+// shows it while it waits for Stripe's word, then opens the app, while the
+// subscriber's computer is set up. On a paid plan it shows the plan, and
+// Manage Billing leads to Stripe's billing portal; so does a payment that
+// didn't go through.
 
 const EVERY = { month: mark('Monthly'), year: mark('Yearly') };
 /** A subscription in one of these needs something done before Holli Bot opens. */
@@ -56,10 +58,11 @@ const here = () => `${location.origin}${location.pathname}`;
  * `status` is billing:status. `back` says what the person just came back
  * from: 'paid' (Checkout), 'cancelled' (left Checkout), 'billing' (the portal)
  * or null. `onActive` opens the app once the subscription is active, and
- * `onFree` opens it on Free while Stripe takes its time. `onClose`: it's open
- * over the app (PlansPage), which it goes back to.
+ * `onFree` opens it on Free while Stripe takes its time. `start`: it's the
+ * account's first stop, before its first bot, and `onFree` goes on with Free.
+ * `onClose`: it's open over the app (PlansPage), which it goes back to.
  */
-export function SubscribeScreen({ status: first, back, onActive, onFree, onSignOut, onClose }) {
+export function SubscribeScreen({ status: first, back, start, onActive, onFree, onSignOut, onClose }) {
   const [status, setStatus] = useState(first);
   const sub = status.subscription;
   const plans = status.plans || [];
@@ -134,6 +137,8 @@ export function SubscribeScreen({ status: first, back, onActive, onFree, onSignO
   });
 
   const planName = plans.find((p) => p.id === sub?.plan)?.name;
+  // Before the first bot, Free is one of the choices.
+  const freeNow = !!start && !!onFree && status.free;
   // Over the app, Settings has Sign Out: none here, and a way back instead.
   const accountLinks = !onClose && html`<${AccountLinks} busy=${!!busy} onSignOut=${onSignOut} />`;
   const page = `hello${onClose ? ' in-app' : ''}`;
@@ -200,6 +205,7 @@ export function SubscribeScreen({ status: first, back, onActive, onFree, onSignO
               ${fix && html`<button class="hello-cta" disabled=${!!busy} onClick=${manage}>${busy === 'billing' ? html`<span class="spinner"></span>` : fix}</button>`}
               <button class=${`hello-cta${fix ? ' secondary' : ''}`} disabled=${!!busy} onClick=${check}>${busy === 'check' ? html`<span class="spinner"></span>` : tr('Check Again')}</button>
               ${!fix && html`<button class="hello-cta secondary" disabled=${!!busy} onClick=${manage}>${busy === 'billing' ? html`<span class="spinner"></span>` : tr('Manage Billing')}</button>`}
+              ${freeNow && html`<button class="hello-cta secondary" disabled=${!!busy} onClick=${() => onFree(status)}>${tr('Use Free for Now')}</button>`}
             </div>
             ${accountLinks}
           </div>
@@ -220,12 +226,14 @@ export function SubscribeScreen({ status: first, back, onActive, onFree, onSignO
           : tr('Your subscription ended on {date}. Your bots, chats and memories are still in your account: choose a plan to pick up where you left off.', { date: longDate(sub.endsAt || sub.periodEnd) })
         : null;
   // At the top: the plan it's on, or on Free, what a plan adds.
-  const title = paid ? tr('Your plan') : status.free ? tr('Upgrade your plan') : tr('Choose your plan');
+  const title = paid ? tr('Your plan') : status.free && !freeNow ? tr('Upgrade your plan') : tr('Choose your plan');
   const lead = paid
     ? tr('Change your plan, update your card, see invoices or cancel on Stripe.')
-    : status.free
-      ? tr("You're on Free, with {count} AI credits a day. Every plan adds a dedicated server that runs your bots around the clock, DeepSeek V4 Pro and more AI credits.", { count: number(status.freeCredits) })
-      : tr('Every plan runs your bots on a dedicated server of their own, set up for you as soon as you subscribe.');
+    : freeNow
+      ? tr('Start on Free, with {count} AI credits a day, or choose a plan: each adds a dedicated server that runs your bots around the clock, DeepSeek V4 Pro and more AI credits.', { count: number(status.freeCredits) })
+      : status.free
+        ? tr("You're on Free, with {count} AI credits a day. Every plan adds a dedicated server that runs your bots around the clock, DeepSeek V4 Pro and more AI credits.", { count: number(status.freeCredits) })
+        : tr('Every plan runs your bots on a dedicated server of their own, set up for you as soon as you subscribe.');
   const renewal = paid && (sub.endsAt
     ? tr("Your plan ends on {date}. Then you're on Free.", { date: longDate(sub.endsAt) })
     : sub.periodEnd ? tr('Renews on {date}.', { date: longDate(sub.periodEnd) }) : '');
@@ -304,7 +312,8 @@ export function SubscribeScreen({ status: first, back, onActive, onFree, onSignO
             </button>
             <p class="sub-fine">${every === 'year'
               ? tr('Paid yearly, and renews every year until you cancel. Secure checkout with Stripe.')
-              : tr('Month to month, and renews every month until you cancel. Secure checkout with Stripe.')}</p>`}
+              : tr('Month to month, and renews every month until you cancel. Secure checkout with Stripe.')}</p>
+            ${freeNow && html`<button class="hello-cta secondary" disabled=${!!busy} onClick=${() => onFree(status)}>${tr('Continue with Free')}</button>`}`}
         </div>
       </div>
     </div>`;

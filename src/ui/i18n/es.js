@@ -946,6 +946,8 @@ export default {
   "Waiting for Stripe": "Esperando a Stripe",
   "Check Again": "Verificar de nuevo",
   "Use Free for Now": "Usar Gratis por ahora",
+  "Continue with Free": "Continuar con Gratis",
+  "Start on Free, with {count} AI credits a day, or choose a plan: each adds a dedicated server that runs your bots around the clock, DeepSeek V4 Pro and more AI credits.": "Empieza con el plan Gratis, con {count} créditos de IA al día, o elige un plan: cada uno añade un servidor dedicado que ejecuta tus bots las 24 horas, DeepSeek V4 Pro y más créditos de IA.",
   "Holli Bot couldn't renew your {plan} plan. Update your payment method to get it back; meanwhile you're on Free. Your bots, chats and memories are safe in your account.": "Holli Bot no pudo renovar tu plan {plan}. Actualiza tu método de pago para recuperarlo; mientras tanto, estás en el plan Gratis. Tus bots, chats y recuerdos están a salvo en tu cuenta.",
   "Holli Bot couldn't renew your subscription. Update your payment method to get it back; meanwhile you're on Free. Your bots, chats and memories are safe in your account.": "Holli Bot no pudo renovar tu suscripción. Actualiza tu método de pago para recuperarla; mientras tanto, estás en el plan Gratis. Tus bots, chats y recuerdos están a salvo en tu cuenta.",
   "Your payment didn't go through": "Tu pago no se completó",

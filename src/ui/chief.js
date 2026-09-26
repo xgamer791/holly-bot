@@ -8,8 +8,9 @@ import { THINKING_KEYS } from '../core/constants.js';
 import { mark, tr } from './i18n.js';
 
 // The Chief Coordinator's page (src/core/chief.js). An account without one
-// gets it as the app opens (src/main.js): it's a new subscriber's first bot,
-// made while their server is being set up, and says why it matters. The name
+// gets it as the app opens (src/main.js): it's a new account's first bot,
+// made once it has picked a plan or Free (a new subscriber's while their
+// server is being set up), and says why it matters. The name
 // starts as "Chief Coordinator" (in the app's language) and can be changed.
 // With bots already, "Not now" puts the page away on this device. `onDone`
 // opens the app.

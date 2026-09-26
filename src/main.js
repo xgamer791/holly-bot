@@ -27,10 +27,11 @@ import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 
 // Boot. Holli Bot needs an account (Sign in with Apple or Google), on Free or
 // a paid plan: every account starts on Free, and upgrades on the plan page
-// (src/ui/subscribe.js, Upgrade Plan at the top of Settings). What it keeps
-// lives in that account on Holli Bot's server (src/account/cloud-db.js),
-// never in the browser where the next person to sign in could see it. Then
-// two ways to run:
+// (src/ui/subscribe.js, Upgrade Plan at the top of Settings). A new account
+// sees that page first, and picks a plan or Free before making its first bot
+// (showPlans). What it keeps lives in that account on Holli Bot's server
+// (src/account/cloud-db.js), never in the browser where the next person to
+// sign in could see it. Then two ways to run:
 //  • Your computer (recommended): bots live on Holli Bot Computer and this app is the remote control.
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
 // Holli Bot Computer linked to the account keeps its bots there too, and runs
@@ -121,6 +122,8 @@ function whitePages(on) {
 
 /** The latest billing:status (convex/billing.ts). */
 let billing = null;
+/** What the person came back from as the app opened (takeBillingReturn). */
+let billingBack = null;
 let watchingSubscription = false;
 
 /**
@@ -138,6 +141,7 @@ let watchingSubscription = false;
  */
 async function subscribed() {
   const back = takeBillingReturn();
+  billingBack = back;
   let status;
   try {
     status = back === 'paid' || back === 'billing'
@@ -1031,11 +1035,13 @@ function banner(text, onClick, tone = '') {
 }
 
 /** Opens the app on `app`, in the account's language: first the Chief
- * Coordinator's page when the account doesn't have one yet (wantsChief). */
+ * Coordinator's page when the account doesn't have one yet (wantsChief),
+ * and before it, for a new account, the plan page (wantsPlan). */
 async function mount(app, { chiefDone = false } = {}) {
   await setLanguage(app.settings?.language || 'system');
   if (!chiefDone && wantsChief(app)) {
-    showChief(app);
+    if (wantsPlan(app)) showPlans(app);
+    else showChief(app);
     return;
   }
   app.startupNotice = notice;
@@ -1085,6 +1091,32 @@ function wantsChief(app) {
   } catch {
     return false;
   }
+}
+
+/** Whether a new account picks its plan before its first bot: on Free, with
+ * no bots yet, and not just back from paying for a plan (on Free only while
+ * Stripe takes its time). */
+function wantsPlan(app) {
+  return !!billing?.free && billingBack !== 'paid' && !app.listAgents().length;
+}
+
+/** The plan page before the account's first bot (wantsPlan). Continue with
+ * Free goes on to the Chief Coordinator's page; Subscribe leaves for Stripe
+ * Checkout, which comes back to the app on the new plan (subscribed), and
+ * then to that page. */
+function showPlans(app) {
+  history.replaceState(null, '', `${location.pathname}${location.search}#/subscribe`);
+  registerServiceWorker();
+  const back = billingBack === 'cancelled' ? billingBack : null;
+  // The page says checkout was cancelled, so the app doesn't once it opens.
+  if (back && notice) notice = { ...notice, text: null };
+  show(html`<${SubscribeScreen} status=${billing} back=${back} start
+    onFree=${(next) => {
+      billing = next;
+      showChief(app);
+    }}
+    onActive=${() => location.reload()}
+    onSignOut=${() => signOut(app.db?.cloud ? app.db : undefined)} />`);
 }
 
 function showChief(app) {
