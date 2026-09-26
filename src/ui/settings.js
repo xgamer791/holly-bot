@@ -49,7 +49,7 @@ const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
  * accounts (Holly Bot Computer's Wi-Fi links, browser automation) only the meter
  * shows. */
 function AccountHeader({ acct, go }) {
-  const { credits } = useCredits();
+  const { credits, here } = useCredits();
   const pct = credits ? creditsShare(credits) : null;
   const user = acct.user || {};
   const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
@@ -68,9 +68,11 @@ function AccountHeader({ acct, go }) {
         <span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span>
         <${Icon.chevron} class="chev" />
       </span>
-      ${pct != null && html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+      ${pct != null ? html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
         <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
-      </span>`}
+      </span>`
+      // Its place kept while the credits load, so nothing under it moves when they come.
+      : here && html`<span class="credits-bar" aria-hidden="true"></span>`}
     </button>`;
 }
 
@@ -192,12 +194,16 @@ async function signOut(app, ui) {
   await account.signOut(); // src/main.js reloads into the welcome screen
 }
 
+/** The credits last read, so Settings opens with them rather than without. */
+let lastCredits = null;
+
 /** This month's AI credits (convex/credits.ts `mine`), for the Usage row and
  * page: null while unknown, or without a plan that gives any. */
 function useCredits() {
   const here = account.signedIn && signInWorksHere();
   const { data, loading, reload } = useAsync(() => (here ? account.authed('query', 'credits:mine').catch(() => null) : Promise.resolve(null)), [here]);
-  return { credits: data ?? null, loading, reload };
+  if (data !== undefined) lastCredits = data;
+  return { credits: data === undefined && here ? lastCredits : data ?? null, loading, reload, here };
 }
 
 /** What's left of the month's credits, as a whole percent (1% while any are left). */

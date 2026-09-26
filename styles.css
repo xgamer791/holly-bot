@@ -337,7 +337,9 @@ svg { display: block; }
 :root[data-theme] .sheet.drawer, .sheet.drawer { background: var(--bg); }
 .drawer-open .sheet.drawer { transform: translateX(var(--drawer-drag, 0px)); transition-timing-function: var(--drawer-in); }
 .app { transition: transform var(--drawer-ms, .45s) var(--drawer-out); }
-.drawer-mounted .app { will-change: transform; }
+/* The app is a layer of its own all the time, so pulling the menu out doesn't
+   change the layers under the finger (iOS cancels a touch when that happens). */
+.app { will-change: transform; }
 .drawer-open .app { transform: translateX(calc(var(--drawer-w) + var(--drawer-drag, 0px))); transition-timing-function: var(--drawer-in); }
 /* The dimming is part of the app, so it moves with it and never reaches over
    the drawer. On a phone the status bar takes its color from the top of the
