@@ -54,6 +54,7 @@ let quitting = false;
  * this app is opened, not as Windows starts it or after its own update. */
 let openWhenReady = !atSignIn && !restarted && !given.noOpen;
 let startingTimer = null;
+let lastOpened = 0;
 /** A newer version of this app, downloaded: { version }. */
 let update = null;
 /** Waiting for no bot to be working, to install it (installWhenIdle). */
@@ -193,6 +194,9 @@ function openHollyBotSoon() {
   if (page) {
     openWhenReady = false;
     clearTimeout(startingTimer);
+    // Once for a double-click on the icon, or a launch clicked twice.
+    if (Date.now() - lastOpened < 2000) return;
+    lastOpened = Date.now();
     openHollyBot(page).catch(() => {});
     return;
   }
