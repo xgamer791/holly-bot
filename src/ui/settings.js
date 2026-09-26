@@ -49,7 +49,7 @@ const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
  * accounts (Holly Bot Computer's Wi-Fi links, browser automation) only the meter
  * shows. */
 function AccountHeader({ acct, go }) {
-  const { credits } = useCredits();
+  const { credits, here } = useCredits();
   const pct = credits ? creditsShare(credits) : null;
   const user = acct.user || {};
   const via = listText((user.providers || []).map((p) => SIGN_IN_WITH[p] || p));
@@ -68,15 +68,18 @@ function AccountHeader({ acct, go }) {
         <span class="usage-left">${pct == null ? '—' : tr('{pct}% left', { pct })}</span>
         <${Icon.chevron} class="chev" />
       </span>
-      ${pct != null && html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+      ${pct != null ? html`<span class="credits-bar" role="meter" aria-label=${tr('AI credits left this month')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
         <span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span>
-      </span>`}
+      </span>`
+      // Its place kept while the credits load, so nothing under it moves when they come.
+      : here && html`<span class="credits-bar" aria-hidden="true"></span>`}
     </button>`;
 }
 
-/** Settings is a drawer from the left that pushes the app over, with a
- * handle to drag it closed and no header on its first page (useDrawer in
- * src/ui/components.js). */
+/** Settings is a drawer from the left that pushes the app over, with no
+ * header on its first page: the menu button or a swipe right on the chat list
+ * pulls it out, a swipe left or a tap beside it puts it back (useDrawer and
+ * useDrawerPull in src/ui/components.js). */
 export function SettingsSheet({ onClose: remove, page: initialPage, provider: initialProvider }) {
   const app = useApp();
   const drawer = useDrawer(remove);
@@ -91,8 +94,8 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
     computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), data: mark('Data & Backup'),
     help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'),
   };
-  // Settings itself has no header: tapping beside the drawer, or dragging its
-  // handle, closes it. Its pages have Back and their title.
+  // Settings itself has no header: a swipe left, or a tap beside the drawer,
+  // closes it. Its pages have Back and their title.
   const backButton = html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
@@ -191,12 +194,16 @@ async function signOut(app, ui) {
   await account.signOut(); // src/main.js reloads into the welcome screen
 }
 
+/** The credits last read, so Settings opens with them rather than without. */
+let lastCredits = null;
+
 /** This month's AI credits (convex/credits.ts `mine`), for the Usage row and
  * page: null while unknown, or without a plan that gives any. */
 function useCredits() {
   const here = account.signedIn && signInWorksHere();
   const { data, loading, reload } = useAsync(() => (here ? account.authed('query', 'credits:mine').catch(() => null) : Promise.resolve(null)), [here]);
-  return { credits: data ?? null, loading, reload };
+  if (data !== undefined) lastCredits = data;
+  return { credits: data === undefined && here ? lastCredits : data ?? null, loading, reload, here };
 }
 
 /** What's left of the month's credits, as a whole percent (1% while any are left). */

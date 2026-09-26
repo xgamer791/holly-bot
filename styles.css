@@ -90,7 +90,7 @@ svg { display: block; }
 
 #app { height: 100%; }
 .app { height: 100%; display: flex; background: var(--bg); position: relative; overflow: hidden; }
-.pane-list { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); position: relative; }
+.pane-list { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); position: relative; touch-action: pan-y; }
 .pane-chat { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); position: relative; }
 .app.mobile.in-chat .pane-list { display: none; }
 .app.mobile:not(.in-chat) .pane-chat { display: none; }
@@ -216,7 +216,14 @@ svg { display: block; }
 .circle-btn:active { transform: scale(.94); background: var(--surface-2); }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
-/* The computer button at the top right of a chat (src/ui/chat.js): grayed out
+/* The buttons at the top (the menu, the computer, search, new): a round
+   bubble like .circle-btn's, 44 px, with a 24 px Lucide icon in the text's
+   colour (not .icon-btn, the smaller gray buttons further down); the
+   computer button's is its connection's (below). */
+.top-btn { width: var(--tap); height: var(--tap); border-radius: 50%; background: var(--surface); border: 1px solid var(--border); padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--text); transition: background .15s, transform .1s; }
+.top-btn:active { transform: scale(.94); background: var(--surface-2); }
+.top-btn svg { width: 24px; height: 24px; }
+/* The computer button at the top right (src/ui/computer-button.js): grayed out
    while there's no computer, the computer pulsing blue while it connects,
    solid green while connected. */
 .computer-btn { transition: background .15s, transform .1s, color .3s, opacity .3s; }
@@ -233,7 +240,7 @@ svg { display: block; }
 .name-pill .sub { color: var(--muted); font-size: 12px; font-weight: 400; }
 
 /* ---------- home list ---------- */
-.home-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(24px + var(--safe-bottom)); }
+.home-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(24px + var(--safe-bottom)); touch-action: pan-y; }
 /* A word about the account's computer, at the top of the bot list (src/ui/home.js). */
 .list-notice { display: flex; align-items: center; gap: 10px; margin: 4px 16px 10px; padding: 8px 4px 8px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
   color: var(--text-2); font-size: 13.5px; line-height: 18px; animation: fade .2s ease-out; }
@@ -311,41 +318,38 @@ svg { display: block; }
    own width, dimming it, and slides back out the same way pulling the app
    back, the way out being the way in played backwards (the easing mirrored).
    The page's .drawer-open class says where it is, so a move always carries on
-   from wherever it is (.drawer-mounted stays on until it's gone). While its
-   handle is dragged, --drawer-drag is how far it has come back (px, 0 or
-   less) and --drawer-shown how much of it still shows. */
+   from wherever it is (.drawer-mounted stays on until it's gone). While a
+   finger swipes it out (right, on the chat list) or back (left, on it or the
+   strip beside it), --drawer-drag is how far it is from fully open (px, 0 or
+   less) and --drawer-shown how much of it shows; let go, and it slides the
+   rest of the way in --drawer-ms, at the finger's speed. */
 :root {
   --drawer-w: min(calc(100vw - 70px), 560px);
   --drawer-in: cubic-bezier(.2, .8, .2, 1);
   --drawer-out: cubic-bezier(.8, 0, .8, .2);
 }
 .sheet.drawer { top: 0; bottom: 0; left: 0; right: auto; width: var(--drawer-w); max-width: none; margin: 0; border-radius: 0; overflow: visible;
-  padding: var(--safe-top) 0 0 var(--safe-left); animation: none; transform: translateX(-100%); transition: transform .45s var(--drawer-out); }
+  padding: var(--safe-top) 0 0 var(--safe-left); animation: none; transform: translateX(-100%); transition: transform var(--drawer-ms, .45s) var(--drawer-out);
+  will-change: transform; touch-action: pan-y; }
 /* The app's own background, so the status bar (the theme color) matches it. */
 :root[data-theme] .sheet.drawer, .sheet.drawer { background: var(--bg); }
 .drawer-open .sheet.drawer { transform: translateX(var(--drawer-drag, 0px)); transition-timing-function: var(--drawer-in); }
-.app { transition: transform .45s var(--drawer-out); }
+.app { transition: transform var(--drawer-ms, .45s) var(--drawer-out); }
+/* The app is a layer of its own all the time, so pulling the menu out doesn't
+   change the layers under the finger (iOS cancels a touch when that happens). */
+.app { will-change: transform; }
 .drawer-open .app { transform: translateX(calc(var(--drawer-w) + var(--drawer-drag, 0px))); transition-timing-function: var(--drawer-in); }
 /* The dimming is part of the app, so it moves with it and never reaches over
    the drawer. On a phone the status bar takes its color from the top of the
    page: a dimming layer across the whole top turned it gray above the drawer.
    The sheet's own scrim stays, clear, to close the drawer when tapped. */
 .drawer-mounted .app::after { content: ""; position: absolute; inset: 0; z-index: 49; background: var(--scrim); opacity: 0; pointer-events: none;
-  transition: opacity .45s var(--drawer-out); }
+  transition: opacity var(--drawer-ms, .45s) var(--drawer-out); }
 .drawer-open .app::after { opacity: var(--drawer-shown, 1); transition-timing-function: var(--drawer-in); }
-.sheet-scrim.drawer-scrim { background: none; animation: none; }
+.sheet-scrim.drawer-scrim { background: none; animation: none; touch-action: none; }
 .drawer-dragging .sheet.drawer, .drawer-dragging .app, .drawer-dragging .app::after { transition: none; }
-/* Let go of mid-drag to close: it's already moving, so it carries on out easing off. */
+/* Let go of mid-swipe to close: it's already moving, so it carries on out easing off. */
 .drawer-flung .sheet.drawer, .drawer-flung .app, .drawer-flung .app::after { transition-timing-function: var(--drawer-in); }
-/* The handle: a tab on the drawer's right edge, halfway down, in the drawer's
-   color with a grabber on it. The whole strip beside the drawer answers to it.
-   It shows only while the drawer is open (closed, it would sit at the screen's edge). */
-.drawer-handle { position: absolute; top: 0; bottom: 0; left: 100%; width: 70px; display: flex; align-items: center; touch-action: none; cursor: grab; }
-.drawer-dragging .drawer-handle { cursor: grabbing; }
-.drawer-handle span { flex: none; width: 20px; height: 60px; border-radius: 0 10px 10px 0; background: var(--bg); box-shadow: 6px 0 12px -6px rgba(0, 0, 0, .3);
-  display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .45s var(--drawer-out); }
-.drawer-open .drawer-handle span { opacity: 1; transition-timing-function: var(--drawer-in); }
-.drawer-handle span::after { content: ""; width: 4px; height: 24px; border-radius: 2px; background: var(--border-strong); }
 
 /* ---------- grouped settings rows (iOS style) ---------- */
 .group { background: var(--elevated); border-radius: var(--radius-card); margin: 14px 0; overflow: hidden; }
@@ -375,22 +379,29 @@ button.row:active { background: var(--surface-2); }
 .toggle.on::after { transform: translateX(18px); }
 
 /* ---------- inside the Settings drawer (src/ui/settings.js) ----------
-   A flat menu on the app's own background, in sections: a heading in small
-   capitals over rows of a title (with a line under it when there's more to
-   say) and a value, switch or chevron. No cards, no icons and no lines
-   between rows; a row lights up, rounded, while it's pressed. Every page
-   inside the drawer is made of the same rows, headings and notes. */
+   On the app's own background (the status bar's colour too), each section is
+   a bubble, like the Workspace sheet's lists: a rounded card with a thin
+   outline and a line between its rows (white on the light theme, a shade
+   lighter than the background on the dark ones), under a heading in small
+   capitals. Usage and Sign Out are bubbles of their own. A row darkens while
+   it's pressed. Every page inside the drawer is made of the same bubbles,
+   rows, headings and notes. */
+.drawer { --card: #1c1c1e; --card-press: #29292b; --card-line: var(--border); }
+:root[data-theme="dark"] .drawer { --card: #262628; --card-press: #313134; }
+:root[data-theme="light"] .drawer { --card: #fff; --card-press: var(--surface-2); }
 .drawer .sheet-head { padding: 16px 20px 4px; min-height: 68px; gap: 14px; }
-.drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); }
+.drawer .sheet-body { padding: 4px 20px calc(32px + var(--safe-bottom)); touch-action: pan-y; }
 .drawer.headless .sheet-body { padding-top: 20px; } /* Settings itself: no header above it */
-.drawer .group { background: none; border-radius: 0; margin: 0; overflow: visible; }
-.drawer .group + .group { margin-top: 14px; }
-.drawer .group-label { margin: 28px 0 6px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
-.drawer .group-note { margin: 6px 0 8px; font-size: 13px; line-height: 1.45; }
-.drawer .row { width: calc(100% + 20px); margin: 0 -10px; min-height: 50px; padding: 11px 10px; gap: 14px; border-radius: 12px; }
-.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before { display: none; }
-.drawer button.row:active { background: var(--surface-2); }
-@media (hover: hover) { .drawer button.row:hover { background: var(--surface-2); } }
+.drawer .group { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; margin: 0; overflow: hidden; }
+.drawer .group + .group { margin-top: 12px; }
+.drawer .group-label { margin: 28px 16px 8px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.drawer .group-note { margin: 8px 16px 14px; font-size: 13px; line-height: 1.45; }
+.drawer .row { width: 100%; margin: 0; min-height: 52px; padding: 13px 16px; gap: 14px; border-radius: 0; }
+/* The line between rows, from the text's edge to the card's. */
+.drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before {
+  display: block; left: 16px; right: 0; height: 1px; background: var(--card-line); }
+.drawer button.row:active { background: var(--card-press); }
+@media (hover: hover) { .drawer button.row:hover { background: var(--card-press); } }
 .drawer .row .label .t { font-size: 16.5px; line-height: 22px; }
 .drawer .row .label .s { margin-top: 2px; font-size: 13.5px; line-height: 18px; }
 .drawer .row .value { font-size: 15.5px; }
@@ -401,24 +412,24 @@ button.row:active { background: var(--surface-2); }
 .drawer .bubble.plain-bot, :root[data-theme="light"] .drawer .bubble.plain-bot { padding: 0; border-radius: 0; background: none; }
 .drawer .mem { margin: 8px 0; padding: 0; border-radius: 0; background: none; }
 
-/* The top of Settings: who is signed in, then the usage meter. */
+/* The top of Settings: who is signed in, then the usage meter in a bubble. */
 .drawer-account { display: flex; align-items: center; gap: 14px; padding: 4px 0 2px; }
 .drawer-account .initials { width: 56px; height: 56px; font-size: 20px; font-weight: 600; }
 .drawer-account .who { flex: 1; min-width: 0; }
 .drawer-account .name { font-size: 21px; line-height: 26px; font-weight: 650; letter-spacing: -.2px; overflow-wrap: anywhere; }
 .drawer-account .detail { margin-top: 1px; color: var(--muted); font-size: 14px; line-height: 19px; overflow-wrap: anywhere; }
-.drawer-usage { display: block; width: calc(100% + 20px); margin: 16px -10px 0; padding: 12px 10px 14px; border-radius: 12px; text-align: left; }
-.drawer-usage:active { background: var(--surface-2); }
-@media (hover: hover) { .drawer-usage:hover { background: var(--surface-2); } }
+.drawer-usage { display: block; width: 100%; margin: 18px 0 0; padding: 14px 16px 16px; border: 1px solid var(--card-line); border-radius: 16px; background: var(--card); text-align: left; }
+.drawer-usage:active { background: var(--card-press); }
+@media (hover: hover) { .drawer-usage:hover { background: var(--card-press); } }
 .drawer-usage .usage-head { display: flex; align-items: center; gap: 8px; }
 .drawer-usage .t { flex: 1; font-size: 16.5px; line-height: 22px; }
 .drawer-usage .usage-left { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .drawer-usage .chev { flex: none; width: 16px; height: 16px; color: var(--dim); }
-.drawer-usage .credits-bar { display: block; height: 6px; margin-top: 10px; border-radius: 3px; }
+.drawer-usage .credits-bar { display: block; height: 6px; margin-top: 12px; border-radius: 3px; }
 
-/* The bottom: Sign Out on its own under a line, then the app and its version. */
-.drawer-signout { margin-top: 28px; padding-top: 10px; border-top: 1px solid var(--border); }
-.drawer-foot { display: flex; align-items: center; gap: 8px; margin-top: 22px; color: var(--muted); font-size: 13px; }
+/* The bottom: Sign Out in a bubble of its own, then the app and its version. */
+.drawer-signout { margin-top: 28px; background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; overflow: hidden; }
+.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 22px 16px 0; color: var(--muted); font-size: 13px; }
 .drawer-foot .n { color: var(--text-2); font-size: 14px; font-weight: 600; }
 .drawer-foot .v { font-variant-numeric: tabular-nums; }
 
