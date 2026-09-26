@@ -385,7 +385,7 @@ button.row:active { background: var(--surface-2); }
 .drawer.headless .sheet-body { padding-top: 20px; } /* Settings itself: no header above it */
 .drawer .group { background: none; border-radius: 0; margin: 0; overflow: visible; }
 .drawer .group + .group { margin-top: 14px; }
-.drawer .group-label { margin: 28px 0 6px; color: var(--muted); font-size: 12px; line-height: 16px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.drawer .group-label { margin: 28px 0 6px; color: var(--text-2); font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
 .drawer .group-note { margin: 6px 0 8px; font-size: 13px; line-height: 1.45; }
 .drawer .row { width: calc(100% + 20px); margin: 0 -10px; min-height: 50px; padding: 11px 10px; gap: 14px; border-radius: 12px; }
 .drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before { display: none; }
