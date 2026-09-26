@@ -1,4 +1,4 @@
-// Holly Bot Computer for Windows' window: how Holly Bot Computer is doing (Status),
+// Holly Bot for Windows' settings window: how Holly Bot Computer is doing (Status),
 // its settings (Settings) and what it says as it works (Activity). Everything
 // comes from the app (main.js, through preload.cjs), and everything it does
 // goes through it.
@@ -78,8 +78,8 @@ function renderBanners() {
   if (view.update) {
     out.push(h('div', { class: 'banner info' },
       h('p', null, view.update.auto
-        ? tr('Holly Bot Computer for Windows {version} is ready. It installs itself once no bot is working.', { version: view.update.version })
-        : tr('Holly Bot Computer for Windows {version} is ready.', { version: view.update.version })),
+        ? tr('Holly Bot for Windows {version} is ready. It installs itself once no bot is working.', { version: view.update.version })
+        : tr('Holly Bot for Windows {version} is ready.', { version: view.update.version })),
       h('button', { class: 'btn small primary', onclick: () => act('update') }, tr('Restart to update'))));
   }
   if (view.restartToApply) {
@@ -92,7 +92,7 @@ function renderBanners() {
     const text = e.kind === 'port'
       ? tr('Port {port} is in use, so Holly Bot Computer can’t start. It may already be running on this computer, in a terminal: close that, then press Start. Or choose another port in Settings.', { port: e.port })
       : e.kind === 'missing'
-        ? tr('Holly Bot Computer’s files are missing. Install Holly Bot Computer for Windows again.')
+        ? tr('Holly Bot Computer’s files are missing. Install Holly Bot for Windows again.')
         : tr('Holly Bot Computer stopped: {detail}. The Activity tab shows what happened.', { detail: e.detail || '' });
     out.push(h('div', { class: 'banner bad' }, h('p', null, text)));
   }
@@ -151,7 +151,8 @@ function renderStatus() {
     return;
   }
   const reachable = s.tunnel === 'up' || s.tunnel === 'own';
-  page.replaceChildren(
+  // Through h(), which leaves out what isn't there (no Wi-Fi link: null).
+  page.replaceChildren(...h('div', null,
     h('div', { class: 'label' }, tr('Your bots')),
     h('div', { class: 'card' }, s.linked
       ? h('p', null, tr('Your bots are kept in your Holly Bot account, and this computer runs them around the clock.'))
@@ -186,7 +187,7 @@ function renderStatus() {
     h('div', { class: 'card' },
       folderRow(tr('Workspace'), s.workspace, 'workspace'),
       folderRow(tr('Data'), s.dataDir, 'data')),
-  );
+  ).childNodes);
 }
 
 // ----- Settings ----------------------------------------------------------------------------
@@ -347,8 +348,8 @@ async function init() {
   $('log-folder').textContent = tr('Open the log folder');
   $('log-folder').onclick = () => act('folder', 'logs');
   $('open').onclick = () => act('open');
-  $('foot-version').textContent = tr('Holly Bot Computer for Windows {version}', { version: view.appVersion });
-  $('quit').textContent = tr('Quit Holly Bot Computer');
+  $('foot-version').textContent = tr('Holly Bot for Windows {version}', { version: view.appVersion });
+  $('quit').textContent = tr('Quit Holly Bot');
   $('quit').onclick = () => act('quit');
   for (const button of document.querySelectorAll('.tabs button')) button.onclick = () => showTab(button.dataset.tab);
   buildSettings();

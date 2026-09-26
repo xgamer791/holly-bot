@@ -23,7 +23,7 @@ import { updateFirstDesktopApp } from './desktop-update.mjs';
 const UPDATE_EVERY = 5 * 60_000;
 
 /**
- * Holly Bot Computer for Windows (desktop/) runs this file itself, with a channel
+ * Holly Bot for Windows (desktop/) runs this file itself, with a channel
  * to it (HOLLY_DESKTOP=1 and Node's IPC). It updates the file before starting
  * it, shows how things stand here in its window (tellDesktop), and says when
  * to stop (it quits or restarts, or Windows signs out), so the account still
@@ -181,7 +181,7 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
   // The single-file build runs the latest one (computer/src/update.mjs).
-  // Holly Bot Computer for Windows has already fetched it.
+  // Holly Bot for Windows has already fetched it.
   if (args.update && globalThis.__HOLLY_BUNDLE__ && !DESKTOP && await runLatest({ file: fileURLToPath(import.meta.url), argv })) return null;
   const dataDir = resolve(expand(args.data || join(os.homedir(), '.holly')));
   const workspace = resolve(expand(args.workspace || defaultWorkspace()));
@@ -214,7 +214,7 @@ export async function main(argv = process.argv.slice(2)) {
     },
   };
   const server = createHollyServer({ app, home, computer, token: cfg.token, assets: assetLoader(), serverInfo });
-  // What Holly Bot Computer for Windows shows of how things stand here (below).
+  // What Holly Bot for Windows shows of how things stand here (below).
   let tellState = () => {};
   home.onSwap = (next) => {
     server.setApp(next);
@@ -267,7 +267,7 @@ export async function main(argv = process.argv.slice(2)) {
   // Its terminal window closed: the account still hears it stopped, so the
   // phone doesn't try to reach it (Windows allows a few seconds for this).
   process.on('SIGHUP', shutdown);
-  // Holly Bot Computer for Windows has a newer Holly Bot Computer ready
+  // Holly Bot for Windows has a newer Holly Bot Computer ready
   // (below), or a newer version of itself: this one stops for it once no bot
   // is working, and the app starts again.
   let restartTimer = null;
@@ -289,7 +289,7 @@ export async function main(argv = process.argv.slice(2)) {
     process.on('disconnect', shutdown);
   }
 
-  // Holly Bot Computer for Windows hears how things stand here as they change:
+  // Holly Bot for Windows hears how things stand here as they change:
   // its page (with the pairing token, which it keeps to itself), whether
   // this computer is linked, where the account's devices can reach it (the
   // tunnel's state: 'starting', 'up' or 'blocked'; 'own' for --public-url;
@@ -338,7 +338,7 @@ export async function main(argv = process.argv.slice(2)) {
     tellState();
     publicUrl = await tunnel.start({ waitMs: 90_000 });
     started = true;
-    // Asked to stop meanwhile (Holly Bot Computer for Windows quitting).
+    // Asked to stop meanwhile (Holly Bot for Windows quitting).
     if (stopping) return null;
   } else {
     home.setAddress(publicUrl, { tunnel: 'off' });
@@ -347,7 +347,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (!account.linked) {
     // Signed in on its own page, the computer links itself to that account
     // (src/main.js), and the phone signed in to the same one asks to connect.
-    // Holly Bot Computer for Windows opens that page in a window of its own.
+    // Holly Bot for Windows opens that page in a window of its own.
     console.log(DESKTOP
       ? '  Sign in on the Holly Bot window, with the Apple or Google account you use in Holly Bot.'
       : args.open
@@ -362,7 +362,7 @@ export async function main(argv = process.argv.slice(2)) {
   else if (!publicUrl && tunnel.state !== 'blocked') console.log('  The secure tunnel is taking a while. Your phone can connect as soon as it\'s open.');
   if (wifi) {
     console.log(`\n  On a phone on the same Wi-Fi, without signing in, scan or open:\n    ${wifi}\n`);
-    // Holly Bot Computer for Windows shows the code in its window.
+    // Holly Bot for Windows shows the code in its window.
     if (!DESKTOP) console.log(qrText(wifi).split('\n').map((l) => `    ${l}`).join('\n'));
   }
   if (wifi || (!account.linked && !args.open && !DESKTOP)) {
@@ -377,7 +377,7 @@ export async function main(argv = process.argv.slice(2)) {
   // Run by systemd (a Holly Bot server: convex/lib/cloudinit.ts), which starts
   // it again with the latest build: once a newer one is out and no bot is
   // working, it stops for that, so a fix reaches servers without waiting for
-  // one to restart. Run by Holly Bot Computer for Windows, which runs around the
+  // one to restart. Run by Holly Bot for Windows, which runs around the
   // clock too, it tells the app, which fetches that one and then has this
   // one restart (restartWhenIdle). Elsewhere it updates as it starts
   // (runLatest).
@@ -393,14 +393,14 @@ export async function main(argv = process.argv.slice(2)) {
       shutdown();
     }, UPDATE_EVERY).unref();
   }
-  // The first Holly Bot Computer for Windows can't install a newer version of
+  // The first Holly Bot for Windows can't install a newer version of
   // itself without someone at the computer: this does, once no bot is working
   // (computer/src/desktop-update.mjs).
   if (args.update && globalThis.__HOLLY_BUNDLE__ && DESKTOP) {
     updateFirstDesktopApp({
       busy: () => stopping || !!home.app?.runtime.activeRuns().length,
       install: (run, version) => {
-        console.log(`\n  Restarting to update Holly Bot Computer for Windows to ${version}.`);
+        console.log(`\n  Restarting to update Holly Bot for Windows to ${version}.`);
         lastly = run;
         shutdown();
       },

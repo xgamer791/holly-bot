@@ -158,7 +158,7 @@ export class LocalComputer {
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       node: process.version,
       version: VERSION,
-      // The version of Holly Bot Computer for Windows (desktop/) this runs in, if it does.
+      // The version of Holly Bot for Windows (desktop/) this runs in, if it does.
       desktopApp: (process.env.HOLLY_DESKTOP === '1' && process.env.HOLLY_DESKTOP_VERSION) || null,
       screen: desktopInfo?.width ? { width: desktopInfo.width, height: desktopInfo.height } : null,
       notes: desktopInfo?.notes || [],

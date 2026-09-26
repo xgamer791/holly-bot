@@ -1,4 +1,4 @@
-// Holly Bot Computer for Windows' own settings, kept in its folder under
+// Holly Bot for Windows' own settings, kept in its folder under
 // %APPDATA%: the options it starts Holly Bot Computer with (the ones Holly
 // Computer takes on the command line, computer/src/main.mjs), and whether it
 // starts with Windows. Options given to Holly Computer.exe itself on the

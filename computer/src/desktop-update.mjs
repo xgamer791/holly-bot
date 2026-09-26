@@ -1,4 +1,4 @@
-// The first Holly Bot Computer for Windows (1.0.0, from when it was called
+// The first Holly Bot for Windows (1.0.0, from when it was called
 // Holly Computer) downloads a newer version of itself, but installs it only
 // when someone restarts it for that, or quits it. Later versions install
 // themselves once no bot is working (desktop/src/main.js installWhenIdle),
@@ -32,7 +32,7 @@ const folder = () => join(process.env.LOCALAPPDATA || join(os.homedir(), 'AppDat
 const appFolder = () => join(process.env.APPDATA || join(os.homedir(), 'AppData', 'Roaming'), 'Holly Computer');
 
 /**
- * Keeps the first Holly Bot Computer for Windows up to date (above), when
+ * Keeps the first Holly Bot for Windows up to date (above), when
  * it's what runs this. `busy()` says when not to (a bot is working, or Holly
  * Bot Computer is stopping); `install(run, version)` stops Holly Bot Computer
  * and calls `run`, which starts the installer, just before it exits. Run by a

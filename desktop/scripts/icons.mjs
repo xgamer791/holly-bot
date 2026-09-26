@@ -1,4 +1,4 @@
-// Renders Holly Bot Computer for Windows' icons from Holly Bot's own art, with
+// Renders Holly Bot for Windows' icons from Holly Bot's own art, with
 // Playwright's Chromium (from the project's dev dependencies):
 //   build/icon.png                 the app's icon (electron-builder makes the .ico from it)
 //   src/icons/icon.png             the window's and notifications' icon

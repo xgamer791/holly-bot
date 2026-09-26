@@ -113,7 +113,10 @@ export class HollyComputer extends EventEmitter {
     this.emit('change');
   }
 
-  /** Starts Holly Bot Computer with `settings` (settings.js); `newToken`: with new keys (--new-token). */
+  /** Starts Holly Bot Computer with `settings` (settings.js); `newToken`: with
+   * new keys (--new-token); `quick`: someone's waiting for it, so a newer
+   * holly-computer.mjs gets only a few seconds to arrive first (it's
+   * fetched while it runs otherwise, and it restarts for it then). */
   async start(settings, opts = {}) {
     // One start at a time: another waits for it, then finds it running.
     while (this.launching) await this.launching;
@@ -130,13 +133,13 @@ export class HollyComputer extends EventEmitter {
     }
   }
 
-  async startNow(settings, { newToken = false, restarting = false }) {
+  async startNow(settings, { newToken = false, restarting = false, quick = false }) {
     const run = ++this.run;
     this.config = { ...settings };
     this.error = null;
     this.state = null;
     this.set(restarting ? 'restarting' : 'starting');
-    const script = await this.prepare(settings.update);
+    const script = await this.prepare(settings.update, { quick });
     if (run !== this.run) return; // stopped meanwhile
     if (!script) {
       this.error = { kind: 'missing' };
@@ -320,14 +323,15 @@ export class HollyComputer extends EventEmitter {
   }
 
   /** The holly-computer.mjs to run: the newest there is, after asking the
-   * Holly Bot site for a newer one (`update`). Null when there's none. */
-  async prepare(update) {
+   * Holly Bot site for a newer one (`update`; `quick`: for a few seconds at
+   * most). Null when there's none. */
+  async prepare(update, { quick = false } = {}) {
     const own = versionOf(this.own);
     const bundled = versionOf(this.bundled);
     let script = own && (!bundled || newerVersion(own, bundled)) ? this.own : bundled ? this.bundled : null;
     if (!update) return script;
     const current = own && script === this.own ? own : bundled;
-    const latest = await this.fetchLatest();
+    const latest = await this.fetchLatest(quick ? 6000 : 25_000);
     if (latest && (!current || newerVersion(latest.version, current)) && await this.save(latest.text)) {
       this.line(current ? `  Updated Holly Bot Computer from ${current} to ${latest.version}.` : `  Got Holly Bot Computer ${latest.version}.`);
       script = this.own;
@@ -335,17 +339,18 @@ export class HollyComputer extends EventEmitter {
     return script;
   }
 
-  /** The latest holly-computer.mjs on the Holly Bot site: { version, text }, or null. */
-  async fetchLatest() {
+  /** The latest holly-computer.mjs on the Holly Bot site: { version, text },
+   * or null (also when it takes longer than `limit` ms). */
+  async fetchLatest(limit = 25_000) {
     const ask = async () => {
-      const res = await net.fetch(`${LATEST}?t=${Date.now()}`, { signal: AbortSignal.timeout(20_000) });
+      const res = await net.fetch(`${LATEST}?t=${Date.now()}`, { signal: AbortSignal.timeout(limit) });
       if (!res.ok) return null;
       const text = await res.text();
       const version = buildVersion(text);
       return version && text.includes('globalThis.__HOLLY_BUNDLE__ = true;') ? { version, text } : null;
     };
     try {
-      return await Promise.race([ask(), sleep(25_000).then(() => null)]);
+      return await Promise.race([ask(), sleep(limit).then(() => null)]);
     } catch {
       return null; // offline, or the site is slow: next time
     }
