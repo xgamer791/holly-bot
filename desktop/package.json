@@ -1,11 +1,11 @@
 {
   "name": "holly-computer",
-  "productName": "Holly Bot Computer",
-  "version": "1.1.0",
+  "productName": "Holly Bot",
+  "version": "2.0.0",
   "private": true,
-  "description": "Holly Bot Computer for Windows: your Holly bots live on this PC around the clock, and you control them from your phone.",
+  "description": "Holly Bot for Windows: Holly Bot on your PC, with Holly Bot Computer inside it, so your bots live on this PC around the clock and you control them from your phone too.",
   "author": "Holly Bot",
-  "homepage": "https://github.com/xgamer791/holly-bot#holly-bot-computer-for-windows",
+  "homepage": "https://github.com/xgamer791/holly-bot#holly-bot-for-windows",
   "type": "module",
   "main": "app/main.cjs",
   "scripts": {
@@ -28,7 +28,7 @@
   },
   "build": {
     "appId": "com.xgamer791.hollycomputer",
-    "productName": "Holly Bot Computer",
+    "productName": "Holly Bot",
     "copyright": "Holly Bot",
     "directories": {
       "output": "dist",
@@ -63,9 +63,9 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "artifactName": "Holly-Bot-Computer-Setup.exe",
-      "shortcutName": "Holly Bot Computer",
-      "uninstallDisplayName": "Holly Bot Computer",
+      "artifactName": "Holly-Bot-Setup.exe",
+      "shortcutName": "Holly Bot",
+      "uninstallDisplayName": "Holly Bot",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "runAfterFinish": true,

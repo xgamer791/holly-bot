@@ -1,4 +1,4 @@
-// What Holly Bot Computer for Windows shows, in Windows' own language when Holly
+// What Holly Bot for Windows shows, in Windows' own language when Holly
 // Bot speaks it (English, Spanish or Chinese), like the app's System choice.
 // It's written in English, and each piece goes through tr('…'), which looks
 // it up in the app's own dictionaries (src/ui/i18n/es.js and zh.js), so

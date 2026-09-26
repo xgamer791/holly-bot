@@ -1,4 +1,4 @@
-// Gets Holly Bot Computer for Windows ready to run (npm start) or to package
+// Gets Holly Bot for Windows ready to run (npm start) or to package
 // (electron-builder, which takes app\ and stage\: package.json "build"):
 //
 //   app\main.cjs              the app (src\), in one file, with the app's dictionaries

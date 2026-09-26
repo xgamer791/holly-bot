@@ -1,21 +1,24 @@
-// Holly Bot Computer for Windows: Holly Bot Computer (computer/) as a Windows app. It
-// runs Holly Bot Computer on the Node.js it comes with (computer.js), from the
-// moment you sign in to Windows, in the background; shows how it's doing, and
-// its settings, in a window of its own (status/); sits in the taskbar's
-// corner; opens Holly Bot in a window of its own (browser.js); and keeps
-// itself up to date: Holly Bot Computer from the Holly Bot site, as it does
-// everywhere, and this app from the project's GitHub releases, installed by
-// itself once no bot is working.
+// Holly Bot for Windows: Holly Bot on your PC, with Holly Bot Computer
+// (computer/) inside it. Opening it opens Holly Bot in a window of its own
+// (browser.js), from Holly Bot Computer's own page, so it controls the bots on
+// this computer directly. Holly Bot Computer runs silently in the
+// background, on the Node.js it comes with (computer.js), from the moment you
+// sign in to Windows, with an icon in the taskbar's corner; how it's doing,
+// its settings and what it says are in a window of their own (status/), which
+// opens only from that icon, or when it can't start. It keeps itself up to
+// date: Holly Bot Computer from the Holly Bot site, as it does everywhere, and
+// this app from the project's GitHub releases, installed by itself once no
+// bot is working.
 //
 // Holly Bot Computer keeps what it kept before (~/.holly, ~/Holly), so a computer
 // that ran `node holly-computer.mjs` carries on as the same computer: linked
 // to the same account, with the same bots, keys and browser logins.
 //
-// This app was called Holly Computer at first. What Windows knows it by
-// stays as it was then: its folder (%APPDATA%\Holly Computer), the program
-// (Holly Computer.exe, package.json "executableName") and its entry among
-// what starts with Windows, so an update carries on with all of them; what
-// people see says Holly Bot Computer.
+// This app was called Holly Computer at first, then Holly Bot Computer. What
+// Windows knows it by stays as it was then: its folder (%APPDATA%\Holly
+// Computer), the program (Holly Computer.exe, package.json "executableName")
+// and its entry among what starts with Windows, so an update carries on with
+// all of them; what people see says Holly Bot.
 
 import { app, BrowserWindow, Menu, Notification, Tray, clipboard, dialog, ipcMain, nativeImage, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
@@ -36,10 +39,10 @@ const CHECK_EVERY = 6 * 60 * 60_000;
 app.setPath('userData', join(app.getPath('appData'), 'Holly Computer'));
 /** Written as this app installs an update by itself, so the new version starts as this one was (takeRestart). */
 const RESTART_FILE = join(app.getPath('userData'), 'restart.json');
-/** Started again by an update it installed by itself: how it was, { show }. */
+/** Started again by an update it installed by itself: how it was, { show } (its window). */
 const restarted = process.argv.includes('--updated') ? takeRestart() : null;
-/** Started by Windows as you signed in, or by that update with its window closed: just the icon in the taskbar's corner. */
-const hidden = process.argv.includes('--hidden') || (!!restarted && !restarted.show);
+/** Started by Windows as you signed in: just the icon in the taskbar's corner. */
+const atSignIn = process.argv.includes('--hidden');
 const given = fromCommandLine(process.argv.slice(1));
 
 let settings;
@@ -47,10 +50,11 @@ let computer;
 let tray = null;
 let win = null;
 let quitting = false;
-/** Holly Bot opens by itself once, when this computer isn't linked yet. */
-let openWhenReady = !hidden && !restarted && !given.noOpen;
-/** Said once: closing the window leaves Holly Bot Computer running. */
-let toldStillRunning = false;
+/** Holly Bot opens once Holly Bot Computer serves it (openHollyBotSoon): as
+ * this app is opened, not as Windows starts it or after its own update. */
+let openWhenReady = !atSignIn && !restarted && !given.noOpen;
+let startingTimer = null;
+let lastOpened = 0;
 /** A newer version of this app, downloaded: { version }. */
 let update = null;
 /** Waiting for no bot to be working, to install it (installWhenIdle). */
@@ -58,8 +62,6 @@ let installing = null;
 let installTimer = null;
 /** Said once when Holly Bot Computer couldn't start. */
 let toldFailed = false;
-/** Opened again before this one was ready. */
-let showWhenReady = false;
 /** Asking whether to quit. */
 let asking = false;
 
@@ -67,12 +69,11 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.setAppUserModelId(APP_ID);
-  // Opened again (the Start menu, the desktop): the window.
-  app.on('second-instance', () => {
-    if (settings) showWindow();
-    else showWhenReady = true;
+  // Opened again (the Start menu, the desktop, the taskbar): Holly Bot.
+  app.on('second-instance', (_event, argv) => {
+    if (!argv.includes('--hidden')) openHollyBotSoon();
   });
-  // Closing the window leaves Holly Bot Computer running, in the taskbar's corner.
+  // Closing its window leaves Holly Bot Computer running, in the taskbar's corner.
   app.on('window-all-closed', () => {});
   app.on('before-quit', (event) => {
     if (quitting) return;
@@ -121,12 +122,17 @@ async function ready() {
   computer.on('lines', (lines) => send('holly:lines', lines));
   registerIpc();
   tray = new Tray(icon('tray.png'));
-  tray.setToolTip('Holly Bot Computer');
-  tray.on('click', () => showWindow());
+  tray.setToolTip('Holly Bot');
+  tray.on('click', () => openHollyBotSoon());
   refreshTray();
-  createWindow({ show: !hidden || showWhenReady });
-  computer.start(options(), { newToken: given.newToken });
-  if (restarted) notify(tr('Holly Bot Computer for Windows updated itself to {version}.', { version: app.getVersion() }));
+  // Its window is there from the start, hidden (Windows says it's signing
+  // out or shutting down through a window: sessionEnding), and shows only
+  // when asked for, or as it was before an update it installed by itself.
+  createWindow({ show: !!restarted?.show });
+  // Someone's waiting for Holly Bot: no long wait for a newer holly-computer.mjs first.
+  computer.start(options(), { newToken: given.newToken, quick: openWhenReady });
+  if (openWhenReady) openHollyBotSoon();
+  if (restarted) notify(tr('Holly Bot for Windows updated itself to {version}.', { version: app.getVersion() }));
   keepAppUpdated();
 }
 
@@ -163,7 +169,6 @@ function createWindow({ show }) {
     if (quitting) return;
     event.preventDefault();
     win.hide();
-    stillRunning();
   });
   // Windows signing out or shutting down: Holly Bot Computer tells the account
   // it's stopping while it can.
@@ -181,17 +186,39 @@ function showWindow() {
   }
 }
 
-/** Closing the window the first time: Holly Bot Computer keeps running. */
-function stillRunning() {
-  if (toldStillRunning || !computer.active) return;
-  toldStillRunning = true;
-  notify(tr('Holly Bot Computer keeps running in the background, so your bots can keep working. Open it, or quit it, from its icon in the taskbar’s corner.'));
+/** Opens Holly Bot once Holly Bot Computer serves it: straight away when it's
+ * running, or as soon as it's started. When it can't start, its window
+ * opens instead, which says why. */
+function openHollyBotSoon() {
+  const page = computer?.state?.page;
+  if (page) {
+    openWhenReady = false;
+    clearTimeout(startingTimer);
+    // Once for a double-click on the icon, or a launch clicked twice.
+    if (Date.now() - lastOpened < 2000) return;
+    lastOpened = Date.now();
+    openHollyBot(page).catch(() => {});
+    return;
+  }
+  openWhenReady = true;
+  if (!computer) return; // this app is still starting: ready() carries on
+  if (computer.status === 'failed') {
+    openWhenReady = false;
+    showWindow();
+    return;
+  }
+  if (computer.status === 'stopped') computer.start(options(), { quick: true });
+  // Starting takes a few seconds, more the first time: past that, it's said.
+  clearTimeout(startingTimer);
+  startingTimer = setTimeout(() => {
+    if (openWhenReady && !computer.state?.page) notify(tr('Holly Bot is starting. It opens in a moment.'), () => {});
+  }, 5000);
 }
 
 function notify(body, onClick) {
   if (!Notification.isSupported()) return;
-  const note = new Notification({ title: 'Holly Bot Computer', body, icon: icon('icon.png') });
-  note.on('click', onClick || (() => showWindow()));
+  const note = new Notification({ title: 'Holly Bot', body, icon: icon('icon.png') });
+  note.on('click', onClick || (() => openHollyBotSoon()));
   note.show();
 }
 
@@ -223,19 +250,16 @@ function send(channel, data) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, data);
 }
 
-/** Holly Bot Computer changed: the window, the tray, and Holly Bot the first time. */
+/** Holly Bot Computer changed: the window, the tray, and Holly Bot once it's
+ * served, when someone's waiting for it. (Not linked to an account yet,
+ * signing in there links this computer.) */
 function changed() {
   send('holly:view', view());
   refreshTray();
-  const state = computer.state;
-  if (state?.page && openWhenReady) {
-    openWhenReady = false;
-    // Not linked yet: signing in on its page links this computer to the account.
-    if (!state.linked) openHollyBot(state.page).catch(() => {});
-  }
+  if (openWhenReady && (computer.state?.page || computer.status === 'failed')) openHollyBotSoon();
   if (computer.status === 'failed' && !toldFailed && (!win || !win.isVisible())) {
     toldFailed = true;
-    notify(tr("Holly Bot Computer couldn't start. Open it to see why."));
+    notify(tr("Holly Bot Computer couldn't start. Open it to see why."), () => showWindow());
   }
   if (computer.status === 'running') toldFailed = false;
 }
@@ -256,18 +280,17 @@ function statusWords(status) {
 function refreshTray() {
   if (!tray) return;
   const status = computer.status;
-  tray.setToolTip(`Holly Bot Computer · ${statusWords(status)}`);
-  const page = computer.state?.page;
+  tray.setToolTip(`Holly Bot · ${statusWords(status)}`);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: tr('Open Holly Bot'), enabled: !!page, click: () => page && openHollyBot(page) },
-    { label: tr('Show Holly Bot Computer'), click: () => showWindow() },
+    { label: tr('Open Holly Bot'), click: () => openHollyBotSoon() },
+    { label: tr('Holly Bot Computer settings'), click: () => showWindow() },
     { type: 'separator' },
     ...(update ? [{ label: tr('Restart to update to {version}', { version: update.version }), click: () => install() }] : []),
     computer.active || status === 'stopping'
       ? { label: tr('Restart Holly Bot Computer'), enabled: status === 'running', click: () => computer.restart(options()) }
       : { label: tr('Start Holly Bot Computer'), click: () => computer.start(options()) },
     { type: 'separator' },
-    { label: tr('Quit Holly Bot Computer'), click: () => quit() },
+    { label: tr('Quit Holly Bot'), click: () => quit() },
   ]));
 }
 
@@ -305,11 +328,9 @@ function registerIpc() {
 
 async function act(action, arg) {
   switch (action) {
-    case 'open': {
-      const page = computer.state?.page;
-      if (page) await openHollyBot(page);
+    case 'open':
+      openHollyBotSoon();
       return null;
-    }
     case 'start':
       computer.start(options());
       return null;
@@ -383,9 +404,9 @@ async function quit({ ask = true } = {}) {
     asking = true;
     const { response } = await dialog.showMessageBox(win?.isVisible() ? win : undefined, {
       type: 'question',
-      title: 'Holly Bot Computer',
-      message: tr('Quit Holly Bot Computer?'),
-      detail: tr('Your bots stop working on this computer, and your phone can’t reach it, until you open Holly Bot Computer again.'),
+      title: 'Holly Bot',
+      message: tr('Quit Holly Bot?'),
+      detail: tr('Your bots stop working on this computer, and your phone can’t reach it, until you open Holly Bot again.'),
       buttons: [tr('Quit'), tr('Cancel')],
       defaultId: 0,
       cancelId: 1,

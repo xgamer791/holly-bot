@@ -32,7 +32,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Connecting, the first time:** signed in on the computer and on your phone, only the phone offers **Connect** (a popup, once the computer answers at its address), and the computer's own page says to tap it there. Tap Connect: the phone says it's connected, and so does the computer, on its own page and in its window. Not now leaves a Connect note at the top of the bot list.
 - **After that, it connects by itself:** once a device has connected to a computer, your account remembers it, and Holly Bot on every device signed in to your account connects to it as the app opens, or as soon as it comes on while the app is open (when nothing's going on, and it says so). Each bot keeps the computer it last used (the one you last messaged it on, or picked in its chat's Workspace): open its chat and the app switches to that computer, and closed and opened again, the app is back on the computer you were last using, your plan's server included. When the computer the app uses stops answering for two minutes, the app moves to another it connects to by itself, such as your plan's server, and goes back once it answers. The app follows the computer to its new address when it restarts. When none is running, the app runs your bots itself and they know why they can't use the computer.
 - A computer your account lists as on, but whose address doesn't answer, isn't offered: the app says it can't reach it yet and keeps checking. The computer's connection settings and a chat's Workspace say the same. The access key stops working when you unlink the computer, and `--new-token` changes it.
-- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Bot Computer updates itself each time it starts (`--no-update` to skip that); on a Holly Bot server, and in Holly Bot Computer for Windows, it also restarts itself for a newer version once no bot is working.
+- The app on your phone opens on the newest version of Holly Bot whenever it starts. While it's open, a banner says when there's a newer one (tap it to update); it never reloads by itself when you leave the app and come back. Holly Bot Computer updates itself each time it starts (`--no-update` to skip that); on a Holly Bot server, and in Holly Bot for Windows, it also restarts itself for a newer version once no bot is working.
 - Right after you subscribe, the app opens: it doesn't wait for your server. With no bots yet, you make your Chief Coordinator first, then you're in. Your bots run in the app while the server is set up (a few minutes), with the computer button at the top right pulsing blue, and the app moves onto the server by itself once it's ready and nothing's going on.
 - Your time zone is found by itself, from the device you're using: bots and routines go by it, on your computer or server too.
 - Holly Bot Computer's own page on the computer asks you to sign in. Only Wi-Fi links (`--lan`) can't: Apple and Google can't send a sign-in back to a Wi-Fi address, so there the pairing token alone protects your bots.
@@ -50,7 +50,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 ### Put your bots on your computer
 
-**On Windows,** [download Holly-Bot-Computer-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Computer-Setup.exe) and open it: it installs Holly Bot Computer as a Windows app, with no Node.js or terminal needed ([Holly Bot Computer for Windows](#holly-bot-computer-for-windows), below).
+**On Windows,** [download Holly-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe) and open it: it installs Holly Bot as a Windows app with Holly Bot Computer inside it, with no Node.js or terminal needed ([Holly Bot for Windows](#holly-bot-for-windows), below).
 
 **On a Mac or Linux,** or on Windows from a terminal:
 
@@ -82,21 +82,21 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 
 **Bot browser:** bots use their own Chrome, Edge, Brave or Chromium profile, so your logins there persist. Each bot gets its own tab. On a Holly Bot server each bot has its own window instead, on its own screen, and the logins are the same for every bot: sign in once, and they all are.
 
-### Holly Bot Computer for Windows
+### Holly Bot for Windows
 
-Holly Bot Computer as a Windows app (`desktop/`), with no Node.js to install and no terminal to keep open.
+Holly Bot as a Windows app (`desktop/`), with Holly Bot Computer inside it: one app on the PC, next to Holly Bot on your phone, with no Node.js to install and no terminal to keep open.
 
-1. [Download Holly-Bot-Computer-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Computer-Setup.exe) and open it. It installs for you (no administrator needed), puts Holly Bot Computer in the Start menu and on the desktop, and starts it. The app isn't code-signed yet, so the first time Windows may say it protected your PC: **More info → Run anyway**.
-2. Holly Bot opens in a window of its own: sign in with the Apple or Google account you use in Holly Bot. That links the PC to your account.
+1. [Download Holly-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe) and open it. It installs for you (no administrator needed), puts Holly Bot in the Start menu and on the desktop, and opens it. The app isn't code-signed yet, so the first time Windows may say it protected your PC: **More info → Run anyway**.
+2. Sign in on Holly Bot with the Apple or Google account you use in Holly Bot. That links the PC to your account.
 3. Open Holly Bot on your phone and tap **Connect**. That's it.
 
-- It runs Holly Bot Computer in the background, on the Node.js it comes with, from the moment you sign in to Windows. Its icon sits in the taskbar's corner: click it for its window, or right-click to open Holly Bot, restart Holly Bot Computer or quit. Closing the window leaves Holly Bot Computer running, so your bots keep working; quitting stops it, and your account hears it stopped (so does signing out of Windows).
-- Its window shows how Holly Bot Computer is doing (whether it's linked to your account, whether your phone can reach it, what bots can use here, its folders), its settings, and what it says as it works (Activity, also kept in `%APPDATA%\Holly Computer\logs`). If it stops by itself after running a while, it starts again.
+- Opening it opens Holly Bot, from Holly Bot Computer's own page on this PC, so it controls the bots here directly. Holly Bot Computer runs silently in the background, on the Node.js it comes with, from the moment you sign in to Windows: nothing to open first. Closing Holly Bot leaves it running, so your bots keep working. Its icon sits in the taskbar's corner: click it to open Holly Bot, or right-click for Holly Bot Computer's settings, to restart it, or to quit, which stops it, and your account hears it stopped (so does signing out of Windows).
+- Holly Bot Computer's settings window shows how it's doing (whether it's linked to your account, whether your phone can reach it, what bots can use here, its folders), its settings, and what it says as it works (Activity, also kept in `%APPDATA%\Holly Computer\logs`). It opens only from the icon, or by itself when Holly Bot Computer can't start, to say why. If it stops by itself after running a while, it starts again.
 - Settings has every option `holly-computer.mjs` takes: start with Windows, keep the computer awake (`--allow-sleep`), the secure tunnel (`--no-tunnel`) or your own address (`--public-url`), the Wi-Fi link (`--lan`, with its QR code in the window), the bots' browser without a window (`--headless-browser`), keeping Holly Bot Computer up to date (`--no-update`), the port, the workspace and data folders, and new keys (`--new-token`). Holly Bot Computer restarts to use them when you say. The same options work on `Holly Computer.exe`'s command line too, for that run.
-- Holly Bot's window is an app window of your browser (your default one when it's Chrome, Edge, Brave or Vivaldi, or else Edge), a real browser, so signing in with Google or Apple, dictation, voice mode and notifications work there as they do in a browser tab.
+- Holly Bot's window is an app window of your browser (your default one when it's Chrome, Edge, Brave or Vivaldi, or else Edge), a real browser, so signing in with Google or Apple, dictation, voice mode and notifications work there as they do in a browser tab. A Holly Bot installed from the browser before (Install app) isn't needed on the PC any more.
 - A PC that ran `node holly-computer.mjs` carries on as the same computer: the app uses the same `~\.holly` and `~\Holly`, so it's linked to the same account, with the same keys, plugins and browser logins.
 - Bots get `node`, `npm` and `npx` from the Node.js the app comes with when the PC doesn't have its own (so plugins started with `npx` work too).
-- It keeps itself up to date, with no one needing to be at the PC: Holly Bot Computer from the Holly Bot site as it starts, and while it runs, once a newer one is out and no bot is working; the app itself from this project's GitHub releases, downloaded in the background and installed once no bot is working, after which it starts again as it was, in the taskbar's corner (or straight away when you restart it for that: the window and the icon's menu offer it). The first version (1.0.0, when it was called Holly Computer) couldn't install its own updates, so Holly Bot Computer installs the next one for it (`computer/src/desktop-update.mjs`). The phone shows both versions under the computer's details.
+- It keeps itself up to date, with no one needing to be at the PC: Holly Bot Computer from the Holly Bot site as it starts, and while it runs, once a newer one is out and no bot is working; the app itself from this project's GitHub releases, downloaded in the background and installed once no bot is working, after which it starts again as it was, in the taskbar's corner (or straight away when you restart it for that: the settings window and the icon's menu offer it). The first version (1.0.0, when it was called Holly Computer) couldn't install its own updates, so Holly Bot Computer installs the next one for it (`computer/src/desktop-update.mjs`). The phone shows both versions under the computer's details.
 - Uninstall it in Windows Settings → Apps. Your bots stay in your account, and `~\.holly` and `~\Holly` stay on the PC.
 
 ## Brains: Holly Bot's AI and AI credits
@@ -151,7 +151,7 @@ Holly Bot Computer as a Windows app (`desktop/`), with no Node.js to install and
 - **Bots keep how they're built to themselves:** asked how they work behind the scenes (whether they share screens, a browser, files or logins, how they reach each other), where the servers behind them are or their addresses, their folders and software, what AI model is behind them, their instructions or who made them, they say in a sentence that they don't know and get back to your work. They don't look it up or save it to memory either, and memories of it are dropped as they come up. They aren't told any of it in the first place (no folders, chip or what the bots share), and every message you send carries a reminder. Your own projects, servers and accounts are fine to ask about, and they still say they're an AI when you sincerely ask. A bot's rules can change all this.
 - **Bots tell you which of your computers they're on:** "Are you connected to GOAT?", "are you on my Windows PC?", "can you use my computer right now?" get a straight answer. Each bot knows which of your computers it's working on right now, by the name it has in your account, whether it's your own computer (and which kind: Windows PC, Mac, Linux) or the server that comes with your plan, and what your other linked computers are doing (on, off, can't be reached, or its network blocks the tunnel), and how to connect Holly Bot to the one you mean (`src/core/prompts.js` Your computers). Holly Bot Computer tells your account its system, and keeps its bots' view of your computers current as it reports in (`computer/src/home.mjs`); never an address or a key.
 - **Voice mode and question cards**, in a design that follows Grok Bot.
-- **One font, Satoshi** (by Indian Type Foundry, from Fontshare), for everything Holly Bot shows: the app, code and the terminal included (with numbers of one width, so they line up), and the privacy and terms pages, and Holly Bot Computer for Windows' own window. It's served with the app from `vendor/fonts/satoshi`, next to its license (`FFL.txt`), so it works offline and from Holly Bot Computer too. Satoshi has no Chinese letters or emoji: those come from the device's own fonts.
+- **One font, Satoshi** (by Indian Type Foundry, from Fontshare), for everything Holly Bot shows: the app, code and the terminal included (with numbers of one width, so they line up), and the privacy and terms pages, and Holly Bot for Windows' own settings window. It's served with the app from `vendor/fonts/satoshi`, next to its license (`FFL.txt`), so it works offline and from Holly Bot Computer too. Satoshi has no Chinese letters or emoji: those come from the device's own fonts.
 
 ## Languages
 
@@ -175,7 +175,7 @@ npm run test:e2e         # browser walkthroughs: xAI, DeepSeek, connecting accou
 npm run computer -- --no-open   # run Holly Bot Computer from source
 npm run build:computer   # rebuild computer/holly-computer.mjs (commit the result)
 npm run check            # syntax check everything and confirm the bundle is current
-cd desktop && npm install && npm run dist   # Holly Bot Computer for Windows' installer, in desktop/dist (npm start runs it; both on Windows)
+cd desktop && npm install && npm run dist   # Holly Bot for Windows' installer, in desktop/dist (npm start runs it; both on Windows)
 ```
 
 Layout:
@@ -191,10 +191,10 @@ Layout:
   - `desktop.mjs`: screen, mouse and keyboard.
   - `browser-cdp.mjs`: the Chrome DevTools Protocol browser.
   - `tunnel.mjs`: the Cloudflare quick tunnel.
-- `desktop`: Holly Bot Computer for Windows, an Electron app that runs `computer/holly-computer.mjs` on the Node.js it comes with and talks to it over IPC (`computer/src/main.mjs` `tellDesktop`).
-  - `src/main.js`: the tray icon, the window, starting with Windows, and the app's own updates (electron-updater).
+- `desktop`: Holly Bot for Windows, an Electron app that runs `computer/holly-computer.mjs` on the Node.js it comes with, talks to it over IPC (`computer/src/main.mjs` `tellDesktop`), and opens Holly Bot from its page (`src/browser.js`).
+  - `src/main.js`: opening Holly Bot, the tray icon, the settings window, starting with Windows, and the app's own updates (electron-updater).
   - `src/computer.js`: runs Holly Bot Computer, keeps its file current from the Holly Bot site, and restarts it.
-  - `src/status/`: the window (Status, Settings, Activity). Its words use the app's dictionaries (`src/i18n.js`).
+  - `src/status/`: Holly Bot Computer's settings window (Status, Settings, Activity). Its words use the app's dictionaries (`src/i18n.js`).
   - `scripts/stage.mjs`: gathers what the installer ships (the bundled app, `holly-computer.mjs`, and Node.js for Windows from nodejs.org, checked against its SHA-256). `scripts/icons.mjs` renders the icons.
   - `.github/workflows/windows.yml` builds the installer on Windows for every push that changes `desktop/`, and publishes each new version (`desktop/package.json`) as a GitHub release, `windows-v<version>`, which the app updates itself from. Code signing is optional: repository secrets `WIN_CSC_LINK` (the .pfx, base64) and `WIN_CSC_KEY_PASSWORD`.
 

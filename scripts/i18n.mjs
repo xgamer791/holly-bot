@@ -1,6 +1,6 @@
 // The app's words and their translations (src/ui/i18n.js). Finds all the
 // English the app shows: tr('…'), trx('…'), trn(n, '…', '…'), phrase('…') and
-// mark('…') in src/ and in desktop/src/ (Holly Bot Computer for Windows, which
+// mark('…') in src/ and in desktop/src/ (Holly Bot for Windows, which
 // uses the same dictionaries), and the server's own words, new
 // ConvexError("…") in convex/, which the app translates as it shows them.
 // Then it checks each dictionary in src/ui/i18n/ against them: what's missing,
