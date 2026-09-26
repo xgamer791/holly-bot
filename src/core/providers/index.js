@@ -230,7 +230,7 @@ export class ProviderHub {
     if (!this.isReady(DEFAULT_PROVIDER)) {
       const err = new ProviderError(this.app.db?.cloud
         ? "Holly Bot's AI isn't ready yet. Try again in a minute."
-        : 'Link this computer to your Holly Bot account (Settings → Bot Computer) so your bots can use its AI.');
+        : 'Link this computer to your Holly Bot account (the computer button at the top right) so your bots can use its AI.');
       err.kind = 'no_key';
       throw err;
     }

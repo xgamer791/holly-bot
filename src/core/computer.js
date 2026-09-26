@@ -29,7 +29,7 @@ export class ComputerClient {
   }
 
   async request(path, body, { signal, method } = {}) {
-    if (!this.configured) throw new Error('No Bot Computer connected (Settings → Bot Computer).');
+    if (!this.configured) throw new Error('No Bot Computer connected (the computer button at the top right sets one up).');
     let res;
     try {
       res = await fetch(`${this.url}${path}`, {

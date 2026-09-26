@@ -37,7 +37,7 @@ export class RemoteApp {
     this.activity = [];
     this.pluginList = [];
     this.viewingThreadId = null;
-    /** Whether live updates are coming through (Settings → Bot Computer). */
+    /** Whether live updates are coming through (the computer button, src/ui/computer-button.js). */
     this.reachable = false;
     this.server = null;
 

@@ -3,12 +3,10 @@ import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Sheet, Group, Row, Field, Toggle, downloadBlob, useDrawer } from './components.js';
 import { Icon } from './icons.js';
 import { Avatar } from './avatar.js';
-import { AI_MODELS } from '../core/providers/index.js';
 import { initials } from '../core/util.js';
 import { APP_NAME, APP_VERSION } from '../core/constants.js';
 import { resolveLanguage } from '../core/i18n.js';
 import { voices } from './speech.js';
-import { MODEL_NAMES } from './bot-profile.js';
 import {
   RemoteApp, chooseComputer, computerConnection, computerState, declineComputer, isPaired, probeComputer, reachComputer, runHere, sameComputer, saveConnection,
 } from '../remote/remote-app.js';
@@ -89,14 +87,14 @@ export function SettingsSheet({ onClose: remove, page: initialPage, provider: in
   const titles = {
     usage: mark('Usage'), keys: mark('Usage'), plugins: mark('Plugins'),
     computer: mark('Bot Computer'), appearance: mark('Appearance'), language: mark('Language'), haptics: mark('Haptics'), data: mark('Data & Backup'),
-    memory: mark('Memory & Context'), help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'), voice: mark('Voice'),
+    help: mark('Help Center'), privacy: mark('Privacy Policy'), terms: mark('Terms of Service'), voice: mark('Voice'),
   };
   const left = top
     ? html`<button class="circle-btn" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>`
     : html`<button class="circle-btn" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>`;
   const pages = {
     usage: UsagePage, keys: UsagePage, plugins: PluginsPage, computer: ComputerPage,
-    appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, data: DataPage, memory: MemorySettingsPage,
+    appearance: AppearancePage, language: LanguagePage, haptics: HapticsPage, data: DataPage,
     help: HelpPage, privacy: PrivacyPage, terms: TermsPage, voice: VoicePage,
   };
   const Page = (top && pages[top.page]) || MainPage;
@@ -119,8 +117,6 @@ function MainPage({ go, onClose }) {
     <${AccountHeader} acct=${acct} go=${go} />
     <${Group} label=${tr('Bots')}>
       <${Row} title=${tr('Plugins')} sub=${tr('Gmail, Outlook, GitHub, Higgsfield, tools and skills')} onClick=${() => go('plugins')} />
-      <${Row} title=${tr('Bot Computer')} value=${app.remote ? app.computer.info?.hostname || tr('Connected') : app.awaitingServer ? tr('Setting up…') : app.linkedComputers?.length ? tr('Not connected') : tr('Set up')} onClick=${() => go('computer')} />
-      <${Row} title=${tr('Memory & Context')} onClick=${() => go('memory')} />
       <${Row} title=${tr('Routines')} onClick=${() => ui.openSheet('routines', {})} />
     <//>
     <${Group} label=${tr('Safety & data')}>
@@ -433,7 +429,7 @@ function AddServers({ servers, saveServers, onAdded, onCancel }) {
     }
     const localNames = Object.keys(found.local);
     if (localNames.length && !app.computer.connected) {
-      setError(tr('A server with a command runs on your Bot Computer. Connect one in Settings → Bot Computer first.'));
+      setError(tr('A server with a command runs on your Bot Computer. Connect one first, with the computer button at the top right.'));
       return;
     }
     if (localNames.length && !app.computer.info?.capabilities?.mcpConfig) {
@@ -872,43 +868,6 @@ function VoicePage() {
     <${Field} label=${tr('Speed {rate}×', { rate: cur.rate || 1.05 })}><input type="range" min="0.7" max="1.6" step="0.05" value=${cur.rate || 1.05} onInput=${(e) => app.saveSettings({ voice: { ...cur, rate: +e.currentTarget.value } })} /><//>`;
 }
 
-function MemorySettingsPage() {
-  const app = useApp();
-  const ui = useUi();
-  const s = app.settings;
-  const mem = s.memory || {};
-  const set = (patch) => app.saveSettings({ memory: { ...mem, ...patch } });
-  const embedOptions = [['auto', tr('Automatic')], ['off', tr('Off (local matching)')]];
-  const memModels = [['same', tr('Same as each bot')], ...AI_MODELS.map((m) => [`deepseek:${m}`, MODEL_NAMES[m] || m])];
-  const first = app.listAgents()[0];
-  return html`
-    <${Group}>
-      <${Row} title=${tr('Learn automatically')} sub=${tr("After each reply, save durable facts to the bot's long-term memory")} toggle=${mem.auto !== false} onToggle=${(v) => set({ auto: v })} />
-      <div class="row"><div class="label"><div class="t">${tr('Memory model')}</div><div class="s">${tr('Extraction, summaries, reflection, group routing')}</div></div>
-        <select value=${s.defaults?.memoryModel || 'same'} onChange=${(e) => app.saveSettings({ defaults: { ...s.defaults, memoryModel: e.currentTarget.value } })}>
-          ${memModels.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
-        </select></div>
-      <div class="row"><div class="label"><div class="t">${tr('Semantic search')}</div><div class="s">${tr('Embeddings for smarter recall')}</div></div>
-        <select value=${mem.embeddings || 'auto'} onChange=${(e) => set({ embeddings: e.currentTarget.value })}>
-          ${embedOptions.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
-        </select></div>
-      <div class="row"><div class="label"><div class="t">${tr('History kept verbatim')}</div><div class="s">${tr('Auto keeps up to ~400k tokens of raw chat with DeepSeek Flash (1M window); only older turns get summarized')}</div></div>
-        <select value=${String(mem.contextBudget || 'auto')} onChange=${(e) => set({ contextBudget: e.currentTarget.value === 'auto' ? 'auto' : +e.currentTarget.value })}>
-          <option value="auto">${tr("Auto (half the model's window)")}</option>
-          ${[32000, 64000, 128000, 256000, 400000].map((n) => html`<option value=${n}>${tr('{n}k tokens', { n: n / 1000 })}</option>`)}
-        </select></div>
-    <//>
-    <div class="group-note">${tr('DeepSeek V4.1 Flash for memory work saves credits; "Same as each bot" gives the best quality.')}</div>
-    <${Group}>
-      <${Row} title=${tr('Team memory')} sub=${tr('Shared notes all bots can read')} onClick=${() => (first ? ui.openSheet('memory', { agentId: first.id, tab: 'team' }) : ui.toast(tr('Create a bot first')))} />
-      <${Row} title=${tr('Re-index memories')} sub=${tr('Compute embeddings for all bots now')} onClick=${async () => {
-        let n = 0;
-        for (const a of app.listAgents()) n += await app.memory.reindex(a.id).catch(() => 0);
-        ui.toast(n ? trn(n, 'Indexed {n} memory', 'Indexed {n} memories') : tr('Nothing to index (needs an OpenAI, Google or Mistral key)'));
-      }} />
-    <//>`;
-}
-
 function DataPage() {
   const app = useApp();
   const ui = useUi();
@@ -986,7 +945,7 @@ function HelpPage() {
     <p>${trx("Connect **Gmail**, **Outlook** or **GitHub** in Settings → Plugins, then just ask: “Anything from Anna this week?”, “Reply that Friday works”, “Delete last month's newsletters”, “Make a private repo called notes and add a README”. With Auto-review on, you see each email before it goes out and each one before it's deleted. Deleted email goes to the trash, where you can get it back; deleting for good, and deleting a repository, always ask.")}</p>
     <h3>${tr('Your subscription')}</h3>
     <p>${tr("You change your plan, update your card, see invoices or cancel on Stripe. A cancelled plan runs to the end of the period you've paid for, and your bots, chats and memories stay in your account.")}</p>
-    <p>${trx("Every plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and Settings → **Bot Computer** shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.")}</p>
+    <p>${trx("Every plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and the **computer button** at the top right shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one.")}</p>
     <h3>${tr('Install as an app')}</h3>
     <p>${tr('iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.')}</p>
     <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">${tr('Full guide on GitHub ↗')}</a></p>
