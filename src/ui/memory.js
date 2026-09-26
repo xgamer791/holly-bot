@@ -108,7 +108,7 @@ function MemoryList({ ownerId, agent, shared = false }) {
     <div class="btn-row" style="margin:6px 0 4px">
       <button class="btn small" onClick=${() => setAdding(!adding)}><${Icon.plus} size="16" /> ${tr('Add')}</button>
       ${!shared && html`<button class="btn small" disabled=${!!busy} onClick=${reflectNow}>${busy === 'reflect' ? html`<span class="spinner"></span>` : html`<${Icon.sparkle} size="16" />`} ${tr('Reflect')}</button>`}
-      <button class="btn small" disabled=${!!busy} onClick=${tidy}>${busy === 'tidy' ? html`<span class="spinner"></span>` : null} ${tr('Tidy up')}</button>
+      <button class="btn small" disabled=${!!busy} onClick=${tidy}>${busy === 'tidy' ? html`<span class="spinner"></span>` : html`<${Icon.broom} size="16" />`} ${tr('Tidy up')}</button>
       <button class="btn small" onClick=${exportMd}><${Icon.download} size="16" /> ${tr('Export')}</button>
     </div>
     ${adding && html`<${MemoryEditor} onCancel=${() => setAdding(false)} onSave=${async (m) => {

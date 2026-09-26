@@ -166,7 +166,7 @@ function AuthScreen({ screen, notice, back, go }) {
   return html`
     <div class="hello-canvas auth">
       <header class="auth-head">
-        <button class="auth-back" aria-label=${tr('Back')} onClick=${back}><${Icon.back} size=${28} /></button>
+        <button class="circle-btn auth-back" aria-label=${tr('Back')} onClick=${back}><${Icon.back} /></button>
         <h1>${signUp ? tr('Create Account') : tr('Sign In')}</h1>
         <span class="auth-back" aria-hidden="true"></span>
       </header>

@@ -41,7 +41,7 @@ export function ChatScreen({ threadId, wide }) {
   }, [threadId]);
 
   if (!thread) {
-    return html`<div class="pane-chat"><div class="chat-topbar"><button class="circle-btn" onClick=${() => ui.navigate('#/')}><${Icon.back} /></button></div>
+    return html`<div class="pane-chat"><div class="chat-topbar"><button class="circle-btn" aria-label=${tr('Back')} onClick=${() => ui.navigate('#/')}><${Icon.back} /></button></div>
       <div class="empty-home"><p>${tr('This chat no longer exists.')}</p></div></div>`;
   }
 

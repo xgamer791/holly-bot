@@ -181,7 +181,7 @@ export function Composer({ thread, agents, onVoice }) {
     ${atts.length > 0 && html`<div class="pending-atts">
       ${atts.map((a, i) => html`<div class="pending-att" key=${i}>
         ${a.type === 'image' ? html`<img src=${a.preview || `data:${a.mime};base64,${a.data}`} alt=${a.name} />` : html`<div class="file"><${Icon.file} size="18" /><span>${a.name}<br /><small>${formatBytes(a.size)}</small></span></div>`}
-        <button class="rm" aria-label=${tr('Remove')} onClick=${() => setAtts(atts.filter((_, j) => j !== i))}><${Icon.x} /></button>
+        <button class="circle-btn xs rm" aria-label=${tr('Remove')} onClick=${() => setAtts(atts.filter((_, j) => j !== i))}><${Icon.x} /></button>
       </div>`)}
     </div>`}
     <div class="composer">
@@ -213,7 +213,7 @@ export function Composer({ thread, agents, onVoice }) {
           ${hasContent
             ? html`<button class="pbar-go" aria-label=${tr('Send')} onClick=${send}><${Icon.up} /></button>`
             : busy
-              ? html`<button class="pbar-go stop" aria-label=${tr('Stop')} onClick=${stop}><span></span></button>`
+              ? html`<button class="pbar-go stop" aria-label=${tr('Stop')} onClick=${stop}><${Icon.stop} /></button>`
               : html`<button class="pbar-go" aria-label=${tr('Voice mode')} onClick=${onVoice}><${Icon.wave} /></button>`}
         </div>
       </div>

@@ -33,6 +33,22 @@ function h(tag, props, ...children) {
 
 const act = (action, arg) => holly.act(action, arg);
 
+/** Lucide's check and x (https://lucide.dev, ISC; see src/ui/icons.js), drawn
+ * as Lucide draws them, for what bots can and can't use here. */
+const LUCIDE = { check: ['M20 6 9 17l-5-5'], x: ['M18 6 6 18', 'm6 6 12 12'] };
+function lucide(name, className) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  const attrs = { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: className };
+  for (const [key, value] of Object.entries(attrs)) svg.setAttribute(key, String(value));
+  for (const d of LUCIDE[name]) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
 function statusWords(status) {
   return {
     starting: tr('Starting…'),
@@ -179,7 +195,7 @@ function renderStatus() {
     h('div', { class: 'card' },
       h('div', { class: 'can' }, CAN.map(([key, label]) => {
         const yes = !!s.can?.[key];
-        return h('span', { class: `chip${yes ? '' : ' off'}` }, h('span', { class: 'mark' }, yes ? '✓' : '✗'), tr(label));
+        return h('span', { class: `chip${yes ? '' : ' off'}` }, lucide(yes ? 'check' : 'x', 'mark'), tr(label));
       })),
       // Holli Bot Computer's own notes (how to let bots use the screen), as it words them.
       s.notes?.length > 0 && h('div', { class: 'note', lang: 'en' }, s.notes.map((note) => h('p', null, note)))),

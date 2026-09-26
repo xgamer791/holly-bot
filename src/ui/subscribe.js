@@ -142,7 +142,7 @@ export function SubscribeScreen({ status: first, back, start, onActive, onFree, 
   // Over the app, Settings has Sign Out: none here, and a way back instead.
   const accountLinks = !onClose && html`<${AccountLinks} busy=${!!busy} onSignOut=${onSignOut} />`;
   const page = `hello${onClose ? ' in-app' : ''}`;
-  const close = onClose && html`<button class="sub-close" aria-label=${tr('Close')} disabled=${busy === 'checkout' || busy === 'billing'} onClick=${onClose}><${Icon.x} size=${20} /></button>`;
+  const close = onClose && html`<button class="circle-btn sub-close" aria-label=${tr('Close')} disabled=${busy === 'checkout' || busy === 'billing'} onClick=${onClose}><${Icon.x} /></button>`;
 
   if (waiting) {
     return html`
@@ -349,7 +349,7 @@ export function PlansPage({ onClose }) {
   if (status) return html`<${SubscribeScreen} status=${status} back=${null} onClose=${onClose} onActive=${() => location.reload()} />`;
   return html`
     <div class="hello in-app">
-      <button class="sub-close" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} size=${20} /></button>
+      <button class="circle-btn sub-close" aria-label=${tr('Close')} onClick=${onClose}><${Icon.x} /></button>
       <div class="hello-canvas">
         <div class="hello-hero device">
           ${error ? html`<p class="auth-error" role="alert">${error}</p>` : html`<span class="spinner" role="status" aria-label=${tr('Loading')}></span>`}

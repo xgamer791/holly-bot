@@ -75,7 +75,7 @@ function FileList({ agentId, onOpen }) {
       return html`<button class="file-row" key=${f.id} onClick=${() => onOpen(f.id)}>
         <span class="fi"><${Ic} /></span>
         <span class="n"><div>${f.path}</div><div>${formatBytes(f.size)} · ${shortTime(f.updatedAt)}${f.source === 'user' ? ` · ${tr('uploaded')}` : ''}</div></span>
-        <${Icon.chevron} size="16" />
+        <${Icon.chevron} size="16" class="chev" />
       </button>`;
     })}`;
 }
@@ -629,14 +629,14 @@ function Screen({ agentId }) {
     <div style="display:flex;gap:8px;margin-top:4px">
       <div class="type-box">
         <input class="input" placeholder=${tr('Type text…')} value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" ...${aboveKeyboard} />
-        ${typing && html`<button class="type-clear" aria-label=${tr('Clear')} onClick=${() => setTyping('')}><${Icon.x} size="16" /></button>`}
+        ${typing && html`<button class="field-clear type-clear" aria-label=${tr('Clear')} onClick=${() => setTyping('')}><${Icon.x} /></button>`}
       </div>
       <button class="btn" onClick=${typeNow}>${tr('Type')}</button>
     </div>
     <div class="btn-row" style="margin-top:8px">
       ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" aria-label=${k === 'Backspace' ? tr('Backspace') : undefined} onClick=${() => pressButton(k)}>${k === 'Backspace' ? html`<${Icon.backspace} size="18" />` : k === 'Escape' ? 'Esc' : k}</button>`)}
-      <button class="btn small" onClick=${() => scroll('up')}>↑ ${tr('Scroll')}</button>
-      <button class="btn small" onClick=${() => scroll('down')}>↓ ${tr('Scroll')}</button>
+      <button class="btn small" aria-label=${tr('Scroll up')} onClick=${() => scroll('up')}><${Icon.up} size="16" /> ${tr('Scroll')}</button>
+      <button class="btn small" aria-label=${tr('Scroll down')} onClick=${() => scroll('down')}><${Icon.arrowDown} size="16" /> ${tr('Scroll')}</button>
       ${mode === 'browser' && html`<button class="btn small" onClick=${() => { typed.current = null; act('back'); }}>${tr('Back')}</button>`}
     </div>
     <div style="display:flex;gap:8px;margin-top:8px">

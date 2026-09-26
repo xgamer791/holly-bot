@@ -106,8 +106,8 @@ export function VoiceMode({ thread, agent, onClose }) {
   return html`
     <div class="voice" role="dialog" aria-label=${tr('Voice mode')}>
       <div class="top">
-        <span class="status-pill"><span class="d" style="background:var(--green)"></span>${tr('Voice')}</span>
         <button class="circle-btn" aria-label=${tr('Close voice mode')} onClick=${onClose}><${Icon.x} /></button>
+        <span class="status-pill"><span class="d" style="background:var(--green)"></span>${tr('Voice')}</span>
       </div>
       <div class="center">
         <${Avatar} shape=${agent?.shape} color=${agent?.color} size=${Math.min(200, innerWidth * 0.46)} live working=${phase === 'thinking'} anim=${thinkingOf(agent)}
@@ -117,7 +117,7 @@ export function VoiceMode({ thread, agent, onClose }) {
         ${reply && phase !== 'listening' && html`<div class="reply">${truncate(reply, 600)}</div>`}
       </div>
       <div class="controls">
-        <button class="end" aria-label=${tr('End')} onClick=${onClose}><${Icon.x} /></button>
+        <button class="end" aria-label=${tr('End')} onClick=${onClose}><${Icon.phoneOff} /></button>
         <button class=${`big ${phase === 'listening' ? 'listening' : ''}`} aria-label=${status} onClick=${mainAction}>
           ${phase === 'thinking' ? html`<${Icon.stop} />` : phase === 'speaking' ? html`<${Icon.wave} />` : html`<${Icon.mic} />`}
         </button>

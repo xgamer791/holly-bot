@@ -43,13 +43,13 @@ export function HomeScreen({ activeThreadId }) {
         <button ref=${plusRef} class="top-btn" aria-label=${tr('New')} onClick=${() => setMenu(plusRef.current)}><${Icon.plus} /></button>
       </header>
       ${menu && html`<${Popover} anchor=${menu} onClose=${() => setMenu(null)} items=${[
-        { label: tr('New Bot'), onClick: () => ui.openSheet('createBot') },
-        { label: tr('New Group Chat'), onClick: () => ui.openSheet('newGroup') },
+        { label: tr('New Bot'), icon: Icon.bot, onClick: () => ui.openSheet('createBot') },
+        { label: tr('New Group Chat'), icon: Icon.users, onClick: () => ui.openSheet('newGroup') },
       ]} />`}
       <div class="home-scroll" onScroll=${() => swiped && setSwiped(null)}>
         ${searching && html`<div class="search-bar"><${Icon.search} />
           <input autofocus placeholder=${tr('Search bots and chats')} value=${query} onInput=${(e) => setQuery(e.currentTarget.value)} />
-          ${query && html`<button aria-label=${tr('Clear')} onClick=${() => setQuery('')}><${Icon.x} size="16" /></button>`}
+          ${query && html`<button class="field-clear" aria-label=${tr('Clear')} onClick=${() => setQuery('')}><${Icon.x} /></button>`}
         </div>`}
         <${ComputerNotice} />
         ${!threads.length && !q && html`<${EmptyHome} />`}
@@ -93,7 +93,7 @@ function ComputerNotice() {
       <${Icon.monitor} size="18" />
       <span>${notice.text}</span>
       ${notice.action && html`<button class="list-notice-action" onClick=${notice.action.onClick}>${notice.action.label}</button>`}
-      <button class="list-notice-close" aria-label=${tr('Dismiss')} onClick=${dismiss}><${Icon.x} size="16" /></button>
+      <button class="circle-btn sm" aria-label=${tr('Dismiss')} onClick=${dismiss}><${Icon.x} /></button>
     </div>`;
 }
 

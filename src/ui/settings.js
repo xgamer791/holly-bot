@@ -982,7 +982,7 @@ function HelpPage() {
     <p>${trx("Every paid plan comes with **your own computer**, a server that runs your bots around the clock and stays linked to your account. The app connects to it by itself, and the **computer button** at the top right shows how it's doing. Upgrading makes it bigger; downgrading moves your bots' files to a smaller one. On Free, you can link a computer of your own instead.")}</p>
     <h3>${tr('Install as an app')}</h3>
     <p>${tr('iPhone: Share → Add to Home Screen. Android/desktop Chrome: Install app.')}</p>
-    <p><a href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">${tr('Full guide on GitHub ↗')}</a></p>
+    <p><a class="ext-link" href="https://github.com/xgamer791/holly-bot#readme" target="_blank" rel="noopener">${tr('Full guide on GitHub')}<${Icon.external} size="15" /></a></p>
   </div>`;
 }
 
@@ -1002,7 +1002,7 @@ function LegalPage({ file, title }) {
     ${body
       ? html`<div class="bubble plain-bot legal-body" lang="en" style="max-width:100%;line-height:1.5" dangerouslySetInnerHTML=${{ __html: body }}></div>`
       : html`<p class="hint">${tr("The {title} couldn't be loaded here.", { title })}</p>`}
-    <p style="text-align:center"><a href=${file} target="_blank" rel="noopener">${tr('Open in the browser ↗')}</a></p>`;
+    <p style="text-align:center"><a class="ext-link" href=${file} target="_blank" rel="noopener">${tr('Open in the browser')}<${Icon.external} size="15" /></a></p>`;
 }
 
 function PrivacyPage() {

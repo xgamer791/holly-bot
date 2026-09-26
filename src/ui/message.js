@@ -25,7 +25,7 @@ function SystemNotice({ msg }) {
   const text = (msg.parts || []).map((p) => p.text).join(' ');
   if (msg.routineId) {
     const title = text.match(/Routine “([^”]+)”/)?.[1] || tr('Routine');
-    return html`<div class="notice routine"><${Icon.clock} size="14" class="inline" /> ${tr('Routine: {title}', { title })}</div>`;
+    return html`<div class="notice routine"><${Icon.clock} size="14" /> ${tr('Routine: {title}', { title })}</div>`;
   }
   return html`<div class="notice">${(msg.parts || []).map((p) => phraseOr(p.say, p.text)).join(' ')}</div>`;
 }
@@ -124,7 +124,7 @@ function Stopped({ thread, agent, text, isLast }) {
   };
   return html`<div class="stopped-row">
     ${!text && html`<span>${tr('Stopped.')}</span>`}
-    <button class="continue-btn" onClick=${carryOn}><${Icon.play} size="14" /> ${tr('Continue')}</button>
+    <button class="btn small" onClick=${carryOn}><${Icon.play} size="14" /> ${tr('Continue')}</button>
   </div>`;
 }
 
@@ -213,7 +213,7 @@ function QuestionCard({ call, msg }) {
     <div class="card" role="group" aria-label=${pending.question}>
       <div class="card-title">${pending.question}</div>
       ${pending.subtitle && html`<div class="card-sub">${pending.subtitle}</div>`}
-      ${open && html`<button class="card-x" aria-label=${tr('Dismiss')} onClick=${() => app.runtime.dismiss(msg.id, call.id)}><${Icon.x} /></button>`}
+      ${open && html`<button class="circle-btn sm card-x" aria-label=${tr('Dismiss')} onClick=${() => app.runtime.dismiss(msg.id, call.id)}><${Icon.x} /></button>`}
       ${open ? html`
         <div class="options">
           ${options.map((opt, i) => html`
