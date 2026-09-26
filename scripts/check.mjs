@@ -1,5 +1,5 @@
 // Quick checks before committing: every JS file parses, and the single-file
-// Holly Computer build is up to date with its sources.
+// Holly Bot Computer build is up to date with its sources.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';

@@ -3,7 +3,7 @@
 // else Microsoft Edge, which Windows comes with). It's a real browser, signed
 // in to what you're signed in to there, so signing in with Apple or Google,
 // dictation, voice mode and notifications work in it just as they do on
-// Holly Computer's page in a browser tab. Without one, the default browser
+// Holly Bot Computer's page in a browser tab. Without one, the default browser
 // opens it in a tab.
 
 import { execFile, spawn } from 'node:child_process';
@@ -68,7 +68,7 @@ async function appBrowser() {
   return edge().catch(() => null);
 }
 
-/** Opens Holly Bot at `url` (Holly Computer's own page) in a window of its own. */
+/** Opens Holly Bot at `url` (Holly Bot Computer's own page) in a window of its own. */
 export async function openHollyBot(url) {
   const program = await appBrowser();
   if (program) {

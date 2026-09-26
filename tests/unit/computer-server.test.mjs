@@ -1,4 +1,4 @@
-// Integration: boots Holly Computer (bots living on the computer) and drives it
+// Integration: boots Holly Bot Computer (bots living on the computer) and drives it
 // through the same HTTP API the phone app uses, with a fake OpenAI-compatible
 // model server standing in for DeepSeek.
 import { test, before, after } from 'node:test';
@@ -84,7 +84,7 @@ test('health is public, everything else needs the pairing token', async () => {
   assert.equal(state.computer.capabilities.shell, true);
 });
 
-test('health says which run of Holly Computer answers, so its tunnel can tell it apart', async () => {
+test('health says which run of Holly Bot Computer answers, so its tunnel can tell it apart', async () => {
   const h = await (await fetch(`${base()}/v1/health`)).json();
   assert.equal(h.app, 'holly-computer');
   assert.match(h.instance, /^[0-9a-f-]{36}$/);

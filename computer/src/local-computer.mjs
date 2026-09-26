@@ -1,5 +1,5 @@
 // In-process implementation of the Bot Computer interface (same methods as the
-// browser's HTTP ComputerClient in src/core/computer.js). Holly Computer's bots
+// browser's HTTP ComputerClient in src/core/computer.js). Holly Bot Computer's bots
 // call this directly; the HTTP API exposes it to phones and browsers.
 
 import os from 'node:os';
@@ -108,7 +108,7 @@ export class LocalComputer {
 
   /** Opens `owner`'s browser window on its screen when nothing's there. A
    * bot's screen is only its window, with nothing behind it, and the window
-   * closes when Holly Computer restarts (as it does to update) or after half
+   * closes when Holly Bot Computer restarts (as it does to update) or after half
    * an hour unused (screens.mjs): so someone looking at the screen then sees
    * the window, where they can go anywhere, not a black screen. */
   showWindow(owner) {
@@ -158,6 +158,8 @@ export class LocalComputer {
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       node: process.version,
       version: VERSION,
+      // The version of Holly Bot Computer for Windows (desktop/) this runs in, if it does.
+      desktopApp: (process.env.HOLLY_DESKTOP === '1' && process.env.HOLLY_DESKTOP_VERSION) || null,
       screen: desktopInfo?.width ? { width: desktopInfo.width, height: desktopInfo.height } : null,
       notes: desktopInfo?.notes || [],
       capabilities: {

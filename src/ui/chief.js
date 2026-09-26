@@ -40,7 +40,7 @@ export function ChiefScreen({ app, canSkip, onDone, onSkip, onSignOut }) {
     setError(null);
     try {
       const agent = await app.createAgent({ name: name.trim(), shape, color, thinking, role: 'chief', description: CHIEF.description });
-      // A Holly Computer from before the Chief Coordinator makes the bot without its role.
+      // A Holly Bot Computer from before the Chief Coordinator makes the bot without its role.
       if (agent?.id && agent.role !== 'chief') await app.updateAgent(agent.id, { role: 'chief', description: CHIEF.description });
       onDone(agent);
     } catch (err) {

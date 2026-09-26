@@ -1,5 +1,5 @@
 // End to end, the way Holly is meant to be used: bots live on the computer
-// (Holly Computer) and the phone is the remote control. A fake OpenAI-style
+// (Holly Bot Computer) and the phone is the remote control. A fake OpenAI-style
 // model server stands in for the provider; the phone is Chromium at iPhone size.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

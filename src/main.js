@@ -30,9 +30,9 @@ import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 // the app (src/ui/subscribe.js). What it keeps lives in that account on Holly
 // Bot's server (src/account/cloud-db.js), never in the browser where the next
 // person to sign in could see it. Then two ways to run:
-//  • Your computer (recommended): bots live on Holly Computer and this app is the remote control.
+//  • Your computer (recommended): bots live on Holly Bot Computer and this app is the remote control.
 //  • This app: bots run here, call your AI provider directly and keep everything in your account.
-// Holly Computer linked to the account keeps its bots there too, and runs
+// Holly Bot Computer linked to the account keeps its bots there too, and runs
 // them (computer/src/home.mjs). Signing in on its own page links it. It tells
 // the account where it can be reached, so every device signed in to the
 // account controls it with no link to open. The first time, the phone asks
@@ -42,7 +42,7 @@ import { deviceChoice, language, setLanguage, tr } from './ui/i18n.js';
 // sign in (convex/auth.ts); there the pairing token alone protects it.
 
 const root = document.getElementById('app');
-/** A Holly Computer link opened just before this sign-in. */
+/** A Holly Bot Computer link opened just before this sign-in. */
 let adopted = null;
 /** What to say once the app opens (how connecting a service went). */
 let notice = null;
@@ -82,7 +82,7 @@ async function boot() {
 /** Past the subscription page and the computer's setup: finishes connecting
  * a service if that's what brought the person back, then opens the account,
  * as the remote control of the subscriber's computer (openComputer: it's a
- * Holly Computer linked to the account, like any other). */
+ * Holly Bot Computer linked to the account, like any other). */
 async function openApp() {
   whitePages(false);
   if (/^#\/(subscribe|setup|chief)\b/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
@@ -273,8 +273,8 @@ async function runAccount(db) {
 }
 
 /**
- * Opens this app as the remote control of the Holly Computer this device
- * uses: the one it saved (from a link Holly Computer showed, or Settings →
+ * Opens this app as the remote control of the Holly Bot Computer this device
+ * uses: the one it saved (from a link Holly Bot Computer showed, or Settings →
  * Bot Computer), or else one linked to the account, where it told the
  * account it can be reached (computer/src/home.mjs). So every device signed
  * in to the account uses the linked computer, even one that never opened its
@@ -438,10 +438,10 @@ function whereIs(app) {
 }
 
 /** Whether this page is open on the computer itself (not a phone that
- * opened its Wi-Fi link, which Holly Computer serves too). */
+ * opened its Wi-Fi link, which Holly Bot Computer serves too). */
 const onThisComputer = () => location.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
-/** Whether this is Holly Computer's own page, on the computer it controls. */
+/** Whether this is Holly Bot Computer's own page, on the computer it controls. */
 function ownPage(app) {
   try {
     return !!app.remote && onThisComputer() && new URL(app.base).origin === location.origin;
@@ -450,7 +450,7 @@ function ownPage(app) {
   }
 }
 
-/** Whether Holly Computer serves this page on the computer itself, even
+/** Whether Holly Bot Computer serves this page on the computer itself, even
  * when the bots run in the page for a moment: it answers /v1/health here.
  * The site doesn't, and nor does a development server. */
 async function servedByComputer() {
@@ -478,7 +478,7 @@ async function servedByComputer() {
  * on the computer too. Not now leaves a note in the bot list instead. When
  * the computer this app uses has stopped, it moves onto another it connects
  * to by itself. It keeps the note, and what the bots here are told about the
- * computer (src/core/prompts.js), up to date too. On Holly Computer's own page
+ * computer (src/core/prompts.js), up to date too. On Holly Bot Computer's own page
  * there's nothing to connect to: it says to tap Connect on the phone, until
  * a phone has.
  */
@@ -640,7 +640,7 @@ function chatComputer(thread) {
   return (thread?.agentIds || []).map(botComputer).filter(Boolean).sort((a, b) => b.at - a.at)[0] || null;
 }
 
-/** The note on Holly Computer's own page until a phone has connected to it. */
+/** The note on Holly Bot Computer's own page until a phone has connected to it. */
 function waitingNotice(device) {
   return { key: `${device.id}:waiting`, text: tr('Open Holly Bot on your phone and tap Connect to use {name} from it.', { name: device.name }) };
 }
@@ -687,7 +687,7 @@ function watchUpdates() {
   setInterval(check, 30 * 60_000);
 }
 
-/** How to set up, update or start Holly Computer (the README). */
+/** How to set up, update or start Holly Bot Computer (the README). */
 const howToComputer = () => ({ label: tr('How'), onClick: () => window.open('https://github.com/xgamer791/holly-bot#put-your-bots-on-your-computer', '_blank', 'noopener') });
 
 /** A word for the bots running here although the account has a computer,
@@ -704,15 +704,15 @@ function noticeAbout(app, list, devices) {
   pc = find('starting');
   if (pc) return { text: tr('{name} is on and opening its connection. Your bots can use it in a moment.', { name: pc.name }) };
   pc = find('blocked');
-  if (pc) return { key: `${pc.id}:blocked`, text: tr("{name} is on, but its network blocks the secure tunnel Holly Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: pc.name }), action: howToComputer() };
+  if (pc) return { key: `${pc.id}:blocked`, text: tr("{name} is on, but its network blocks the secure tunnel Holly Bot Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: pc.name }), action: howToComputer() };
   pc = find('old');
-  if (pc) return { key: `${pc.id}:old`, text: tr('Update Holly Computer on {name} so your bots can use it.', { name: pc.name }), action: howToComputer() };
+  if (pc) return { key: `${pc.id}:old`, text: tr('Update Holly Bot Computer on {name} so your bots can use it.', { name: pc.name }), action: howToComputer() };
   pc = find('hidden');
-  if (pc) return { key: `${pc.id}:hidden`, text: tr('Start Holly Computer on {name} with --tunnel so your bots can use it.', { name: pc.name }), action: howToComputer() };
+  if (pc) return { key: `${pc.id}:hidden`, text: tr('Start Holly Bot Computer on {name} with --tunnel so your bots can use it.', { name: pc.name }), action: howToComputer() };
   return null;
 }
 
-/** Runs this app as the remote control of Holly Computer (`app`, connected
+/** Runs this app as the remote control of Holly Bot Computer (`app`, connected
  * at `conn`). A computer linked to the account is followed to its new
  * address when it restarts. */
 function controlComputer(app, conn) {
@@ -762,7 +762,7 @@ function loadError(err) {
 }
 
 /** Signs out before the app opens, leaving nothing of the account here. A
- * Holly Computer link opened for this sign-in (or `hold`) waits for the next one. */
+ * Holly Bot Computer link opened for this sign-in (or `hold`) waits for the next one. */
 async function signOut(db, { hold = adopted } = {}) {
   await db?.close({ forget: true });
   saveConnection(null);
@@ -770,7 +770,7 @@ async function signOut(db, { hold = adopted } = {}) {
   await account.signOut(); // the listener in boot() reloads into the welcome screen
 }
 
-/** Holly Computer's Wi-Fi address (http://192.168…), where Google and Apple
+/** Holly Bot Computer's Wi-Fi address (http://192.168…), where Google and Apple
  * can't send anyone back, and browser automation: no account. On Wi-Fi the
  * pairing token protects the app and the bots live on the computer. */
 async function bootWithoutAccount(link) {
@@ -788,8 +788,8 @@ async function bootWithoutAccount(link) {
   return bootLocal(db);
 }
 
-/** A Holly Computer tunnel (or --public-url) address serves the build that
- * Holly Computer was started with, and Google and Apple can't send anyone back
+/** A Holly Bot Computer tunnel (or --public-url) address serves the build that
+ * Holly Bot Computer was started with, and Google and Apple can't send anyone back
  * to it. So it hands over to the Holly Bot site: always the current build,
  * with sign-in, connected to the same computer. The pairing token rides in
  * the #fragment, which browsers never send to GitHub. */
@@ -837,7 +837,7 @@ async function bootRemote(conn) {
   controlComputer(app, conn);
 }
 
-/** The Holly Computer this device controls can't be reached. */
+/** The Holly Bot Computer this device controls can't be reached. */
 function showConnectProblem(conn, error) {
   render(null, root);
   document.documentElement.classList.remove('signed-out');
@@ -849,7 +849,7 @@ function showConnectProblem(conn, error) {
 }
 
 /**
- * Signed in, a Holly Computer keeps its bots in the account. One that isn't
+ * Signed in, a Holly Bot Computer keeps its bots in the account. One that isn't
  * linked yet is offered the link; one linked to another account isn't opened
  * here. True when a screen took over instead of the app.
  */
@@ -857,7 +857,7 @@ function computerAccountStep(app, conn) {
   if (!signInWorksHere() || !account.signedIn) return false;
   const link = app.server?.account;
   if (!link) {
-    app.computerNotice = { key: `${app.server?.name || conn.name || conn.url}:no-account`, text: tr('Update Holly Computer to keep its bots in your account.'), action: howToComputer() };
+    app.computerNotice = { key: `${app.server?.name || conn.name || conn.url}:no-account`, text: tr('Update Holly Bot Computer to keep its bots in your account.'), action: howToComputer() };
     return false;
   }
   if (link.linked && link.userId === account.userId) return false;

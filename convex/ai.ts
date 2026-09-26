@@ -5,7 +5,7 @@ import { MODELS, RENAMED, costOf, promptTokens, usageOf, type Usage } from "./li
 
 // Holly Bot's AI: DeepSeek, on Holly Bot's own key (DEEPSEEK_API_KEY), paid
 // for with each account's monthly credits (convex/credits.ts). The app and
-// Holly Computer send their bots' OpenAI-style chat requests here
+// Holly Bot Computer send their bots' OpenAI-style chat requests here
 // (src/core/providers) with the account's session in place of a key. This
 // lets a request through while the account has credits, passes it on to
 // DeepSeek, streams the answer back as it comes, and charges what DeepSeek

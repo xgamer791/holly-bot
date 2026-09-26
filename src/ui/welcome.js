@@ -235,7 +235,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
     found.bots && trn(found.bots, '{n} bot', '{n} bots'),
     found.chats && trn(found.chats, '{n} chat', '{n} chats'),
     !found.bots && !found.chats && found.settings && tr('your settings and keys'),
-    found.computer && tr('a link to your Holly Computer'),
+    found.computer && tr('a link to your Holly Bot Computer'),
   ].filter(Boolean);
   const what = parts.length > 1 ? listText(parts) : parts[0] || tr('settings');
   const run = (name, fn) => async () => {
@@ -281,7 +281,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
 }
 
 /**
- * A Holly Computer that isn't linked to an account yet, opened while signed
+ * A Holly Bot Computer that isn't linked to an account yet, opened while signed
  * in. Linking keeps its bots in the account: what it has now moves in, and it
  * goes on running them (computer/src/home.mjs). `onLink` can take a while.
  */
@@ -313,7 +313,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto
           <p class="device-text">${who
             ? trx('Link **{name}** to your account (**{who}**). Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name, who })
             : trx('Link **{name}** to your account. Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name })}</p>
-          <p class="hello-warning" role="note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with {flag} and the old links stop working.", { name, flag: html`<code>--new-token</code>` })}</p>
+          <p class="hello-warning" role="note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with {flag} and the old links stop working.", { name, flag: html`<code>--new-token</code>` })}</p>
           ${busy && html`<p class="hello-note" role="status">${tr('Moving your bots into your account. This can take a minute.')}</p>`}
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>
@@ -328,7 +328,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto
     </div>`;
 }
 
-/** A Holly Computer linked to a different account than the one signed in. */
+/** A Holly Bot Computer linked to a different account than the one signed in. */
 export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
   return html`
     <div class="hello">

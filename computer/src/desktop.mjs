@@ -430,8 +430,8 @@ JSON.stringify({ w: f.size.width, h: f.size.height, trusted: t, record: r })`);
     } catch (err) {
       notes.push(`Could not read the screen size: ${err.message}`);
     }
-    if (trusted === false) notes.push('To let bots use the mouse and keyboard: System Settings → Privacy & Security → Accessibility → turn on your terminal app, then restart Holly Computer.');
-    if (canRecord === false) notes.push('To let bots see the screen: System Settings → Privacy & Security → Screen & System Audio Recording → turn on your terminal app, then restart Holly Computer.');
+    if (trusted === false) notes.push('To let bots use the mouse and keyboard: System Settings → Privacy & Security → Accessibility → turn on your terminal app, then restart Holly Bot Computer.');
+    if (canRecord === false) notes.push('To let bots see the screen: System Settings → Privacy & Security → Screen & System Audio Recording → turn on your terminal app, then restart Holly Bot Computer.');
     this.cached = { width, height, screenshotAvailable: width > 0, inputAvailable: width > 0, notes };
     this.cachedAt = Date.now();
     return this.cached;
@@ -837,7 +837,7 @@ class WindowsDesktop {
     } catch (err) {
       notes.push(`Screen control unavailable: ${err.message}`);
     }
-    notes.push('Bots can\'t click inside windows that run as administrator unless Holly Computer runs as administrator too.');
+    notes.push('Bots can\'t click inside windows that run as administrator unless Holly Bot Computer runs as administrator too.');
     this.cached = { width, height, screenshotAvailable: width > 0, inputAvailable: width > 0, notes };
     this.cachedAt = Date.now();
     return this.cached;

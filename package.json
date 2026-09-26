@@ -1,6 +1,6 @@
 {
   "name": "holly-bot",
-  "version": "1.36.3",
+  "version": "1.37.0",
   "private": true,
   "description": "Holly: a bring-your-own-key, multi-agent AI assistant with per-agent deep memory. Static PWA — no build step.",
   "type": "module",

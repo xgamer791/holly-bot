@@ -3,7 +3,7 @@ import { Avatar } from './avatar.js';
 import { saveConnection } from '../remote/remote-app.js';
 import { tr } from './i18n.js';
 
-/** Shown when the saved Holly Computer can't be reached at startup. */
+/** Shown when the saved Holly Bot Computer can't be reached at startup. */
 export function ConnectProblem({ conn, error, onRetry }) {
   const [url, setUrl] = useState(conn?.url || '');
   const [token, setToken] = useState(conn?.token || '');
@@ -23,11 +23,11 @@ export function ConnectProblem({ conn, error, onRetry }) {
         <h2>${tr("Can't reach your computer")}</h2>
         <p>${conn?.name
           ? tunnel
-            ? tr("Your bots live on “{name}”. Make sure it's on and Holly Computer is running. Its address changes each time it restarts: sign in on the page it opens on the computer, and this app finds it wherever it is.", { name: conn.name })
-            : tr("Your bots live on “{name}”. Make sure it's on and Holly Computer is running.", { name: conn.name })
+            ? tr("Your bots live on “{name}”. Make sure it's on and Holly Bot Computer is running. Its address changes each time it restarts: sign in on the page it opens on the computer, and this app finds it wherever it is.", { name: conn.name })
+            : tr("Your bots live on “{name}”. Make sure it's on and Holly Bot Computer is running.", { name: conn.name })
           : tunnel
-            ? tr("Your bots live on your Holly Computer. Make sure it's on and Holly Computer is running. Its address changes each time it restarts: sign in on the page it opens on the computer, and this app finds it wherever it is.")
-            : tr("Your bots live on your Holly Computer. Make sure it's on and Holly Computer is running.")}</p>
+            ? tr("Your bots live on your Holly Bot Computer. Make sure it's on and Holly Bot Computer is running. Its address changes each time it restarts: sign in on the page it opens on the computer, and this app finds it wherever it is.")
+            : tr("Your bots live on your Holly Bot Computer. Make sure it's on and Holly Bot Computer is running.")}</p>
         <p style="color:var(--red);font-size:14px">${error}</p>
         ${edit && html`<div style="width:100%;max-width:420px;text-align:left">
           <div class="field"><label>${tr('Computer URL')}</label><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /></div>

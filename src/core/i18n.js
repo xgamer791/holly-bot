@@ -1,7 +1,7 @@
 // The languages Holly Bot speaks. The app is written in English, and what a
 // person sees goes through a translation (src/ui/i18n.js, dictionaries in
 // src/ui/i18n/) that looks the English up. This is the part the app core
-// needs too, wherever the bots run (in the app or on Holly Computer): the
+// needs too, wherever the bots run (in the app or on Holly Bot Computer): the
 // languages, filling in {names}, phrases the app translates as it shows them
 // (what a bot is doing, on its cards), and the few things a new bot says
 // before anyone has written to it, in the language the app was last shown in

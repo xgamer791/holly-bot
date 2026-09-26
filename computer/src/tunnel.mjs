@@ -50,7 +50,7 @@ export function findCloudflared(dataDir) {
 
 /**
  * Path to cloudflared: the one installed on this computer, or else (or with
- * `own`) the one Holly Computer keeps in <dataDir>/bin, downloaded the first
+ * `own`) the one Holly Bot Computer keeps in <dataDir>/bin, downloaded the first
  * time and again once it's old.
  */
 export async function ensureCloudflared(dataDir, { log = console, own = false } = {}) {
@@ -93,7 +93,7 @@ async function downloadCloudflared(dataDir, { log }) {
   return target;
 }
 
-/** Where cloudflared finds Holly Computer's server: 127.0.0.1 unless it
+/** Where cloudflared finds Holly Bot Computer's server: 127.0.0.1 unless it
  * listens on one address only (--host). Not "localhost", which can mean the
  * IPv6 address the server doesn't listen on. */
 export function tunnelOrigin(host, port) {
@@ -102,7 +102,7 @@ export function tunnelOrigin(host, port) {
 }
 
 /**
- * Asks `url` for Holly Computer's health: 'ok' when this computer answers
+ * Asks `url` for Holly Bot Computer's health: 'ok' when this computer answers
  * there (its `instance`, when given), 'down' when something else does
  * (Cloudflare's page for a tunnel that isn't connected), 'unknown' when the
  * question didn't get out (this computer offline, or its DNS doesn't know
@@ -162,11 +162,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export class TunnelKeeper {
   /**
    * @param {object} o
-   * @param {number} o.port  Holly Computer's port
+   * @param {number} o.port  Holly Bot Computer's port
    * @param {string} [o.host]  what it listens on (--host)
    * @param {string | (() => Promise<string>)} o.bin  cloudflared
-   * @param {() => Promise<string>} [o.ownBin]  Holly Computer's own cloudflared, tried when `bin` (one found on this computer) doesn't connect
-   * @param {string} [o.instance]  what /v1/health says this Holly Computer is (server.mjs)
+   * @param {() => Promise<string>} [o.ownBin]  Holly Bot Computer's own cloudflared, tried when `bin` (one found on this computer) doesn't connect
+   * @param {string} [o.instance]  what /v1/health says this Holly Bot Computer is (server.mjs)
    */
   constructor({ port, host, bin, ownBin = null, instance = '', check = checkAddress, onChange = () => {}, log = console, timing = {} }) {
     this.origin = tunnelOrigin(host, port);
@@ -223,7 +223,7 @@ export class TunnelKeeper {
 
   async binary() {
     if (this.ownBin && !this.usingOwn && this.noConnection >= 2) {
-      // The cloudflared installed here didn't connect: try the latest, Holly Computer's own.
+      // The cloudflared installed here didn't connect: try the latest, Holly Bot Computer's own.
       this.usingOwn = true;
       this.path = await this.ownBin();
     }
@@ -385,7 +385,7 @@ export class TunnelKeeper {
   /** This network blocks Cloudflare Tunnel, as far as anyone can tell: said
    * once, until a tunnel works again. */
   blocked(why = 'blocked') {
-    if (this.state !== 'blocked') this.log.warn?.("  Can't open the secure tunnel: this network blocks Cloudflare Tunnel (outbound port 7844, UDP and TCP), so your phone can't reach this computer. Allow it, use another network, or start with --public-url. Holly Computer keeps trying.");
+    if (this.state !== 'blocked') this.log.warn?.("  Can't open the secure tunnel: this network blocks Cloudflare Tunnel (outbound port 7844, UDP and TCP), so your phone can't reach this computer. Allow it, use another network, or start with --public-url. Holly Bot Computer keeps trying.");
     this.set(null, 'blocked', why);
   }
 

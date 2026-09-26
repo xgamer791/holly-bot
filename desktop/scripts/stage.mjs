@@ -1,4 +1,4 @@
-// Gets Holly Computer for Windows ready to run (npm start) or to package
+// Gets Holly Bot Computer for Windows ready to run (npm start) or to package
 // (electron-builder, which takes app\ and stage\: package.json "build"):
 //
 //   app\main.cjs              the app (src\), in one file, with the app's dictionaries
@@ -57,7 +57,7 @@ for (const file of ['Satoshi-Variable.woff2', 'FFL.txt']) cpSync(join(root, 'ven
 cpSync(join(desktop, 'src', 'icons'), join(app, 'icons'), { recursive: true });
 console.log('app: main.cjs, preload.cjs, status/ (with Satoshi), icons/');
 
-// ----- Holly Computer ------------------------------------------------------------------------
+// ----- Holly Bot Computer ------------------------------------------------------------------------
 
 const script = join(root, 'computer', 'holly-computer.mjs');
 if (!existsSync(script)) throw new Error('computer/holly-computer.mjs is missing: run npm run build:computer in the project first.');

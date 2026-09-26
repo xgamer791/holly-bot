@@ -1,14 +1,14 @@
 // The cloud-init script a subscriber's server runs once, as root, when it
 // first boots (convex/servers.ts sends it as the server's user_data). It sets
-// up Holly Computer, unattended:
+// up Holly Bot Computer, unattended:
 //   1. Caddy for HTTPS, Node.js 22 (nodejs.org, checked against its
 //      checksums), a desktop (XFCE on a virtual display) that the app shows
 //      and the bots use, and Google Chrome for the bots' browser.
 //   2. When the server replaces a bigger one (a downgrade), the bots' files
 //      from the old server: its workspace, browser profile and plugins.
-//   3. Holly Computer as a service, which links itself to the subscriber's
+//   3. Holly Bot Computer as a service, which links itself to the subscriber's
 //      account with a one-time code (the link-code file) and keeps their bots
-//      there, like any linked Holly Computer.
+//      there, like any linked Holly Bot Computer.
 //   4. Caddy in front of it at https://<ip>.sslip.io (a name that always
 //      points at this address), with a Let's Encrypt certificate, so the app
 //      can reach it from the Holly Bot site (over HTTP/1.1 or HTTP/2).
@@ -22,9 +22,9 @@ export interface SetupOptions {
   readyUrl: string;
   /** The one-time token the report must carry. */
   readyToken: string;
-  /** The one-time code that links Holly Computer to the account. */
+  /** The one-time code that links Holly Bot Computer to the account. */
   linkCode: string;
-  /** The Holly Bot site, which serves the current Holly Computer. */
+  /** The Holly Bot site, which serves the current Holly Bot Computer. */
   site: string;
   /** What the server is called in the app. */
   name: string;
@@ -106,7 +106,7 @@ rm -f "/tmp/$NODE_TAR"
 
 echo "== Desktop"
 # A screen for the bots, which the app shows: a virtual display (Xvfb) with
-# XFCE on it, which Holly Computer sees and controls (scrot, xdotool) and
+# XFCE on it, which Holly Bot Computer sees and controls (scrot, xdotool) and
 # Chrome opens on. Without it the bots still have the shell, files and a
 # browser, just no screen.
 DESKTOP=""
@@ -127,10 +127,10 @@ else
 fi
 rm -f /tmp/chrome.deb
 
-echo "== Holly Computer"
+echo "== Holly Bot Computer"
 id holly >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/holly --shell /bin/bash holly || fail "Couldn't make the holly user"
 mkdir -p /opt/holly /var/lib/holly/data /var/lib/holly/workspace
-curl -fsSL --retry 3 -o /opt/holly/holly-computer.mjs "\${SITE}computer/holly-computer.mjs" || fail "Downloading Holly Computer failed"
+curl -fsSL --retry 3 -o /opt/holly/holly-computer.mjs "\${SITE}computer/holly-computer.mjs" || fail "Downloading Holly Bot Computer failed"
 chown -R holly:holly /var/lib/holly /opt/holly
 
 IP=$(curl -fsS --max-time 10 http://169.254.169.254/v1/interfaces/0/ipv4/address 2>/dev/null) || IP=""
@@ -156,8 +156,8 @@ if [ -n "$FROM_URL" ]; then
 fi
 
 # Its name in the app, and the one-time code that links it to the account
-# (Holly Computer spends it at start and deletes the file).
-python3 -c 'import json, sys; json.dump({"name": sys.argv[1]}, open("/var/lib/holly/data/config.json", "w"))' "$NAME" || fail "Couldn't write Holly Computer's settings"
+# (Holly Bot Computer spends it at start and deletes the file).
+python3 -c 'import json, sys; json.dump({"name": sys.argv[1]}, open("/var/lib/holly/data/config.json", "w"))' "$NAME" || fail "Couldn't write Holly Bot Computer's settings"
 printf '%s' "$LINK_CODE" > /var/lib/holly/data/link-code
 chmod 600 /var/lib/holly/data/config.json /var/lib/holly/data/link-code
 if [ -n "$DESKTOP" ]; then
@@ -176,7 +176,7 @@ if [ -n "$DESKTOP" ]; then
   SCREEN_UNIT="holly-desktop.service"
   cat > /etc/systemd/system/holly-display.service <<EOF
 [Unit]
-Description=Holly Computer's screen (a virtual display)
+Description=Holly Bot Computer's screen (a virtual display)
 
 [Service]
 User=holly
@@ -190,7 +190,7 @@ WantedBy=multi-user.target
 EOF
   cat > /etc/systemd/system/holly-desktop.service <<EOF
 [Unit]
-Description=Holly Computer's desktop (XFCE)
+Description=Holly Bot Computer's desktop (XFCE)
 Requires=holly-display.service
 After=holly-display.service
 
@@ -213,7 +213,7 @@ fi
 
 cat > /etc/systemd/system/holly.service <<EOF
 [Unit]
-Description=Holly Computer
+Description=Holly Bot Computer
 After=network-online.target $SCREEN_UNIT
 Wants=network-online.target $SCREEN_UNIT
 
@@ -223,7 +223,7 @@ Group=holly
 Environment=HOME=/var/lib/holly
 $SCREEN_ENV
 WorkingDirectory=/var/lib/holly
-# Each start runs the current Holly Computer, like every open of the app.
+# Each start runs the current Holly Bot Computer, like every open of the app.
 ExecStartPre=-/bin/sh -c 'curl -fsSL -o /opt/holly/holly-computer.mjs.new \${SITE}computer/holly-computer.mjs && mv /opt/holly/holly-computer.mjs.new /opt/holly/holly-computer.mjs'
 ExecStart=/usr/local/bin/node /opt/holly/holly-computer.mjs --no-open --allow-sleep --port 8787 --data /var/lib/holly/data --workspace /var/lib/holly/workspace --public-url https://$HOST
 Restart=always
@@ -258,10 +258,10 @@ systemctl daemon-reload
 if [ -n "$DESKTOP" ]; then
   systemctl enable holly-display holly-desktop || echo "The desktop won't start with the server"
 fi
-systemctl enable --now holly || fail "Holly Computer didn't start"
+systemctl enable --now holly || fail "Holly Bot Computer didn't start"
 systemctl enable caddy && systemctl restart caddy || fail "Caddy didn't start"
 
-echo "== Waiting for Holly Computer to link to the account and answer over HTTPS"
+echo "== Waiting for Holly Bot Computer to link to the account and answer over HTTPS"
 UP=""
 for i in $(seq 1 120); do
   if [ -s /var/lib/holly/data/account.json ] && curl -fsS --max-time 10 "https://$HOST/v1/health" >/dev/null 2>&1; then
@@ -271,11 +271,11 @@ for i in $(seq 1 120); do
   sleep 5
 done
 if [ -z "$UP" ]; then
-  [ -s /var/lib/holly/data/account.json ] || fail "Holly Computer didn't link to the account"
-  fail "Holly Computer isn't answering at https://$HOST"
+  [ -s /var/lib/holly/data/account.json ] || fail "Holly Bot Computer didn't link to the account"
+  fail "Holly Bot Computer isn't answering at https://$HOST"
 fi
 
-PAIRING=$(python3 -c 'import json; print(json.load(open("/var/lib/holly/data/config.json"))["token"])') || fail "Couldn't read Holly Computer's pairing token"
+PAIRING=$(python3 -c 'import json; print(json.load(open("/var/lib/holly/data/config.json"))["token"])') || fail "Couldn't read Holly Bot Computer's pairing token"
 report "$(python3 -c 'import json, sys; print(json.dumps({"userId": sys.argv[1], "token": sys.argv[2], "url": sys.argv[3], "pairingToken": sys.argv[4]}))' "$USER_ID" "$READY_TOKEN" "https://$HOST" "$PAIRING")"
 echo "Holly setup finished $(date -u)"
 `;

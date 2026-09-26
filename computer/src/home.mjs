@@ -226,7 +226,7 @@ export class BotHome {
    * fails, nothing changes: the bots keep running from the folder.
    */
   async link(code) {
-    if (this.busy) throw new Error('Holly Computer is busy. Try again in a minute.');
+    if (this.busy) throw new Error('Holly Bot Computer is busy. Try again in a minute.');
     if (this.account.linked) throw new Error('This computer is already linked to a Holly Bot account.');
     this.busy = 'link';
     const local = this.app.db;
@@ -270,7 +270,7 @@ export class BotHome {
    * sends what's left, ends its session, forgets what it kept of the
    * account, and starts again with an empty folder. */
   async unlink() {
-    if (this.busy) throw new Error('Holly Computer is busy. Try again in a minute.');
+    if (this.busy) throw new Error('Holly Bot Computer is busy. Try again in a minute.');
     if (!this.account.linked) return this.status();
     if (!this.planServer) await this.report(); // the account says which this is
     if (this.planServer) throw new Error('This is the computer that comes with your Holly Bot plan: it stays linked to your account.');

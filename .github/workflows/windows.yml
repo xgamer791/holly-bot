@@ -1,14 +1,15 @@
-name: Holly Computer for Windows
+name: Holly Bot Computer for Windows
 
-# Builds Holly Computer for Windows (desktop/) into its installer,
-# Holly-Computer-Setup.exe, on Windows. On main, when desktop/package.json has
-# a version that isn't released yet, it publishes that as a GitHub release,
-# windows-v<version>: the installer people download (the latest one is always
-# at releases/latest/download/Holly-Computer-Setup.exe), and what the app
-# updates itself from (electron-updater reads latest.yml there). Otherwise the
-# installer is kept with the run, to try.
+# Builds Holly Bot Computer for Windows (desktop/) into its installer,
+# Holly-Bot-Computer-Setup.exe, on Windows. On main, when desktop/package.json
+# has a version that isn't released yet, it publishes that as a GitHub
+# release, windows-v<version>: the installer people download (the latest one
+# is always at releases/latest/download/Holly-Bot-Computer-Setup.exe, and at
+# Holly-Computer-Setup.exe, its name before, for links to that), and what the
+# app updates itself from (electron-updater reads latest.yml there). Otherwise
+# the installer is kept with the run, to try.
 #
-# Holly Computer itself (computer/holly-computer.mjs) keeps itself current
+# Holly Bot Computer itself (computer/holly-computer.mjs) keeps itself current
 # from the Holly Bot site, in the app as everywhere, so a new app version is
 # only needed when desktop/ changes: raise its version in desktop/package.json.
 
@@ -81,10 +82,10 @@ jobs:
       - name: Keep the installer with the run
         uses: actions/upload-artifact@v4
         with:
-          name: Holly-Computer-Setup-${{ steps.version.outputs.version }}
+          name: Holly-Bot-Computer-Setup-${{ steps.version.outputs.version }}
           path: |
-            desktop/dist/Holly-Computer-Setup.exe
-            desktop/dist/Holly-Computer-Setup.exe.blockmap
+            desktop/dist/Holly-Bot-Computer-Setup.exe
+            desktop/dist/Holly-Bot-Computer-Setup.exe.blockmap
             desktop/dist/latest.yml
           if-no-files-found: error
 
@@ -96,15 +97,18 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           cat > notes.md <<'EOF'
-          **Download [Holly-Computer-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Computer-Setup.exe) and open it.** Holly Computer installs and starts, with no Node.js or terminal needed.
+          **Download [Holly-Bot-Computer-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Computer-Setup.exe) and open it.** Holly Bot Computer installs and starts, with no Node.js or terminal needed.
 
           - Sign in on the Holly Bot window it opens, with the Apple or Google account you use in Holly Bot. That links this PC to your account. Then open Holly Bot on your phone and tap Connect.
           - It starts when you sign in to Windows and runs in the taskbar's corner, so your bots keep working. Its window shows how it's doing, its settings and what it says as it works.
           - A PC that ran `node holly-computer.mjs` carries on as the same computer, with the same bots, keys and browser logins.
           - Windows may say it protected your PC the first time: choose **More info → Run anyway**.
-          - It keeps itself up to date.
+          - It keeps itself up to date, with no one needing to be at the PC: updates install themselves once no bot is working.
           EOF
+          # Also under its name before, for links to that.
+          cp dist/Holly-Bot-Computer-Setup.exe dist/Holly-Computer-Setup.exe
           gh release create "$TAG" \
-            dist/Holly-Computer-Setup.exe dist/Holly-Computer-Setup.exe.blockmap dist/latest.yml \
+            dist/Holly-Bot-Computer-Setup.exe dist/Holly-Bot-Computer-Setup.exe.blockmap dist/latest.yml \
+            dist/Holly-Computer-Setup.exe \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Holly Computer for Windows $VERSION" --notes-file notes.md
+            --title "Holly Bot Computer for Windows $VERSION" --notes-file notes.md

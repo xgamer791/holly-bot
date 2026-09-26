@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-// Holly Computer on the account (convex/devices.ts): a running computer says
+// Holly Bot Computer on the account (convex/devices.ts): a running computer says
 // where it can be reached, or why it can't be; the first device to connect to
 // it (Connect, on the phone) pairs it, and then the account's devices connect
 // to it by themselves. npm run test:convex.
@@ -63,7 +63,7 @@ describe("where a linked computer can be reached", () => {
     expect(stopped.stoppedAt).toBeTypeOf("number");
   });
 
-  test("an older Holly Computer, which doesn't say why, still reports", async () => {
+  test("an older Holly Bot Computer, which doesn't say why, still reports", async () => {
     const a = await accountWithComputer("alice@example.com");
     await a.computer.mutation(api.devices.report, { url: "", access: "" });
     expect(await a.phone.query(api.devices.list, {})).toMatchObject([{ name: "GOAT", paired: false }]);
@@ -106,7 +106,7 @@ describe("which computer it is, for its bots to tell", () => {
     const bob = await accountWithComputer("bob@example.com");
     // Bob's phone isn't a linked computer, so it can't say where it is.
     await expect(bob.phone.mutation(api.devices.report, { url: "", access: "", platform: "win32" }))
-      .rejects.toThrow(/Only a linked Holly Computer/);
+      .rejects.toThrow(/Only a linked Holly Bot Computer/);
     expect((await alice.phone.query(api.devices.list, {}))[0].platform).toBeUndefined();
   });
 });
@@ -134,7 +134,7 @@ describe("pairing: Connect on the phone, the first time", () => {
   test("a computer renewing its link stays paired", async () => {
     const a = await accountWithComputer("alice@example.com");
     await a.phone.mutation(api.devices.pair, { id: a.deviceId });
-    // Holly Computer renews its own link after 300 days: a new code from its
+    // Holly Bot Computer renews its own link after 300 days: a new code from its
     // own session, redeemed for a new session (convex/auth.ts device).
     const codeHash = "b".repeat(64);
     await a.computer.mutation(api.devices.createLink, { codeHash });

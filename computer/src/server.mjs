@@ -1,4 +1,4 @@
-// Holly Computer HTTP server.
+// Holly Bot Computer HTTP server.
 //   /v1/*   the Bot Computer API (shell, files, web, desktop, browser, plugins)
 //   /api/*  remote control of the bots that live here (state, live events, RPC, files, images)
 //   /       the Holly Bot web app itself (so a phone can open one link)
@@ -318,7 +318,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
         return json(res, 200, { ok: true, app: 'holly-computer', ...info });
       }
       if (!url.pathname.startsWith('/v1/') && !url.pathname.startsWith('/api/')) return serveAsset(url, res);
-      if (!tokenOk(req, url, [token, home?.account?.accessKey].filter(Boolean))) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Computer.' });
+      if (!tokenOk(req, url, [token, home?.account?.accessKey].filter(Boolean))) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Bot Computer.' });
       if (url.pathname.startsWith('/v1/')) return await computerApi(req, res, url);
       return await remoteApi(req, res, url);
     } catch (err) {

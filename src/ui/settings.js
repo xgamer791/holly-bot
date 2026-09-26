@@ -16,8 +16,8 @@ import {
 
 const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
-/** Holly Computer for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
-const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Computer-Setup.exe';
+/** Holly Bot Computer for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
+const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Computer-Setup.exe';
 
 /** The Holly Bot account, re-rendering when it changes and refreshing who is
  * signed in from the database each time Settings opens. */
@@ -46,7 +46,7 @@ const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 /** The top of Settings: who is signed in (their initials, name, email and
  * how they sign in), and under it the usage meter, how much of the month's
  * AI credits is left, which opens the Usage page. Where there are no
- * accounts (Holly Computer's Wi-Fi links, browser automation) only the meter
+ * accounts (Holly Bot Computer's Wi-Fi links, browser automation) only the meter
  * shows. */
 function AccountHeader({ acct, go }) {
   const { credits } = useCredits();
@@ -170,7 +170,7 @@ function MainPage({ go, onClose }) {
 }
 
 /** Signs out of the account, leaving nothing of it on this device: unsent
- * changes go up first (for a few seconds), and the link to a Holly Computer is
+ * changes go up first (for a few seconds), and the link to a Holly Bot Computer is
  * forgotten here (signing in again finds one linked to the account; one that
  * isn't needs its link opened again). */
 async function signOut(app, ui) {
@@ -178,7 +178,7 @@ async function signOut(app, ui) {
   const message = app.remote && app.server?.account?.linked
     ? tr("You'll be back at the welcome screen. Your bots stay in your account and {name} keeps running them. Sign in again and this device connects to it by itself.", { name })
     : app.remote
-      ? tr("You'll be back at the welcome screen, and this device forgets your Holly Computer until you open its link again. Your bots stay on the computer.")
+      ? tr("You'll be back at the welcome screen, and this device forgets your Holly Bot Computer until you open its link again. Your bots stay on the computer.")
       : tr("You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.");
   if (!(await ui.confirm({ title: tr('Sign out?'), message, confirmText: tr('Sign Out'), danger: true }))) return;
   ui.toast(tr('Signing out…'));
@@ -433,7 +433,7 @@ function AddServers({ servers, saveServers, onAdded, onCancel }) {
       return;
     }
     if (localNames.length && !app.computer.info?.capabilities?.mcpConfig) {
-      setError(tr('Your Bot Computer needs the latest Holly Computer for this. A Holly Bot server updates itself within a few minutes; on your own computer, restart Holly Computer.'));
+      setError(tr('Your Bot Computer needs the latest Holly Bot Computer for this. A Holly Bot server updates itself within a few minutes; on your own computer, restart Holly Bot Computer.'));
       return;
     }
     setError('');
@@ -600,7 +600,7 @@ function computerStatus(device, answers) {
   if (state === 'hidden' && device.tunnel === 'starting') return tr('Running · opening its connection…');
   if (state === 'hidden' && device.tunnel === 'blocked') return tr('Running, but its network blocks the secure tunnel (Cloudflare, port 7844)');
   if (state === 'hidden') return tr("Running without --tunnel, so this app can't reach it");
-  if (state === 'old') return tr('Needs the latest Holly Computer (below) before this app can use it');
+  if (state === 'old') return tr('Needs the latest Holly Bot Computer (below) before this app can use it');
   return device.seenAt ? tr('Not running · last seen {when}', { when: shortTime(device.seenAt) }) : tr('Not running');
 }
 
@@ -654,12 +654,12 @@ function LinkedComputers() {
     ${running.map((device) => html`<button key=${device.id} class="btn primary block" style="margin-bottom:10px" disabled=${!!busy} onClick=${() => connect(device)}>
       ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> ${tr('Connect to {name}', { name: device.name })}`}
     </button>`)}
-    <div class="group-note">${tr('While Holly Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.')}</div>`;
+    <div class="group-note">${tr('While Holly Bot Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.')}</div>`;
 }
 
 /** Whether the computer this app controls is the one that comes with the
  * plan, which stays linked to the account and connected (no Unlink or
- * Disconnect for it): Holly Computer says so
+ * Disconnect for it): Holly Bot Computer says so
  * (computer/src/home.mjs), and so does the account's list of computers
  * (convex/devices.ts). Null until that's known. */
 function usePlanServer(app) {
@@ -702,7 +702,7 @@ function ComputerPage() {
       ${app.server?.account?.linked && html`
         <div class="group-label">${tr('Your account')}</div>
         <${Group}><${Row} title=${tr('Kept in your account')} sub=${tr('Its bots, chats, memories and keys are kept in your Holly Bot account, and {name} runs them. Holly Bot on any device signed in to your account connects to it by itself.', { name })} /><//>`}
-      <div class="group-note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.", { name })}</div>
+      <div class="group-note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with --new-token and the old links stop working.", { name })}</div>
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> ${tr('Open the computer screen')}</button>
       ${app.server?.account?.linked && planServer === false && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         if (!(await ui.confirm({ title: tr('Unlink {name}?', { name }), message: tr('Your bots stay in your account, and this device switches to them. {name} stops running them until you link it again.', { name }), confirmText: tr('Unlink'), danger: true }))) return;
@@ -766,11 +766,11 @@ function ComputerPage() {
     ${app.db?.cloud && html`<${LinkedComputers} />`}
     <div class="welcome" style="padding-bottom:4px">
       ${app.db?.cloud
-        ? html`<p>${trx('**Run your bots on your computer.** Link Holly Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.')}</p>`
-        : html`<p>${trx('**Put your bots on your computer.** Run Holly Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
+        ? html`<p>${trx('**Run your bots on your computer.** Link Holly Bot Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.')}</p>`
+        : html`<p>${trx('**Put your bots on your computer.** Run Holly Bot Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
-      <p style="margin-top:0">${trx('**Windows:** download {app} on the computer and open it. It installs Holly Computer, which starts with Windows and runs in the taskbar’s corner, with no Node.js or terminal needed. Then sign in on the Holly Bot window it opens.', { app: html`<a href=${WINDOWS_SETUP} rel="noopener">${tr('Holly Computer for Windows')}</a>` })}</p>
+      <p style="margin-top:0">${trx('**Windows:** download {app} on the computer and open it. It installs Holly Bot Computer, which starts with Windows and runs in the taskbar’s corner, with no Node.js or terminal needed. Then sign in on the Holly Bot window it opens.', { app: html`<a href=${WINDOWS_SETUP} rel="noopener">${tr('Holly Bot Computer for Windows')}</a>` })}</p>
       <p>${trx('**Mac, Linux, or Windows from a terminal:**')}</p>
       <p>${trx('1. Install {node} on the computer.', { node: html`<a href="https://nodejs.org" target="_blank" rel="noopener">${tr('Node.js 22 or newer')}</a>` })}</p>
       <p>${trx('2. Download {file} and run it. Or paste this into a terminal:', { file: html`<a href=${scriptUrl} download>holly-computer.mjs</a>` })}</p>
@@ -790,10 +790,10 @@ function ComputerPage() {
           }}>${cmd}</button>
         </div>`)}
       <p>${app.db?.cloud ? tr("3. Sign in on the page it opens on the computer, with the account you use here. Holly Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it.") : tr("3. Open the page it opens on the computer. That's it.")}</p>
-      <p>${trx('**Keep that link private, like a password.** Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Computer with --new-token and the old links stop working.')}</p>
+      <p>${trx('**Keep that link private, like a password.** Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with --new-token and the old links stop working.')}</p>
       <p style="margin-bottom:0;color:var(--muted);font-size:13.5px">${app.db?.cloud
-        ? trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts, and once it's linked to your account the app finds the new one by itself. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })
-        : trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Computer restarts. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })}</p>
+        ? trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Bot Computer restarts, and once it's linked to your account the app finds the new one by itself. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })
+        : trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Bot Computer restarts. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })}</p>
     </div>
     <div class="group-label">${tr('Or connect manually')}</div>
     <${Field} label=${tr('Computer URL')}><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>

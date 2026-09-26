@@ -2,7 +2,7 @@
 
 /* Satoshi (Indian Type Foundry, from Fontshare) is the only font Holly Bot
    uses, code and the terminal included. It's served with the app, so it works
-   offline and from Holly Computer too (vendor/fonts/satoshi, its license in
+   offline and from Holly Bot Computer too (vendor/fonts/satoshi, its license in
    FFL.txt): one variable file per style, every weight from 300 to 900. */
 @font-face { font-family: 'Satoshi'; src: url('vendor/fonts/satoshi/Satoshi-Variable.woff2') format('woff2'); font-weight: 300 900; font-style: normal; font-display: block; }
 @font-face { font-family: 'Satoshi'; src: url('vendor/fonts/satoshi/Satoshi-VariableItalic.woff2') format('woff2'); font-weight: 300 900; font-style: italic; font-display: block; }

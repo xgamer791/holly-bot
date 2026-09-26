@@ -71,7 +71,7 @@ test('on GOAT: "are you on my Windows PC?" has its answer, and the plan\'s serve
   });
   const mine = section(prompt, 'Your computers');
   assert.match(mine, /Right now you're working on GOAT, their Windows PC, and you can use it/);
-  assert.match(mine, /- Holly Server \(the server that comes with their Holly Bot plan\): off: Holly Computer isn't running there/);
+  assert.match(mine, /- Holly Server \(the server that comes with their Holly Bot plan\): off: Holly Bot Computer isn't running there/);
   assert.doesNotMatch(mine, /- GOAT/);
 });
 
@@ -91,7 +91,7 @@ test('running in the app: on none of their computers, and why each can\'t be use
   const mine = section(prompt, 'Your computers');
   assert.match(mine, /Right now you're not working on any of their computers/);
   assert.match(mine, /Their computers linked to Holly Bot:/);
-  assert.match(mine, /- GOAT \(their Windows PC\): on, but that computer's network blocks the secure tunnel Holly Computer uses \(Cloudflare Tunnel, outbound port 7844\)/);
+  assert.match(mine, /- GOAT \(their Windows PC\): on, but that computer's network blocks the secure tunnel Holly Bot Computer uses \(Cloudflare Tunnel, outbound port 7844\)/);
   assert.match(mine, /- Studio \(their Mac\): says it's on, but Holly Bot can't reach it right now/);
   assert.match(mine, /- Holly Server \(the server that comes with their Holly Bot plan\): on, and opening its connection/);
 });

@@ -1,4 +1,4 @@
-// Tiny image helpers so Holly Computer needs no image libraries: read PNG/JPEG
+// Tiny image helpers so Holly Bot Computer needs no image libraries: read PNG/JPEG
 // sizes, and shrink a PNG screenshot (decode → area-average → encode).
 
 import { inflateSync, deflateSync } from 'node:zlib';

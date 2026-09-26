@@ -1,13 +1,13 @@
-// Holly Computer keeps itself current. As it starts, the single-file build
+// Holly Bot Computer keeps itself current. As it starts, the single-file build
 // asks the Holly Bot site for the latest one. When that's newer, it takes this
 // file's place and runs instead, with the same options, so a fix reaches the
-// computer the next time Holly Computer starts, the way the app on the phone
+// computer the next time Holly Bot Computer starts, the way the app on the phone
 // gets one the next time it opens. --no-update skips this.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 
-/** The latest build, on the Holly Bot site (Holly Computer for Windows fetches it too: desktop/src/computer.js). */
+/** The latest build, on the Holly Bot site (Holly Bot Computer for Windows fetches it too: desktop/src/computer.js). */
 export const LATEST = 'https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs';
 
 /** The app version a build was made from, from its header ("… (app 1.11.0). …"). */
@@ -64,10 +64,10 @@ export async function runLatest({ file, argv, log = console }) {
     renameSync(download, file);
   } catch (err) {
     rmSync(download, { force: true });
-    log.log?.(`\n  Couldn't update Holly Computer to ${latest} (${err.message}). Starting ${current}.`);
+    log.log?.(`\n  Couldn't update Holly Bot Computer to ${latest} (${err.message}). Starting ${current}.`);
     return false;
   }
-  log.log?.(`\n  Updated Holly Computer from ${current} to ${latest}.`);
+  log.log?.(`\n  Updated Holly Bot Computer from ${current} to ${latest}.`);
   const child = spawn(process.execPath, [...process.execArgv, file, ...argv], { stdio: 'inherit', env: { ...process.env, HOLLY_UPDATED: '1' } });
   // Ctrl+C reaches both: the new one stops itself, and this one waits for it.
   process.on('SIGINT', () => {});
@@ -78,7 +78,7 @@ export async function runLatest({ file, argv, log = console }) {
       resolve();
     });
     child.on('error', (err) => {
-      log.error?.(`  Couldn't start the updated Holly Computer: ${err.message}`);
+      log.error?.(`  Couldn't start the updated Holly Bot Computer: ${err.message}`);
       process.exitCode = 1;
       resolve();
     });

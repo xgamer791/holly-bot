@@ -1,6 +1,6 @@
 import { safeJsonParse } from './util.js';
 
-// Client for Holly Computer — the optional companion program (computer/holly-computer.mjs)
+// Client for Holly Bot Computer — the optional companion program (computer/holly-computer.mjs)
 // that gives bots a real computer: shell, files, page fetching without CORS
 // limits, web search, screenshots, a browser, and local MCP servers.
 

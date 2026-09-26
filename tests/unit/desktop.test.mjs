@@ -1,5 +1,5 @@
 // End to end: a virtual X screen with a real Chromium window on it, driven only
-// through Holly Computer's screen/mouse/keyboard actions (as a bot would).
+// through Holly Bot Computer's screen/mouse/keyboard actions (as a bot would).
 // Linux only; skipped unless Xvfb, xdotool, ImageMagick and Chromium exist.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

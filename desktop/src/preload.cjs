@@ -2,12 +2,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('holly', {
-  /** Everything the window shows, and what Holly Computer has printed so far. */
+  /** Everything the window shows, and what Holly Bot Computer has printed so far. */
   get: () => ipcRenderer.invoke('holly:get'),
   /** Asks for something: open, start, restart, folder, pick, set, apply, newKeys, update, copy, quit. */
   act: (action, arg) => ipcRenderer.invoke('holly:act', action, arg),
   /** What the window shows, each time it changes. */
   onView: (fn) => ipcRenderer.on('holly:view', (_event, view) => fn(view)),
-  /** New lines Holly Computer printed. */
+  /** New lines Holly Bot Computer printed. */
   onLines: (fn) => ipcRenderer.on('holly:lines', (_event, lines) => fn(lines)),
 });

@@ -132,11 +132,11 @@ describe("connected accounts stay with the Holly Bot account that connected them
     expect(rows.every((row) => row.userId === alice.userId)).toBe(true);
   });
 
-  test("the same account's other sessions (another phone, a linked Holly Computer) share them; nobody else does", async () => {
+  test("the same account's other sessions (another phone, a linked Holly Bot Computer) share them; nobody else does", async () => {
     const alice = await account("alice@example.com");
     const bob = await account("bob@example.com");
     await alice.as.action(api.connectors.connectToken, { token: TOKEN_A });
-    // Alice's Holly Computer signs in with a session of its own on her account.
+    // Alice's Holly Bot Computer signs in with a session of its own on her account.
     const computerSession = await t.run((ctx) => ctx.db.insert("authSessions", { userId: alice.userId, expirationTime: Date.now() + 3_600_000 }));
     const computer = t.withIdentity({ subject: `${alice.userId}|${computerSession}` });
     expect((await computer.query(api.connectors.list, {})).map((c) => c.account)).toEqual(["alice-gh"]);

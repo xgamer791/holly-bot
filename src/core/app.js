@@ -43,7 +43,7 @@ export const DEFAULT_SETTINGS = {
   // do them. Replaces `autoReview`, which was on; saved values of it are ignored.
   askFirst: false,
   // The person's time zone, as the app last saw it on their device (src/main.js):
-  // what bots on Holly Computer go by (timeZone()).
+  // what bots on Holly Bot Computer go by (timeZone()).
   timeZone: '',
   notifications: false,
   appearance: 'black',
@@ -124,7 +124,7 @@ function markInterrupted(m) {
 
 export class App {
   /**
-   * @param {object} db   IndexedDB wrapper (browser) or NodeDB (Holly Computer)
+   * @param {object} db   IndexedDB wrapper (browser) or NodeDB (Holly Bot Computer)
    * @param {object} [opts]
    * @param {object} [opts.computer] computer implementation (defaults to the HTTP client for a remote Bot Computer)
    * @param {string} [opts.host] 'browser' | 'computer' — where the bots run
@@ -205,7 +205,7 @@ export class App {
 
   /**
    * Run due routines every 30s (and right away). `lock` lets a browser make sure
-   * only one tab runs them; Holly Computer runs them 24/7. Storage shared by
+   * only one tab runs them; Holly Bot Computer runs them 24/7. Storage shared by
    * several devices (an account's) is asked first whether this device is up to
    * date, then for each run, so only one device does it.
    */
@@ -305,7 +305,7 @@ export class App {
   }
 
   /** The person's time zone: this device's, where the bots run in the app.
-   * Holly Computer goes by the one the app last saw on the person's own
+   * Holly Bot Computer goes by the one the app last saw on the person's own
    * device (settings.timeZone), and its own until then. */
   timeZone() {
     return (this.host === 'computer' && this.settings.timeZone) || deviceTimeZone();

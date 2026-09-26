@@ -57,7 +57,7 @@ export default defineSchema({
     at: v.number(),
   }).index("by_user_key", ["userId", "key"]),
 
-  /** One-time codes that link a Holly Computer to an account, stored as the
+  /** One-time codes that link a Holly Bot Computer to an account, stored as the
    * SHA-256 of the code (convex/devices.ts). */
   deviceLinks: defineTable({
     userId: v.id("users"),
@@ -73,7 +73,7 @@ export default defineSchema({
     .index("by_server_key", ["serverKey"]),
 
   /**
-   * Holly Computers linked to an account, each signed in with a session of
+   * Holly Bot Computers linked to an account, each signed in with a session of
    * its own. While one runs it says where the account's devices can reach it
    * (devices:report): `url`, its public https address, and `access`, a key
    * of its own for them (not the pairing token in its QR code) that stops
@@ -162,7 +162,7 @@ export default defineSchema({
    * serverStatus is none, provisioning, ready, resizing (an upgrade, or a move
    * to a smaller server), deleting or error. serverReadyToken holds the
    * SHA-256 of the one-time token a server reports ready with. serverKey ties a
-   * server to the Holly Computer session it links with (devices.serverKey). A
+   * server to the Holly Bot Computer session it links with (devices.serverKey). A
    * downgrade builds the smaller server as nextServer*, then swaps it in.
    */
   subscribers: defineTable({
@@ -185,7 +185,7 @@ export default defineSchema({
     serverCreatedAt: v.optional(v.number()),
     serverError: v.optional(v.string()),
     serverKey: v.optional(v.string()),
-    /** Where the app reaches the server, and its Holly Computer pairing token. */
+    /** Where the app reaches the server, and its Holly Bot Computer pairing token. */
     serverUrl: v.optional(v.string()),
     serverPairingToken: v.optional(v.string()),
     /** When the work under way (provisioning, resizing) started. */

@@ -608,7 +608,7 @@ export class CdpBrowser {
     }
   }
 
-  /** Reuse a browser left running with this profile (e.g. after Holly Computer restarts). */
+  /** Reuse a browser left running with this profile (e.g. after Holly Bot Computer restarts). */
   async existingEndpoint() {
     const file = join(this.userDataDir, 'DevToolsActivePort');
     if (!existsSync(file)) return null;

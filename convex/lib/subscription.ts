@@ -9,7 +9,7 @@ import { requireUserId } from "./auth";
 // exempt: see requireSubscriber.
 
 /** What the server says to an account without a subscription. The app and
- * Holly Computer know it by "active subscription" (src/account/cloud-db.js):
+ * Holly Bot Computer know it by "active subscription" (src/account/cloud-db.js):
  * nothing is lost, and changes wait on the device until it's active again. */
 export const INACTIVE = "Holly Bot needs an active subscription. Choose a plan in the app to keep going.";
 

@@ -18,8 +18,8 @@ const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
 
 /** Where the app asks you to sign in: the Holly Bot site and localhost
- * (Holly Computer's own page, local development), the only places Google and
- * Apple can send people back to (convex/auth.ts). Holly Computer's tunnel
+ * (Holly Bot Computer's own page, local development), the only places Google and
+ * Apple can send people back to (convex/auth.ts). Holly Bot Computer's tunnel
  * address hands over to the site instead (src/main.js). A Wi-Fi address can't
  * finish a sign-in, so there the pairing token alone protects the app. Browser
  * automation on localhost (the e2e scripts) skips it unless the URL has ?signin. */

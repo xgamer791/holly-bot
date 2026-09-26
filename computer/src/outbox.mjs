@@ -1,4 +1,4 @@
-// Holly Computer's outbox: changes to the account that the server doesn't
+// Holly Bot Computer's outbox: changes to the account that the server doesn't
 // have yet, one file each, so they survive a restart or a network outage and
 // go up in order when it's back. The browser keeps the same in IndexedDB; both
 // have the methods src/account/cloud-db.js uses. A file's contents are written

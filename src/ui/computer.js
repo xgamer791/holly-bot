@@ -711,6 +711,8 @@ function ComputerAbout({ onSetup }) {
       <${Row} title=${tr('Shell')} value=${info?.shell || '—'} />
       <${Row} title=${tr('Workspace')} value=${info?.workspace || info?.cwd || '—'} />
       <${Row} title=${tr('Time zone')} value=${info?.tz || '—'} />
+      <${Row} title=${tr('Holly Bot Computer')} value=${info?.version || '—'} />
+      ${info?.desktopApp && html`<${Row} title=${tr('Holly Bot Computer for Windows')} value=${info.desktopApp} />`}
     <//>
     <${Group} label=${tr('Capabilities')}>
       ${['shell', 'files', 'fetch', 'search', 'screenshot', 'browser', 'mcp'].map((k) => html`<${Row} key=${k} title=${tr(CAPABILITIES[k])} value=${caps[k] ? tr('Yes') : tr('No')} />`)}

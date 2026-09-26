@@ -4,7 +4,7 @@ import { guessMime } from '../files.js';
 import { phrase, spoken } from '../i18n.js';
 
 // Tools that act on the Bot Computer (the user's own PC/Mac/Linux box running
-// Holly Computer). With Auto-review on, actions that change things ask for
+// Holly Bot Computer). With Auto-review on, actions that change things ask for
 // approval first — once per task for screen/browser control, per command for shell.
 
 const connected = (app) => !!app.computer?.connected;

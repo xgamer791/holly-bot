@@ -215,7 +215,7 @@ function EmptyHome() {
       ${!app.remote && html`
         <button class="computer-cta" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>
           <${Icon.monitor} size="22" />
-          <span><b>${tr('Let your bots use your computer')}</b><br />${tr('Run Holly Computer on your PC or Mac: bots work there around the clock and you control them from your phone.')}</span>
+          <span><b>${tr('Let your bots use your computer')}</b><br />${tr('Run Holly Bot Computer on your PC or Mac: bots work there around the clock and you control them from your phone.')}</span>
           <${Icon.chevron} size="18" />
         </button>`}
     </div>`;

@@ -1,4 +1,4 @@
-// What a linked Holly Computer tells the account about where it can be
+// What a linked Holly Bot Computer tells the account about where it can be
 // reached (computer/src/home.mjs report, convex/devices.ts report): its
 // address while its tunnel works, and otherwise why there's none, and its
 // system, which an account server from before that doesn't take: then

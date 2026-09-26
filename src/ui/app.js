@@ -160,7 +160,7 @@ export function Root({ app }) {
   // What src/main.js has to say while the app is open (connecting to a computer).
   useEffect(() => app.on('toast', ({ text, error }) => ui.toast(text, { error: !!error })), []);
 
-  // On Holly Computer's own page: a phone just connected to this computer
+  // On Holly Bot Computer's own page: a phone just connected to this computer
   // (computer/src/server.mjs hello). The first time (Connect), a word to
   // confirm it; after that, when it connects by itself, a quieter one.
   useEffect(() => app.on('hello', (hello) => {
@@ -180,7 +180,7 @@ export function Root({ app }) {
   }), []);
 
   // Routine scheduler for bots that run in this app (one tab at a time when Web Locks exist).
-  // When a Holly Computer runs them (this app controls it, or it's linked to
+  // When a Holly Bot Computer runs them (this app controls it, or it's linked to
   // the account), it runs routines 24/7 instead.
   useEffect(() => {
     if (app.remote || app.linkedComputers?.length) return undefined;

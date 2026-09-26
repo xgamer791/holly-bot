@@ -1,4 +1,4 @@
-// Holly Computer's own session on the Holly Bot account it keeps its bots in.
+// Holly Bot Computer's own session on the Holly Bot account it keeps its bots in.
 // The app links it (convex/devices.ts): it makes a one-time code, and the
 // computer trades the code for a session of its own, separate from the
 // phone's, kept in <data>/account.json (readable only by you). The protocol is
@@ -43,7 +43,7 @@ const isAuthError = (err) => /unauthenticated|invalidauthheader|oidc|expired|not
 const newAccessKey = () => randomBytes(32).toString('base64url');
 
 export class AccountLink {
-  constructor(file, { url = CONVEX_URL, name = 'Holly Computer', log = console } = {}) {
+  constructor(file, { url = CONVEX_URL, name = 'Holly Bot Computer', log = console } = {}) {
     this.file = file;
     this.url = url;
     this.name = name;

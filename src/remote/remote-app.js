@@ -8,7 +8,7 @@ import { computerState } from '../core/computers.js';
 export { computerState };
 
 // Remote control: the same interface as the local App, but every bot, chat,
-// memory and file lives on your Holly Computer. Live updates arrive by long
+// memory and file lives on your Holly Bot Computer. Live updates arrive by long
 // polling (works through any tunnel or proxy); actions are RPC calls. The UI
 // can't tell the difference.
 
@@ -134,10 +134,10 @@ export class RemoteApp {
         res = await fetch(this.url(`/api/rpc-result/${pending}`), { headers: this.headers(false) });
       }
     } catch (err) {
-      throw new Error(tr("Can't reach your Holly Computer ({error}). Is it running?", { error: err.message }));
+      throw new Error(tr("Can't reach your Holly Bot Computer ({error}). Is it running?", { error: err.message }));
     }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || tr('Holly Computer error {status}', { status: res.status }));
+    if (!res.ok) throw new Error(data.error || tr('Holly Bot Computer error {status}', { status: res.status }));
     return data.result;
   }
 
@@ -178,16 +178,16 @@ export class RemoteApp {
       res = await fetch(this.url('/api/state'), { headers: this.headers(false), signal: ctrl.signal });
     } catch (err) {
       if (err.name === 'AbortError') {
-        throw fail('timeout', name ? tr("{name} didn't answer in time. Make sure it's on and online.", { name }) : tr("Your Holly Computer didn't answer in time. Make sure it's on and online."));
+        throw fail('timeout', name ? tr("{name} didn't answer in time. Make sure it's on and online.", { name }) : tr("Your Holly Bot Computer didn't answer in time. Make sure it's on and online."));
       }
       throw fail('unreachable', name
-        ? tr("{name} didn't answer at its address. Make sure it's on and Holly Computer is running there.", { name })
-        : tr("Your Holly Computer didn't answer at its address. Make sure it's on and Holly Computer is running there."));
+        ? tr("{name} didn't answer at its address. Make sure it's on and Holly Bot Computer is running there.", { name })
+        : tr("Your Holly Bot Computer didn't answer at its address. Make sure it's on and Holly Bot Computer is running there."));
     } finally {
       clearTimeout(t);
     }
-    if (res.status === 401) throw fail('unauthorized', tr('This pairing link is no longer valid. Open the latest link printed by Holly Computer.'));
-    if (!res.ok) throw fail('http', tr('Holly Computer error {status}', { status: res.status }));
+    if (res.status === 401) throw fail('unauthorized', tr('This pairing link is no longer valid. Open the latest link printed by Holly Bot Computer.'));
+    if (!res.ok) throw fail('http', tr('Holly Bot Computer error {status}', { status: res.status }));
     this.applyState(await res.json());
     this.reachable = true;
     // Only a check that it can be reached: no live updates.
@@ -252,7 +252,7 @@ export class RemoteApp {
         }
         console.warn('live updates', err.message);
         this.setReachable(false);
-        // Holly Computer restarted, so it's at a new address (a quick
+        // Holly Bot Computer restarted, so it's at a new address (a quick
         // tunnel's changes each time), or has a new key: the account knows.
         if (this.relocate && Date.now() - this.relocatedAt > 20_000) {
           this.relocatedAt = Date.now();
@@ -329,7 +329,7 @@ export class RemoteApp {
     addEventListener('online', () => back(true));
   }
 
-  /** Talks to Holly Computer at its new address from now on. The next poll
+  /** Talks to Holly Bot Computer at its new address from now on. The next poll
    * finds a new server there and reloads everything (resync). */
   moveTo({ url, token }) {
     this.base = String(url || '').replace(/\/+$/, '');
@@ -580,7 +580,7 @@ export class RemoteApp {
 
 // ----- connection storage ---------------------------------------------------------
 
-// Which Holly Computer this device controls belongs to the Holly Bot account
+// Which Holly Bot Computer this device controls belongs to the Holly Bot account
 // that paired it, so another account signing in here never inherits it. Where
 // there are no accounts (Wi-Fi links, browser automation), it's per device.
 const KEY = 'holly.connection';
@@ -645,7 +645,7 @@ export function addressOf(device) {
 }
 
 /**
- * Whether Holly Computer answers at `url` (its /v1/health, which needs no
+ * Whether Holly Bot Computer answers at `url` (its /v1/health, which needs no
  * key, so this is a plain request a browser sends straight away). An
  * address the account has for a computer can still be dead, and then only
  * Cloudflare answers there, with a page a browser won't show to the app.
@@ -688,10 +688,10 @@ export async function reachComputer(device, { latest = null } = {}) {
     conn = now;
   }
   if (failure) throw failure;
-  throw new Error(tr('{name} is off. Start Holly Computer on it, then try again.', { name: device?.name || tr('your Holly Computer') }));
+  throw new Error(tr('{name} is off. Start Holly Bot Computer on it, then try again.', { name: device?.name || tr('your Holly Bot Computer') }));
 }
 
-/** What sort of device this is, for Holly Computer to say who connected
+/** What sort of device this is, for Holly Bot Computer to say who connected
  * (computer/src/server.mjs hello, deviceName). */
 export function deviceKind(nav = globalThis.navigator) {
   const ua = nav?.userAgent || '';

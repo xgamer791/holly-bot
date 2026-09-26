@@ -1,5 +1,5 @@
 // End to end, the way a person connects their phone to their desktop: two
-// real Holly Computers linked to the account (the server that comes with the
+// real Holly Bot Computers linked to the account (the server that comes with the
 // plan, and GOAT, the desktop), GOAT's own page open on the desktop, and
 // Holly Bot on a phone. The account's backend (Convex) is a stand-in in the
 // browser; everything else is the real app.
@@ -65,7 +65,7 @@ function serveSite() {
 
 const listen = (server) => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 
-/** A real Holly Computer named `name`, linked to the account as far as the
+/** A real Holly Bot Computer named `name`, linked to the account as far as the
  * app can tell (its bots stay in its own folder in this test). */
 async function computer(name, { server = false, port = 0 } = {}) {
   const data = join(dir, name, 'data');
@@ -261,7 +261,7 @@ test('a computer listed as on, whose address only gets Cloudflare\'s error page,
   await shot(phone, 'phone-workspace');
   await laptopRow.click();
   await dialog(phone, 'Connect to LAPTOP?').getByRole('button', { name: 'Connect', exact: true }).click();
-  await toast(phone, "LAPTOP didn't answer at its address. Make sure it's on and Holly Computer is running there.").waitFor({ timeout: 20_000 });
+  await toast(phone, "LAPTOP didn't answer at its address. Make sure it's on and Holly Bot Computer is running there.").waitFor({ timeout: 20_000 });
   assert.equal(await phone.getByText(/Load failed|Failed to fetch/).count(), 0);
   assert.equal(await phone.evaluate(() => window.holly.server?.name), 'GOAT', 'still on GOAT');
   await shot(phone, 'phone-workspace-error');

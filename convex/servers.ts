@@ -11,7 +11,7 @@ import { SERVERS, planById, planOfServer, rank } from "./lib/plans";
 import { hasAccess, isPaid, subscriberOf } from "./lib/subscription";
 import { connect, vultrSettings, type Instance, type Vultr } from "./lib/vultr";
 
-// Every subscriber's own dedicated server at Vultr, running Holly Computer
+// Every subscriber's own dedicated server at Vultr, running Holly Bot Computer
 // linked to their account, so their bots run there around the clock. It's
 // made when they subscribe, resized when they upgrade, moved to a smaller one
 // when they downgrade, and deleted when the subscription ends, all from here:
@@ -682,7 +682,7 @@ export const removeFailed = internalMutation({
 });
 
 /** Deletes one server at Vultr, whoever it belonged to (a replaced server, one
- * no account uses, a deleted account's), and ends its Holly Computer session.
+ * no account uses, a deleted account's), and ends its Holly Bot Computer session.
  * Tried again a few times if Vultr can't be reached; the reconcile catches the rest. */
 export const destroy = internalAction({
   args: { id: v.string(), key: v.optional(v.string()), attempt: v.number() },

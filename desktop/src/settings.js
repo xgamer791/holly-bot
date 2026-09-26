@@ -1,5 +1,5 @@
-// Holly Computer for Windows' own settings, kept in its folder under
-// %APPDATA%: the options it starts Holly Computer with (the ones Holly
+// Holly Bot Computer for Windows' own settings, kept in its folder under
+// %APPDATA%: the options it starts Holly Bot Computer with (the ones Holly
 // Computer takes on the command line, computer/src/main.mjs), and whether it
 // starts with Windows. Options given to Holly Computer.exe itself on the
 // command line count for that run only (fromCommandLine).
@@ -10,7 +10,7 @@ import { dirname } from 'node:path';
 export const DEFAULTS = {
   /** Starts, in the taskbar's corner, when you sign in to Windows. */
   startWithWindows: true,
-  /** Keeps the computer from sleeping while Holly Computer runs (off: --allow-sleep). */
+  /** Keeps the computer from sleeping while Holly Bot Computer runs (off: --allow-sleep). */
   keepAwake: true,
   /** Cloudflare's quick tunnel, so your phone reaches this computer from anywhere (off: --no-tunnel). */
   tunnel: true,
@@ -20,17 +20,17 @@ export const DEFAULTS = {
   lan: false,
   /** The bots' Chrome runs without a window (--headless-browser). */
   headlessBrowser: false,
-  /** Holly Computer keeps itself up to date (off: --no-update). */
+  /** Holly Bot Computer keeps itself up to date (off: --no-update). */
   update: true,
-  /** The port Holly Computer listens on (--port). */
+  /** The port Holly Bot Computer listens on (--port). */
   port: 8787,
-  /** The folder the bots work in (--workspace); '' for Holly Computer's own default, ~/Holly. */
+  /** The folder the bots work in (--workspace); '' for Holly Bot Computer's own default, ~/Holly. */
   workspace: '',
-  /** Holly Computer's own files (--data); '' for ~/.holly. */
+  /** Holly Bot Computer's own files (--data); '' for ~/.holly. */
   data: '',
 };
 
-/** The settings that Holly Computer takes as it starts, so changing them restarts it. */
+/** The settings that Holly Bot Computer takes as it starts, so changing them restarts it. */
 export const RESTART_KEYS = ['keepAwake', 'tunnel', 'publicUrl', 'lan', 'headlessBrowser', 'update', 'port', 'workspace', 'data'];
 
 /** `patch` with only settings that exist, each of the right kind. */
@@ -90,7 +90,7 @@ export class Settings {
 }
 
 /**
- * Holly Computer's options given to Holly Computer.exe itself, as settings
+ * Holly Bot Computer's options given to Holly Computer.exe itself, as settings
  * for this run (`newToken` and `noOpen` besides), so a shortcut or a script
  * can start it the way `node holly-computer.mjs` takes them.
  */
@@ -116,7 +116,7 @@ export function fromCommandLine(argv) {
   return { settings: clean(rest), newToken: !!newToken, noOpen: !!noOpen };
 }
 
-/** The options Holly Computer starts with, for `s` (settings). */
+/** The options Holly Bot Computer starts with, for `s` (settings). */
 export function computerArgs(s, { newToken = false } = {}) {
   const args = ['--no-open', '--port', String(s.port)];
   if (s.publicUrl) args.push('--public-url', s.publicUrl);
