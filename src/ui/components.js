@@ -3,6 +3,9 @@ import { Icon } from './icons.js';
 import { tr } from './i18n.js';
 
 const DRAWER_MS = 450;
+/** How long past the end of a slide (ms) the drawer waits to go: nothing about
+ * the app changes while it's still moving. */
+const SETTLE_MS = 120;
 /** How far a finger goes (px) before a touch counts as a swipe one way or the other. */
 const SWIPE_SLOP = 8;
 /** What a swipe that starts on these isn't for: they take a finger themselves. */
@@ -84,15 +87,28 @@ function slideFor(ms) {
   const style = document.documentElement.style;
   clearTimeout(slideTimer);
   style.setProperty('--drawer-ms', `${ms}ms`);
-  slideTimer = setTimeout(() => style.removeProperty('--drawer-ms'), ms + 50);
+  slideTimer = setTimeout(() => style.removeProperty('--drawer-ms'), ms + SETTLE_MS);
+}
+
+/**
+ * The drawer has gone and the app has slid back: for a couple of frames the
+ * app isn't a layer of its own (styles.css .drawer-gone), which draws it
+ * afresh where it is. As a layer the whole time, iOS could leave it drawn
+ * where the drawer had pushed it, over on the right with nothing beside it.
+ */
+function redrawApp() {
+  const root = document.documentElement;
+  root.classList.add('drawer-gone');
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('drawer-gone')));
 }
 
 /**
  * A sheet as a drawer from the left (Settings; pass it to Sheet as `drawer`).
  * It slides in pushing the app over to the right, and slides back out pulling
- * the app back, 450 ms each; `close` plays that and then calls `remove` (at
- * once with Reduce Motion on). The page's `drawer-open` class says where it
- * is, so every move carries on from wherever it is (styles.css → .sheet.drawer).
+ * the app back, 450 ms each; `close` plays that and then, once it's surely
+ * over, calls `remove` (at once with Reduce Motion on). The page's
+ * `drawer-open` class says where it is, so every move carries on from
+ * wherever it is (styles.css → .sheet.drawer).
  * Swiping left on it, or on the strip of the app beside it, pushes it back,
  * following the finger: let go a third of the way over, or with a flick, and it
  * closes, otherwise it slides back open. A tap on the strip closes it. (Swiping
@@ -115,7 +131,7 @@ export function useDrawer(remove) {
     }
     root.classList.remove('drawer-open', 'drawer-dragging');
     place(null);
-    timer.current = setTimeout(() => remove?.(), ms);
+    timer.current = setTimeout(() => remove?.(), ms && ms + SETTLE_MS);
   };
   const api = useRef({}).current;
   api.close = close;
@@ -132,6 +148,7 @@ export function useDrawer(remove) {
       clearTimeout(timer.current);
       root.classList.remove('drawer-mounted', 'drawer-open', 'drawer-dragging', 'drawer-flung');
       place(null);
+      redrawApp();
     };
   }, []);
   const end = (e, up) => {
@@ -222,8 +239,10 @@ export function useDrawerPull(open, dismiss, busy) {
     root.classList.remove('drawer-open', 'drawer-dragging');
     place(null);
     setTimeout(() => {
-      if (!drawers.current) root.classList.remove('drawer-mounted', 'drawer-flung');
-    }, ms);
+      if (drawers.current) return;
+      root.classList.remove('drawer-mounted', 'drawer-flung');
+      redrawApp();
+    }, ms + SETTLE_MS);
   };
   return {
     onTouchStart(e) {

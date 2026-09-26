@@ -46,7 +46,9 @@ export const DEFAULT_SETTINGS = {
   // what bots on Holli Bot Computer go by (timeZone()).
   timeZone: '',
   notifications: false,
-  appearance: 'black',
+  // Settings → Appearance: a new account starts on Light; settings saved
+  // without one are on Black, the first default (load()).
+  appearance: 'light',
   // Settings → Language: 'system', 'en', 'es' or 'zh' (src/ui/i18n.js). And
   // the language the app was last shown in, which bots write in (src/main.js).
   language: 'system',
@@ -170,7 +172,7 @@ export class App {
 
   async load() {
     const kv = await this.db.get('kv', 'settings');
-    if (kv?.value) this.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), kv.value);
+    if (kv?.value) this.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), { appearance: 'black', ...kv.value });
     // Usage counts are kept apart from the rest of the settings (saveUsageSoon).
     const usage = await this.db.get('kv', 'usage');
     if (usage?.value) this.settings.usage = usage.value;

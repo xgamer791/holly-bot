@@ -67,6 +67,10 @@ export function Root({ app }) {
     const theme = appearance === 'system' ? (prefersLight ? 'light' : 'black') : appearance;
     if (theme === 'black') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', theme);
+    // For the splash the next time the app opens here (index.html).
+    try {
+      localStorage.setItem('holly.theme', theme);
+    } catch { /* storage blocked */ }
     // Browser and status bar chrome use the app background, so there's no seam.
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
