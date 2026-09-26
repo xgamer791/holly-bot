@@ -255,8 +255,10 @@ export class LocalComputer {
 
   // ----- desktop (screen, mouse, keyboard) ------------------------------------------
 
-  /** Screen actions run one at a time on each screen, so bots and the phone
-   * never interleave clicks. `owner`: the bot, when it has a screen of its own. */
+  /** Mouse and keyboard actions run one at a time on each screen, so bots and
+   * the phone never interleave clicks. `owner`: the bot, when it has a screen
+   * of its own. Looking at a screen takes no turn: it touches neither, and
+   * the bots' screens, all on one display, would wait on every picture. */
   serialDesktop(fn, owner) {
     // The bots' screens are on one display, with one mouse and keyboard.
     const key = this.ownScreen(owner) ? 'bots' : '';
@@ -272,18 +274,18 @@ export class LocalComputer {
   }
 
   async screenshot({ maxWidth = 1280, quality = 70, agentId } = {}) {
-    return this.serialDesktop(async () => {
-      const d = await this.desktop(agentId);
-      const s = await d.screenshot({ maxWidth, quality });
-      return { base64: s.data, mime: s.mime, width: s.width, height: s.height, screenWidth: s.screenWidth, screenHeight: s.screenHeight };
-    }, agentId);
+    const d = await this.desktop(agentId);
+    const s = await d.screenshot({ maxWidth, quality });
+    return { base64: s.data, mime: s.mime, width: s.width, height: s.height, screenWidth: s.screenWidth, screenHeight: s.screenHeight };
   }
 
   /**
    * One desktop action, then a fresh screenshot so the model sees the result.
    * x/y are pixels in a screenshot `imageWidth` wide (default: the standard
    * 1280-wide screenshot), mapped onto the real screen here. `agentId`: the
-   * bot, whose own screen it is when it has one.
+   * bot, whose own screen it is when it has one. Only the mouse or keyboard
+   * part waits its turn (serialDesktop): the pause for the screen to show it,
+   * and the picture after, hold no one else up.
    */
   async desktopAction(action, args = {}) {
     if (action === 'wait') await new Promise((r) => setTimeout(r, Math.min(30, Math.max(0.2, Number(args.seconds) || 1)) * 1000));
@@ -291,61 +293,60 @@ export class LocalComputer {
     if (args.show && this.ownScreen(args.agentId)) {
       await this.showWindow(args.agentId).catch((err) => this.log.warn?.(`  Couldn't open a bot's browser window on its screen: ${err.message}`));
     }
-    return this.serialDesktop(async () => {
-      const d = await this.desktop(args.agentId);
-      const info = await d.info();
-      if (!info.screenshotAvailable && !info.inputAvailable) throw new Error(`Screen control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
-      const maxWidth = Number(args.maxWidth) || 1280;
-      const imageWidth = Number(args.imageWidth) || Math.min(maxWidth, info.width || maxWidth);
-      const scale = info.width ? info.width / imageWidth : 1;
-      const map = (v, size) => (v == null || v === '' || !Number.isFinite(Number(v)) ? undefined : Math.max(0, Math.min((size || 1e6) - 1, Math.round(Number(v) * scale))));
-      const X = (v) => map(v, info.width);
-      const Y = (v) => map(v, info.height);
-      const needsInput = !['screenshot', 'wait'].includes(action);
-      if (needsInput && !info.inputAvailable) throw new Error(`Mouse and keyboard control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
-      const center = { x: Math.round((info.width || 1280) / 2), y: Math.round((info.height || 800) / 2) };
-      switch (action) {
-        case 'screenshot':
-        case 'wait':
-          break;
-        case 'click':
-          await d.click(X(args.x), Y(args.y), { button: args.button || 'left', double: !!args.double });
-          break;
-        case 'double_click':
-          await d.click(X(args.x), Y(args.y), { button: 'left', double: true });
-          break;
-        case 'right_click':
-          await d.click(X(args.x), Y(args.y), { button: 'right' });
-          break;
-        case 'middle_click':
-          await d.click(X(args.x), Y(args.y), { button: 'middle' });
-          break;
-        case 'move':
-          await d.move(X(args.x) ?? center.x, Y(args.y) ?? center.y);
-          break;
-        case 'drag':
-          await d.drag(X(args.x), Y(args.y), X(args.to_x ?? args.x2), Y(args.to_y ?? args.y2));
-          break;
-        case 'type':
-          await d.type(String(args.text ?? ''));
-          break;
-        case 'key':
-          await d.key(String(args.keys || args.key || ''));
-          break;
-        case 'scroll':
-          await d.scroll(X(args.x) ?? center.x, Y(args.y) ?? center.y, { direction: args.direction || 'down', amount: Number(args.amount) || 5 });
-          break;
-        case 'cursor': {
-          const c = await d.cursor();
-          return { cursor: { x: Math.round(c.x / scale), y: Math.round(c.y / scale) } };
+    const d = await this.desktop(args.agentId);
+    const info = await d.info();
+    if (!info.screenshotAvailable && !info.inputAvailable) throw new Error(`Screen control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
+    const maxWidth = Number(args.maxWidth) || 1280;
+    const imageWidth = Number(args.imageWidth) || Math.min(maxWidth, info.width || maxWidth);
+    const scale = info.width ? info.width / imageWidth : 1;
+    const map = (v, size) => (v == null || v === '' || !Number.isFinite(Number(v)) ? undefined : Math.max(0, Math.min((size || 1e6) - 1, Math.round(Number(v) * scale))));
+    const X = (v) => map(v, info.width);
+    const Y = (v) => map(v, info.height);
+    const needsInput = !['screenshot', 'wait'].includes(action);
+    if (needsInput && !info.inputAvailable) throw new Error(`Mouse and keyboard control isn't available on this computer. ${(info.notes || []).join(' ')}`.trim());
+    const center = { x: Math.round((info.width || 1280) / 2), y: Math.round((info.height || 800) / 2) };
+    if (needsInput) {
+      const cursor = await this.serialDesktop(async () => {
+        switch (action) {
+          case 'click':
+            await d.click(X(args.x), Y(args.y), { button: args.button || 'left', double: !!args.double });
+            break;
+          case 'double_click':
+            await d.click(X(args.x), Y(args.y), { button: 'left', double: true });
+            break;
+          case 'right_click':
+            await d.click(X(args.x), Y(args.y), { button: 'right' });
+            break;
+          case 'middle_click':
+            await d.click(X(args.x), Y(args.y), { button: 'middle' });
+            break;
+          case 'move':
+            await d.move(X(args.x) ?? center.x, Y(args.y) ?? center.y);
+            break;
+          case 'drag':
+            await d.drag(X(args.x), Y(args.y), X(args.to_x ?? args.x2), Y(args.to_y ?? args.y2));
+            break;
+          case 'type':
+            await d.type(String(args.text ?? ''));
+            break;
+          case 'key':
+            await d.key(String(args.keys || args.key || ''));
+            break;
+          case 'scroll':
+            await d.scroll(X(args.x) ?? center.x, Y(args.y) ?? center.y, { direction: args.direction || 'down', amount: Number(args.amount) || 5 });
+            break;
+          case 'cursor':
+            return d.cursor();
+          default:
+            throw new Error(`Unknown desktop action "${action}"`);
         }
-        default:
-          throw new Error(`Unknown desktop action "${action}"`);
-      }
-      if (needsInput) await new Promise((r) => setTimeout(r, Number(args.settleMs) || 600));
-      const shot = await d.screenshot({ maxWidth, quality: Number(args.quality) || 65 });
-      return { ok: true, action, screenshot: { data: shot.data, mime: shot.mime, width: shot.width, height: shot.height }, screen: { width: info.width, height: info.height } };
-    }, args.agentId);
+        return null;
+      }, args.agentId);
+      if (cursor) return { cursor: { x: Math.round(cursor.x / scale), y: Math.round(cursor.y / scale) } };
+      await new Promise((r) => setTimeout(r, Number(args.settleMs) || 600));
+    }
+    const shot = await d.screenshot({ maxWidth, quality: Number(args.quality) || 65 });
+    return { ok: true, action, screenshot: { data: shot.data, mime: shot.mime, width: shot.width, height: shot.height }, screen: { width: info.width, height: info.height } };
   }
 
   // ----- browser (Chrome via DevTools Protocol) --------------------------------------
@@ -369,7 +370,8 @@ export class LocalComputer {
     if (action === 'screenshot' && args.ifRunning && !this.browserInstance?.running) return { running: false };
     if (own) this.screens.touch(owner);
     const b = await this.browserApi();
-    const o = { owner, tab: args.tab || undefined };
+    // `quick`: someone watching the screen, who needs the picture, not the page's text.
+    const o = { owner, tab: args.tab || undefined, ...(args.quick ? { quick: true } : {}) };
     if (action === 'screenshot') {
       const s = await b.screenshot({ quality: Number(args.quality) || 70, maxWidth: Number(args.maxWidth) || 1280, scaleUp: !!args.sharp }, o);
       return { running: true, url: s.url, title: s.title, tab: s.tab, screenshot: s.data, width: s.width, height: s.height };
