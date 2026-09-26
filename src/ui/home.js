@@ -33,7 +33,9 @@ export function HomeScreen({ activeThreadId }) {
   return html`
     <div class="pane-list">
       <header class="topbar">
-        <button class="initials" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}>${profileName ? initials(profileName) : html`<${Icon.gear} size="20" />`}</button>
+        ${profileName
+          ? html`<button class="initials" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}>${initials(profileName)}</button>`
+          : html`<button class="icon-btn" aria-label=${tr('Settings')} onClick=${() => ui.openSheet('settings')}><${Icon.gear} /></button>`}
         <div class="spacer"></div>
         <${ComputerButton} onClick=${() => ui.openSheet('computer', {})} />
         <button class="icon-btn" aria-label=${tr('Search')} onClick=${() => {
