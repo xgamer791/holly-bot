@@ -148,5 +148,10 @@ jobs:
             fi
           done
 
+      # What the deployment has set, by name only (never a value), so the log
+      # shows at a glance which keys are there.
+      - name: List the deployment's variables
+        run: npx convex env list --names-only
+
       - name: Deploy functions
         run: npx convex deploy
