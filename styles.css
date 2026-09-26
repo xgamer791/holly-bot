@@ -1059,7 +1059,7 @@ html.signed-out #boot { background: #fff !important; }
 .memory-locked .what { flex: 1; min-width: 0; }
 .memory-locked .t { font-size: 16px; font-weight: 600; }
 .memory-locked .s { margin-top: 3px; color: var(--muted); font-size: 14px; line-height: 1.4; }
-.memory-locked .lock, .sb-memory .lock { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; color: #fff;
+.memory-locked .lock { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; color: #fff;
   background: linear-gradient(145deg, #8b88ff 0%, #5e5ce6 55%, #4643c9 100%); }
 
 /* ---------- the Bot Store (src/ui/store.js) ----------
@@ -1067,7 +1067,7 @@ html.signed-out #boot { background: #fff !important; }
    featured bots on big cards in their own color, category chips, every bot
    as an app icon (a white bot on its color) with the App Store's round price
    button, and a page for each bot: its icon, a strip of facts, what it can
-   do, about it, and the fine print. */
+   do, its story (an article in the bot's own color), and the fine print. */
 .sheet.store { --sb-bg: #0c0c0e; --sb-card: #1c1c1e; --sb-pill: #2c2c2e; --sb-line: rgba(255, 255, 255, .1); --sb-sub: #8e8e93; --sb-strong: #b4b4b9; --sb-blue: #0a84ff; background: var(--sb-bg); }
 :root[data-theme="dark"] .sheet.store { --sb-bg: #1c1c1e; --sb-card: #2c2c2e; --sb-pill: #3a3a3c; }
 :root[data-theme="light"] .sheet.store { --sb-bg: #ffffff; --sb-card: #f2f2f7; --sb-pill: #eef0f4; --sb-line: rgba(60, 60, 67, .16); --sb-sub: #6e6e73; --sb-strong: #86868b; --sb-blue: #007aff; }
@@ -1154,12 +1154,37 @@ html.signed-out #boot { background: #fff !important; }
 .sb-checks li { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 16px; line-height: 1.4; }
 .sb-checks li svg { flex: none; margin-top: 2px; color: var(--green); }
 :root[data-theme="light"] .sb-checks li svg { color: #28a745; }
-.sb-about { margin: 6px 0 0; font-size: 16px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
-.sb-about.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.sb-more { margin-top: 2px; color: var(--sb-blue); font-size: 15px; font-weight: 600; }
-.sb-memory { display: flex; align-items: flex-start; gap: 12px; margin: 26px 0 4px; padding: 16px; border-radius: 18px; background: var(--sb-card); }
-.sb-memory b { font-size: 16px; font-weight: 700; }
-.sb-memory p { margin: 4px 0 0; color: var(--sb-sub); font-size: 14.5px; line-height: 1.45; }
+/* A bot's story: the owner's Markdown as an article, like Apple's editorial
+   pages. The first paragraph leads, sections under bold headings, dots and
+   numbered steps in the bot's color (--bot, and --bot-deep behind white), and
+   the things to say to it (> lines) as the messages you'd send. */
+.sb-story { margin-top: 28px; padding-top: 26px; border-top: 1px solid var(--sb-line); }
+.sb-article { font-size: 17px; line-height: 1.55; overflow-wrap: anywhere; }
+.sb-article > :first-child { margin-top: 0; }
+.sb-article > :last-child { margin-bottom: 0; }
+.sb-article p { margin: 0 0 14px; }
+.sb-article > p:first-child { margin-bottom: 20px; font-size: 20px; line-height: 1.42; font-weight: 600; letter-spacing: -.012em; }
+.sb-article h1, .sb-article h2 { margin: 36px 0 10px; font-size: 23px; line-height: 29px; font-weight: 800; letter-spacing: -.015em; }
+.sb-article h3, .sb-article h4 { margin: 26px 0 6px; font-size: 18px; line-height: 24px; font-weight: 700; }
+.sb-article strong { font-weight: 700; }
+.sb-article a { color: var(--sb-blue); text-decoration: none; }
+.sb-article ul, .sb-article ol { margin: 0 0 16px; padding: 0; list-style: none; }
+.sb-article li { position: relative; }
+.sb-article li p { margin: 0; }
+.sb-article li ul, .sb-article li ol { margin: 4px 0 0; }
+.sb-article ul > li { padding: 5px 0 5px 24px; }
+.sb-article ul > li::before { content: ""; position: absolute; left: 5px; top: calc(5px + .775em - 3.5px); width: 7px; height: 7px; border-radius: 50%; background: var(--bot); }
+.sb-article ol { counter-reset: step; }
+.sb-article ol > li { counter-increment: step; min-height: 32px; margin: 12px 0; padding: 3px 0 3px 46px; }
+.sb-article ol > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--bot-deep);
+  color: #fff; font-size: 15px; line-height: 32px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 2px 6px rgba(0, 0, 0, .18); }
+.sb-article blockquote { width: -webkit-fit-content; width: fit-content; max-width: 84%; margin: 0 0 8px auto; padding: 9px 15px; border-radius: 20px 20px 6px 20px;
+  background: var(--bot-deep); color: #fff; font-size: 16px; line-height: 1.4; font-weight: 500; box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+.sb-article blockquote p { margin: 0; }
+.sb-article blockquote + :not(blockquote) { margin-top: 20px; }
+.sb-article hr { height: 1px; margin: 28px 0; border: 0; background: var(--sb-line); }
+.sb-article code { padding: 1px 5px; border-radius: 6px; background: var(--sb-pill); font-size: .88em; }
+.sb-article img { display: block; max-width: 100%; height: auto; margin: 18px 0; border-radius: 16px; }
 .sb-info { margin: 4px 0 0; }
 .sb-info div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--sb-line); font-size: 15px; line-height: 1.35; }
 .sb-info dt { flex: none; color: var(--sb-sub); }

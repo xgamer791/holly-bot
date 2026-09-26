@@ -1,6 +1,7 @@
 import { html, useEffect, useRef, useState } from '../../vendor/preact.js';
 import { useApp, useUi, useTopics } from './hooks.js';
 import { Sheet, Spinner, Toggle } from './components.js';
+import { Markdown } from './markdown.js';
 import { Avatar, COLORS } from './avatar.js';
 import { Icon } from './icons.js';
 import { LookPicker } from './create-bot.js';
@@ -19,6 +20,8 @@ import { dateText, mark, number, tr, trn } from './i18n.js';
 // their bots any more (it comes back as it was, free). Its pre-trained
 // memory is kept apart, on Holli Bot's server (src/core/brief.js); its rules
 // come with it, and its Bot Memory is the user's to fill, 10,000 words of it.
+// None of that is on the store's pages, which say what a bot does for you:
+// its page is an article, the owner's text in Markdown (BotPage).
 // The store's owner adds, changes and hides bots here too (Manage).
 
 const CATEGORIES = {
@@ -34,6 +37,9 @@ const CATEGORIES = {
   home: { name: mark('Home & Family'), icon: Icon.home },
 };
 const categoryName = (id) => (CATEGORIES[id] ? tr(CATEGORIES[id].name) : id);
+
+/** How long a bot's about can be, in characters (convex/lib/store.ts LIMITS.about). */
+const ABOUT_CHARS = 12000;
 
 /** How long a price stays turned into Buy, untouched. */
 const ARMED_MS = 5000;
@@ -272,7 +278,7 @@ function StoreHome({ store }) {
     <div class="sb-top">
       <div class="sb-date">${today}</div>
       <h1 class="sb-title">${tr('Bot Store')}</h1>
-      <p class="sb-lead">${tr('Pre-trained bots, ready to work from the first chat, with room for 10,000 words in their memory.')}</p>
+      <p class="sb-lead">${tr('Bots that already know their job, ready to help from your first chat.')}</p>
     </div>
     ${featured.length > 0 && html`<div class="sb-cards" role="list">
       ${featured.map((bot) => html`
@@ -306,21 +312,30 @@ function StoreHome({ store }) {
           <${GetButton} store=${store} bot=${bot} />
         </div>`)}
     </div>
-    <p class="sb-foot">${tr('Bots from the Bot Store are yours to keep. Each comes with a pre-trained memory, kept apart from the rest and private: it can\'t be seen, changed or erased. Their Bot Memory and rules are yours, with room for 10,000 words each.')}</p>`;
+    <p class="sb-foot">${tr('Bots from the Bot Store are yours to keep: buy one once, and get it again free on any device you sign in on. Chatting with it uses your plan\'s AI credits, like any bot.')}</p>`;
 }
 
-/** A bot's page: what it does, what it knows about, and how it comes. */
+/** A bot's color for the accents of its page: its dots, and (`deep`) the
+ * fills with white on them, its steps and the messages you'd send it. */
+function accents(color) {
+  const dot = color === 'white' || !COLORS[color] ? '#8e8e93' : COLORS[color];
+  return `--bot:${dot};--bot-deep:${tint(color, true)}`;
+}
+
+/** A bot's page, as in the App Store: its icon and price, a strip of facts
+ * and what it can do at a glance, then its story: the owner's text (about),
+ * in Markdown, as an article in the bot's own color. Its first paragraph
+ * leads, `##` starts a section, `-` lists, `1.` steps, and each `>` line is
+ * something to say to it, drawn as a message you'd send. */
 function BotPage({ store, id }) {
   const { data } = store;
   const bot = data.bots.find((b) => b.id === id);
-  const [more, setMore] = useState(false);
   if (!bot) {
     return html`<div class="sb-empty"><p>${tr("That bot isn't in the Bot Store any more.")}</p>
       ${store.owned(id) && html`<button class="btn primary" onClick=${() => store.install(id)}>${tr('Get')}</button>`}</div>`;
   }
   const Kind = CATEGORIES[bot.category]?.icon || Icon.bot;
   const have = store.installed(bot.id);
-  const long = bot.about.length > 280 || bot.about.split('\n').length > 4;
   return html`
     <div class="sb-hero">
       <${BotTile} bot=${bot} size=${118} live />
@@ -335,32 +350,19 @@ function BotPage({ store, id }) {
     </div>
     <div class="sb-facts">
       <div class="sb-fact"><span class="k">${tr('Category')}</span><span class="v"><${Kind} size="22" /></span><span class="s">${categoryName(bot.category)}</span></div>
-      <div class="sb-fact"><span class="k">${tr('Memory')}</span><span class="v">${tr('{n}K', { n: number(STORE_WORDS / 1000) })}</span><span class="s">${tr('words')}</span></div>
       <div class="sb-fact"><span class="k">${tr('Price')}</span><span class="v">${money(bot.price)}</span><span class="s">${tr('one time')}</span></div>
+      <div class="sb-fact"><span class="k">${tr('Seller')}</span><span class="v"><${Icon.bot} size="22" /></span><span class="s">Holli Bot</span></div>
       <div class="sb-fact"><span class="k">${tr('Works with')}</span><span class="v"><${Icon.users} size="22" /></span><span class="s">${tr('your bots')}</span></div>
     </div>
     ${bot.highlights.length > 0 && html`
       <h2 class="sb-h2">${tr('What it can do')}</h2>
       <ul class="sb-checks">${bot.highlights.map((h) => html`<li key=${h}><${Icon.check} size="18" sw="2.6" /><span>${h}</span></li>`)}</ul>`}
-    ${bot.about && html`
-      <h2 class="sb-h2">${tr('About')}</h2>
-      <p class=${`sb-about ${long && !more ? 'clamped' : ''}`}>${bot.about}</p>
-      ${long && !more && html`<button class="sb-more" onClick=${() => setMore(true)}>${tr('more')}</button>`}`}
-    <div class="sb-memory">
-      <span class="lock"><${Icon.lock} size="18" /></span>
-      <div>
-        <b>${tr('Pre-trained memory')}</b>
-        <p>${tr('{name} comes pre-trained, with a memory it reads before every chat, kept apart from the rest and private: it can\'t be seen, changed or erased. Its Bot Memory is yours to fill, with room for 10,000 words, and its rules are yours to change.', { name: bot.name })}</p>
-      </div>
-    </div>
+    ${bot.about && html`<article class="sb-story" style=${accents(bot.color)}><${Markdown} text=${bot.about} className="sb-article" /></article>`}
     <h2 class="sb-h2">${tr('Information')}</h2>
     <dl class="sb-info">
       <div><dt>${tr('Seller')}</dt><dd>Holli Bot</dd></div>
       <div><dt>${tr('Category')}</dt><dd>${categoryName(bot.category)}</dd></div>
       <div><dt>${tr('Price')}</dt><dd>${tr('{price}, one time', { price: money(bot.price) })}</dd></div>
-      <div><dt>${tr('Pre-trained memory')}</dt><dd>${tr('Private')}</dd></div>
-      <div><dt>${tr('Bot Memory')}</dt><dd>${tr('Yours, up to 10,000 words')}</dd></div>
-      <div><dt>${tr('Rules')}</dt><dd>${tr('Yours to change, up to 10,000 words')}</dd></div>
     </dl>
     ${data.admin && !have && !store.owned(bot.id) && html`
       <button class="btn block sb-owner" disabled=${!!store.busy} onClick=${() => store.install(bot.id)}>${tr('Add to my bots free (owner)')}</button>`}`;
@@ -438,7 +440,8 @@ function EditPage({ store, id, list }) {
       <input class="input" type="number" inputmode="decimal" min="10" step="1" value=${dollars} onInput=${(e) => setDollars(e.currentTarget.value)} />
       <div class="hint">${tr('At least $10. Buyers pay once.')}</div></div>
     <div class="field"><label>${tr('About')}</label>
-      <textarea class="textarea" maxlength="4000" value=${bot.about} placeholder=${tr('What it does and how, for its page in the store')} onInput=${(e) => set({ about: e.currentTarget.value })}></textarea></div>
+      <textarea class="textarea sb-long" maxlength=${ABOUT_CHARS} value=${bot.about} placeholder=${tr('What it does for people and how, for its page in the store: about 1,000 words works well')} onInput=${(e) => set({ about: e.currentTarget.value })}></textarea>
+      <div class="hint sb-hint-row"><span>${tr('Its page shows it as an article. The first paragraph leads; ## starts a section, - a list, 1. a step, > something to say to it, and **bold** is bold.')}</span><span class="sb-count">${trn(wordCount(bot.about), '{n} word', '{n} words')}</span></div></div>
     <div class="field"><label>${tr('What it can do')}</label>
       <textarea class="textarea" value=${lines} placeholder=${tr('One a line, up to 6')} onInput=${(e) => setLines(e.currentTarget.value)}></textarea></div>
     <div class="field"><label>${tr('Pre-trained memory')}</label>
