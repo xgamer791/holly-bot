@@ -17,17 +17,21 @@ export function useTopics(topics) {
   }, [key]);
 }
 
-/** Load async data and reload when topics fire. */
+/** Load async data and reload when topics fire. Loads can overlap (a reload
+ * every few seconds, a slow connection): only the latest one's answer is
+ * kept, so an older one arriving late can't put back what it read. */
 export function useAsync(fn, deps = [], topics = []) {
   const app = useApp();
   const [state, setState] = useState({ data: undefined, loading: true, error: null });
   const alive = useRef(true);
+  const latest = useRef(0);
   const run = useCallback(async () => {
+    const n = ++latest.current;
     try {
       const data = await fn();
-      if (alive.current) setState({ data, loading: false, error: null });
+      if (alive.current && n === latest.current) setState({ data, loading: false, error: null });
     } catch (error) {
-      if (alive.current) setState((s) => ({ data: s.data, loading: false, error }));
+      if (alive.current && n === latest.current) setState((s) => ({ data: s.data, loading: false, error }));
     }
   }, deps);
   useEffect(() => {

@@ -45,6 +45,7 @@ const FREE_HISTORY = 64_000;
  * error card tells it (src/ui/message.js). */
 const ERROR_KINDS = {
   no_credits: 'credits',
+  credits_busy: 'credits_busy',
   free_credits: 'free_credits',
   free_capacity: 'free_capacity',
   free_model: 'free_model',

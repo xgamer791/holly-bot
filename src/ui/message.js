@@ -324,6 +324,10 @@ const FREE_LIMITS = {
   free_too_long: mark('This chat is too long for Free. Start a new chat, or upgrade to keep going.'),
 };
 
+/** What's left of the credits is all held for other bots' requests under way
+ * (convex/credits.ts credits_busy). */
+const CREDITS_BUSY = mark('Your bots are using the rest of your AI credits right now. Try again when they finish.');
+
 function ErrorCard({ msg }) {
   const app = useApp();
   const ui = useUi();
@@ -332,10 +336,12 @@ function ErrorCard({ msg }) {
   // language the card says it without the date. Free's limits come with
   // Upgrade Plan, which opens the plan page.
   const limit = FREE_LIMITS[msg.errorKind];
-  const credits = msg.errorKind === 'credits' || msg.errorKind === 'free_credits';
-  const text = language() !== 'en' && limit ? tr(limit)
-    : language() !== 'en' && credits ? tr('Your AI credits for this month are used up. Your bots pause until they refill.')
-      : msg.error ? tr(msg.error) : tr('Something went wrong.');
+  const busy = msg.errorKind === 'credits_busy';
+  const credits = busy || msg.errorKind === 'credits' || msg.errorKind === 'free_credits';
+  const text = busy ? tr(CREDITS_BUSY)
+    : language() !== 'en' && limit ? tr(limit)
+      : language() !== 'en' && credits ? tr('Your AI credits for this month are used up. Your bots pause until they refill.')
+        : msg.error ? tr(msg.error) : tr('Something went wrong.');
   return html`
     <div class="error-card" role="alert">
       ${text}

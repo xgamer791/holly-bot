@@ -242,6 +242,22 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
 
   /**
+   * What's held back of an account's credits for its requests to Holli Bot's
+   * AI under way (convex/credits.ts), one row a request, in millionths of a US
+   * dollar: `admit` adds it, and `charge` takes it away as it charges what the
+   * request cost. Kept apart from the credits, so what the app shows as left
+   * only ever changes by what requests cost. `period`: the credits' month (or
+   * Free's day) it was taken in. One whose request never came back to be
+   * charged is charged in full once `expiresAt` has passed.
+   */
+  creditHolds: defineTable({
+    userId: v.id("users"),
+    amount: v.number(),
+    period: v.string(),
+    expiresAt: v.number(),
+  }).index("by_user", ["userId"]).index("by_expiry", ["expiresAt"]),
+
+  /**
    * What all Free accounts together spent on Holli Bot's AI, one row per UTC
    * day ("2026-09-26"), in millionths of a US dollar (convex/credits.ts):
    * holds for requests under way plus what finished ones cost. Once `used`

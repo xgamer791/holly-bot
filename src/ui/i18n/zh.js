@@ -946,6 +946,7 @@ export default {
   "Waiting for Stripe": "正在等待 Stripe",
   "Check Again": "再次检查",
   "Use Free for Now": "暂时使用免费版",
+  "Your bots are using the rest of your AI credits right now. Try again when they finish.": "你的机器人正在使用剩余的 AI 积分。请等它们完成后再试。",
   "Continue with Free": "继续使用免费版",
   "Start on Free, with {count} AI credits a day, or choose a plan: each adds a dedicated server that runs your bots around the clock, DeepSeek V4 Pro and more AI credits.": "从免费版开始，每天 {count} 个 AI 积分；或者选择一个套餐：每个套餐都会增加一台全天候运行你的机器人的专属服务器、DeepSeek V4 Pro 和更多 AI 积分。",
   "Holli Bot couldn't renew your {plan} plan. Update your payment method to get it back; meanwhile you're on Free. Your bots, chats and memories are safe in your account.": "Holli Bot 无法续订你的 {plan} 套餐。请更新付款方式以恢复套餐；在此期间你使用的是免费版。你的机器人、聊天和记忆都安全地保存在你的账户中。",

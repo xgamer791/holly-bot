@@ -112,7 +112,7 @@ export const chat = httpAction(async (ctx, request) => {
     return refuse(503, "unavailable", "Holli Bot's AI couldn't take that request. Try again in a moment.");
   }
   if (!admitted.ok) return refuse(admitted.status, admitted.code, admitted.message);
-  const { held, freeDay } = admitted;
+  const { held, holdId, freeDay } = admitted;
   out.max_tokens = admitted.maxTokens;
   const charge = (used: Usage | null, output = 0) =>
     ctx.runMutation(internal.credits.charge, {
@@ -120,6 +120,7 @@ export const chat = httpAction(async (ctx, request) => {
       model,
       at: Date.now(),
       held,
+      holdId,
       ...(freeDay ? { freeDay } : {}),
       ...(used ? { usage: used } : { estimate: { prompt, output } }),
     }).catch((err) => console.error(`Charging ${userId} for a request failed: ${err instanceof Error ? err.message : err}`));

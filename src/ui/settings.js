@@ -232,10 +232,14 @@ async function signOut(app, ui) {
 let lastCredits = null;
 
 /** This month's AI credits (convex/credits.ts `mine`), for the Usage row and
- * page: null while unknown, or without a plan that gives any. */
+ * page: null while unknown, or without a plan that gives any. Asked with the
+ * minute, so an answer the server kept from before a refill isn't what comes
+ * back after it. */
 function useCredits() {
   const here = account.signedIn && signInWorksHere();
-  const { data, loading, reload } = useAsync(() => (here ? account.authed('query', 'credits:mine').catch(() => null) : Promise.resolve(null)), [here]);
+  const { data, loading, reload } = useAsync(() => (here
+    ? account.authed('query', 'credits:mine', { minute: Math.floor(Date.now() / 60_000) }).catch(() => null)
+    : Promise.resolve(null)), [here]);
   if (data !== undefined) lastCredits = data;
   return { credits: data === undefined && here ? lastCredits : data ?? null, loading, reload, here };
 }
