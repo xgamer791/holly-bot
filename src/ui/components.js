@@ -9,6 +9,8 @@ const SWIPE_SLOP = 8;
 const OWN_TOUCH = 'input, textarea, select, [contenteditable]';
 /** A click this soon (ms) after a swipe ends is the swipe's, not a tap. */
 const SWIPE_CLICK_MS = 400;
+/** The touch a swipe follows, among those a touch event is about. */
+const touchOf = (e, id) => Array.prototype.find.call(e.changedTouches, (t) => t.identifier === id);
 
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** The drawer's width: styles.css --drawer-w, measured once it's on screen. */
@@ -94,7 +96,9 @@ function slideFor(ms) {
  * Swiping left on it, or on the strip of the app beside it, pushes it back,
  * following the finger: let go a third of the way over, or with a flick, and it
  * closes, otherwise it slides back open. A tap on the strip closes it. (Swiping
- * right on the chat list pulls it out: useDrawerPull.)
+ * right on the chat list pulls it out: useDrawerPull.) Swipes are touch events,
+ * which a sideways swipe keeps from the page (preventDefault): pointer events
+ * get cancelled on iOS as soon as the page takes the touch for anything else.
  */
 export function useDrawer(remove) {
   const ref = useRef(null);
@@ -132,7 +136,7 @@ export function useDrawer(remove) {
   }, []);
   const end = (e, up) => {
     const s = swipe.current;
-    if (!s || s.id !== e.pointerId) return;
+    if (!s || !touchOf(e, s.id)) return;
     swipe.current = null;
     if (!s.sideways) return;
     swipedAt.current = performance.now();
@@ -144,16 +148,19 @@ export function useDrawer(remove) {
   };
   // On the drawer and on the strip beside it.
   const handlers = {
-    onPointerDown(e) {
+    onTouchStart(e) {
+      if (swipe.current?.sideways) return; // another finger, mid-swipe
       swipe.current = null;
-      if (e.pointerType === 'mouse' || timer.current || !ref.current || e.target.closest?.(OWN_TOUCH)) return;
-      swipe.current = { id: e.pointerId, x: e.clientX, y: e.clientY, w: ref.current.offsetWidth, drag: 0, sideways: null, speed: tracker(e.clientX, e.timeStamp) };
+      if (e.touches.length !== 1 || timer.current || !ref.current || e.target.closest?.(OWN_TOUCH)) return;
+      const t = e.touches[0];
+      swipe.current = { id: t.identifier, x: t.clientX, y: t.clientY, w: ref.current.offsetWidth, drag: 0, sideways: null, speed: tracker(t.clientX, e.timeStamp) };
     },
-    onPointerMove(e) {
+    onTouchMove(e) {
       const s = swipe.current;
-      if (!s || s.id !== e.pointerId) return;
-      const dx = e.clientX - s.x;
-      const dy = e.clientY - s.y;
+      const t = s && touchOf(e, s.id);
+      if (!t) return;
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
       if (s.sideways === null) {
         if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
         // Up and down is the drawer's scrolling; only a swipe to the left moves it.
@@ -162,15 +169,15 @@ export function useDrawer(remove) {
           return;
         }
         s.sideways = true;
-        e.currentTarget.setPointerCapture?.(e.pointerId);
         root.classList.add('drawer-dragging');
       }
-      s.speed.add(e.clientX, e.timeStamp);
+      if (e.cancelable) e.preventDefault();
+      s.speed.add(t.clientX, e.timeStamp);
       s.drag = Math.max(-s.w, Math.min(0, dx));
       place(s.drag, s.w);
     },
-    onPointerUp: (e) => end(e, true),
-    onPointerCancel: (e) => end(e, false),
+    onTouchEnd: (e) => end(e, true),
+    onTouchCancel: (e) => end(e, false),
     onClickCapture(e) {
       if (performance.now() - swipedAt.current > SWIPE_CLICK_MS) return;
       e.stopImmediatePropagation();
@@ -194,7 +201,7 @@ export function useDrawerPull(open, dismiss, busy) {
   const root = document.documentElement;
   const end = (e, up) => {
     const p = pull.current;
-    if (!p || p.id !== e.pointerId) return;
+    if (!p || !touchOf(e, p.id)) return;
     pull.current = null;
     if (!p.on) return;
     pulledAt.current = performance.now();
@@ -219,16 +226,19 @@ export function useDrawerPull(open, dismiss, busy) {
     }, ms);
   };
   return {
-    onPointerDown(e) {
+    onTouchStart(e) {
+      if (pull.current?.on) return; // another finger, mid-swipe
       pull.current = null;
-      if (e.pointerType === 'mouse' || busy() || root.classList.contains('drawer-mounted') || e.target.closest?.(OWN_TOUCH)) return;
-      pull.current = { id: e.pointerId, x: e.clientX, y: e.clientY, on: null, drag: 0, w: 0, sheet: null, speed: tracker(e.clientX, e.timeStamp) };
+      if (e.touches.length !== 1 || busy() || root.classList.contains('drawer-mounted') || e.target.closest?.(OWN_TOUCH)) return;
+      const t = e.touches[0];
+      pull.current = { id: t.identifier, x: t.clientX, y: t.clientY, on: null, drag: 0, w: 0, sheet: null, speed: tracker(t.clientX, e.timeStamp) };
     },
-    onPointerMove(e) {
+    onTouchMove(e) {
       const p = pull.current;
-      if (!p || p.id !== e.pointerId) return;
-      const dx = e.clientX - p.x;
-      const dy = e.clientY - p.y;
+      const t = p && touchOf(e, p.id);
+      if (!t) return;
+      const dx = t.clientX - p.x;
+      const dy = t.clientY - p.y;
       if (p.on === null) {
         if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
         if (!(dx > 0 && Math.abs(dx) > Math.abs(dy))) {
@@ -243,12 +253,13 @@ export function useDrawerPull(open, dismiss, busy) {
         root.classList.add('drawer-mounted', 'drawer-open', 'drawer-dragging');
         p.sheet = open();
       }
-      p.speed.add(e.clientX, e.timeStamp);
+      if (e.cancelable) e.preventDefault();
+      p.speed.add(t.clientX, e.timeStamp);
       p.drag = Math.max(-p.w, Math.min(0, dx - p.w));
       place(p.drag, p.w);
     },
-    onPointerUp: (e) => end(e, true),
-    onPointerCancel: (e) => end(e, false),
+    onTouchEnd: (e) => end(e, true),
+    onTouchCancel: (e) => end(e, false),
     onClickCapture(e) {
       if (performance.now() - pulledAt.current > SWIPE_CLICK_MS) return;
       e.stopImmediatePropagation();
