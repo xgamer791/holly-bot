@@ -217,14 +217,14 @@ svg { display: block; }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
 /* The buttons at the top (the menu, the computer, search, new): just the
-   icon, no bubble, all 28 px, in the same space to tap (not .icon-btn, the
+   icon, no bubble, all 30 px, in the same space to tap (not .icon-btn, the
    smaller gray buttons further down). Charcoal gray, and on the dark themes
    a soft gray (charcoal wouldn't show on black); the computer button keeps
    its connection's colour (below). */
 .top-btn { width: var(--tap); height: var(--tap); background: none; border: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: #b4b4b9; transition: opacity .15s, transform .1s; }
 :root[data-theme="light"] .top-btn:not(.computer-btn) { color: #333336; }
 .top-btn:active { transform: scale(.9); opacity: .6; }
-.top-btn svg { width: 28px; height: 28px; }
+.top-btn svg { width: 30px; height: 30px; }
 /* The computer button at the top right (src/ui/computer-button.js): grayed out
    while there's no computer, the computer pulsing blue while it connects,
    solid green while connected. */
