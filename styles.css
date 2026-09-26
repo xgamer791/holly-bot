@@ -691,6 +691,9 @@ button.row:active { background: var(--surface-2); }
 .mem .acts button svg { width: 16px; height: 16px; }
 .mem .acts button.on { color: var(--orange); }
 .mem textarea { width: 100%; }
+.routine-row { display: flex; align-items: center; gap: 10px; }
+.routine-head { flex: 1; min-width: 0; text-align: left; }
+.routine-title { font-weight: 600; }
 .file-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--border); width: 100%; text-align: left; }
 .file-row .fi { width: 36px; height: 36px; border-radius: 9px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; flex: none; color: var(--text-2); }
 .file-row .fi svg { width: 20px; height: 20px; }

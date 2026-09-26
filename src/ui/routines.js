@@ -16,6 +16,9 @@ export function RoutinesSheet({ agentId, onClose }) {
   const ui = useUi();
   const agent = agentId ? app.getAgent(agentId) : null;
   const [adding, setAdding] = useState(false);
+  // Each routine shows its title, schedule and switch; tapping it shows what
+  // it does, its runs, Run now and Delete.
+  const [open, setOpen] = useState(null);
   const { data: list = [] } = useAsync(() => app.routines.list(agentId), [agentId], ['routines']);
   return html`
     <${Sheet} title=${agent ? tr("{name}'s routines", { name: agent.name }) : tr('Routines')} onClose=${onClose}>
@@ -29,23 +32,27 @@ export function RoutinesSheet({ agentId, onClose }) {
       ${!list.length && !adding && html`<div class="empty-home" style="padding:40px 10px"><p>${tr('No routines yet. You can also just ask a bot: “Every weekday at 8am, send me a news brief.”')}</p></div>`}
       ${list.map((r) => {
         const a = app.getAgent(r.agentId);
+        const isOpen = open === r.id;
         return html`<div class="mem" key=${r.id}>
-          <div style="display:flex;align-items:center;gap:10px">
+          <div class="routine-row">
             ${!agent && a && html`<${Avatar} shape=${a.shape} color=${a.color} size=${26} />`}
-            <div style="flex:1;min-width:0"><div style="font-weight:600">${r.title}</div>
-              <div class="hint" style="padding:0">${scheduleText(r.schedule)} · ${r.enabled && r.nextRunAt ? tr('next {when}', { when: dateTimeText(r.nextRunAt, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }) : r.enabled ? tr('done') : tr('paused')}</div></div>
+            <button class="routine-head" aria-expanded=${isOpen} onClick=${() => setOpen(isOpen ? null : r.id)}>
+              <div class="routine-title">${r.title}</div>
+              <div class="hint" style="padding:0">${scheduleText(r.schedule)} · ${r.enabled && r.nextRunAt ? tr('next {when}', { when: dateTimeText(r.nextRunAt, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }) : r.enabled ? tr('done') : tr('paused')}</div>
+            </button>
             <${Toggle} small on=${r.enabled} onChange=${(v) => app.routines.update(r.id, { enabled: v })} label=${tr('Enabled')} />
           </div>
-          <div class="txt" style="font-size:14.5px;color:var(--text-2);margin-top:8px">${r.prompt}</div>
-          <div class="meta">
-            <span>${trn(r.runCount || 0, '{n} run', '{n} runs')}${r.lastRunAt ? ` · ${tr('last {when}', { when: dateTimeText(r.lastRunAt, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) })}` : ''}</span>
-            <span class="acts">
-              <button aria-label=${tr('Run now')} onClick=${() => { app.runtime.runRoutine(r); ui.toast(tr('Running now')); }}><${Icon.play} /></button>
-              <button aria-label=${tr('Delete')} onClick=${async () => {
-                if (await ui.confirm({ title: tr('Delete “{title}”?', { title: r.title }), confirmText: tr('Delete'), danger: true })) await app.routines.remove(r.id);
-              }}><${Icon.trash} /></button>
-            </span>
-          </div>
+          ${isOpen && html`
+            <div class="txt" style="font-size:14.5px;color:var(--text-2);margin-top:8px">${r.prompt}</div>
+            <div class="meta">
+              <span>${trn(r.runCount || 0, '{n} run', '{n} runs')}${r.lastRunAt ? ` · ${tr('last {when}', { when: dateTimeText(r.lastRunAt, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) })}` : ''}</span>
+              <span class="acts">
+                <button aria-label=${tr('Run now')} onClick=${() => { app.runtime.runRoutine(r); ui.toast(tr('Running now')); }}><${Icon.play} /></button>
+                <button aria-label=${tr('Delete')} onClick=${async () => {
+                  if (await ui.confirm({ title: tr('Delete “{title}”?', { title: r.title }), confirmText: tr('Delete'), danger: true })) await app.routines.remove(r.id);
+                }}><${Icon.trash} /></button>
+              </span>
+            </div>`}
         </div>`;
       })}
     <//>`;

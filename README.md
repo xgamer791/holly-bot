@@ -109,7 +109,7 @@ The app opens on a welcome screen: Create Account or Sign In, with your Apple or
 - **Tools:**
   - Web search and page reading.
   - Code sandbox (in the browser).
-  - Files and scheduled routines.
+  - Files and scheduled routines. Each routine shows its title, schedule and on/off switch; tap it for what it does, its runs, Run now and Delete.
   - MCP plugins, including local stdio servers through Holly Computer.
   - Gmail and Outlook: bots search and read your email, send or reply as you, and delete email (to the trash, where it can be restored, or for good when you say so), when you ask.
   - GitHub: bots list, create, change and delete your repositories, read and write their files, and make any other GitHub request (issues, pull requests, branches…).
