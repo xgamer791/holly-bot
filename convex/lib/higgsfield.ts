@@ -128,6 +128,37 @@ async function request(api: HiggsfieldApi, method: string, params: Record<string
   }
 }
 
+/**
+ * A tool's input schema without JSON Schema's "$" keywords, which Convex
+ * can't pass back (convex/lib/values.ts): a local reference ("$ref":
+ * "#/$defs/x" or "#/definitions/x") gets what it refers to in its place, and
+ * "$schema", "$id", "$comment" and the definitions themselves go. A schema
+ * that refers to itself stops after a few rounds. Parameters keep their names.
+ */
+export function plainSchema(schema: any): any {
+  const defs: Record<string, any> = { ...(schema?.definitions ?? {}), ...(schema?.$defs ?? {}) };
+  const walk = (node: any, rounds: number, root: boolean): any => {
+    if (Array.isArray(node)) return node.map((n) => walk(n, rounds, false));
+    if (!node || typeof node !== "object") return node;
+    if (typeof node.$ref === "string") {
+      const { $ref, ...rest } = node;
+      const name = /^#\/(?:\$defs|definitions)\/(.+)$/.exec($ref)?.[1];
+      const target = name ? defs[decodeURIComponent(name).replace(/~1/g, "/").replace(/~0/g, "~")] : undefined;
+      return target && rounds < 6 ? walk({ ...target, ...rest }, rounds + 1, false) : walk(rest, rounds, false);
+    }
+    const out: Record<string, any> = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (key.startsWith("$") || (root && key === "definitions")) continue;
+      // Under "properties" the keys are the tool's parameters: every one stays.
+      out[key] = key === "properties" && value && typeof value === "object" && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).map(([p, v]) => [p, walk(v, rounds, false)]))
+        : walk(value, rounds, false);
+    }
+    return out;
+  };
+  return walk(schema, 0, true);
+}
+
 /** What Higgsfield offers bots: its tools ({ name, title, description, inputSchema, annotations }). */
 export async function listTools(api: HiggsfieldApi): Promise<unknown[]> {
   const tools: unknown[] = [];
@@ -135,7 +166,7 @@ export async function listTools(api: HiggsfieldApi): Promise<unknown[]> {
   for (let page = 0; page < 10; page++) {
     const result = await request(api, "tools/list", cursor ? { cursor } : {});
     for (const t of result?.tools ?? []) {
-      tools.push({ name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations });
+      tools.push({ name: t.name, title: t.title, description: t.description, inputSchema: plainSchema(t.inputSchema), annotations: t.annotations });
     }
     cursor = result?.nextCursor;
     if (!cursor) break;

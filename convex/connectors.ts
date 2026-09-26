@@ -8,6 +8,7 @@ import { requireUserId } from "./lib/auth";
 import { requireSubscriber } from "./lib/subscription";
 import * as github from "./lib/github";
 import * as higgsfield from "./lib/higgsfield";
+import { convexSafe } from "./lib/values";
 import * as mail from "./lib/mail";
 import {
   OAuthError,
@@ -400,7 +401,9 @@ export const run = action({
   returns: v.any(),
   handler: async (ctx, { service: s, op, args }): Promise<any> => {
     try {
-      return await runOp(ctx, s, op, args);
+      // In a shape Convex can send back: a field name it won't take (a tool
+      // schema's "$defs") would fail the whole call as a bare "Server Error".
+      return convexSafe(await runOp(ctx, s, op, args));
     } catch (err) {
       // Nothing gets out as a bare "Server Error": the person reads what went wrong.
       if (!(err instanceof ConvexError)) console.error(`${s} ${op} failed: ${err instanceof Error ? err.stack || err.message : String(err)}`);
