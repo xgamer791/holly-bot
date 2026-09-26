@@ -386,36 +386,40 @@ button.row:active { background: var(--surface-2); }
    of its own. Every row has the same padding and height, and what sits at
    its right (a value, chevron or switch) lines up on one edge. The pages
    inside the drawer are made of the same surfaces, rows, headings and notes. */
-.drawer { --card: #1c1c1e; --card-press: #2a2a2d; --card-line: rgba(255, 255, 255, .09); --track: rgba(120, 120, 128, .36); --radius-group: 16px; }
-:root[data-theme="dark"] .drawer { --card: #262628; --card-press: #313134; }
-:root[data-theme="light"] .drawer { --card: #f2f2f4; --card-press: #e7e7ea; --card-line: rgba(0, 0, 0, .08); --track: rgba(120, 120, 128, .26); }
+/* Colours picked to read clearly on a phone: surfaces that stand apart from
+   the background, descriptions and headings in a mid gray rather than a pale
+   one, and switches whose off state is plainly visible. */
+.drawer { --card: #252528; --card-press: #303033; --card-line: rgba(255, 255, 255, .11); --track: #4a4a4f; --meter: rgba(255, 255, 255, .16); --sub: #aeaeb3; --chev: #7d7d82; --radius-group: 16px; }
+:root[data-theme="dark"] .drawer { --card: #2e2e31; --card-press: #39393c; --track: #545459; }
+:root[data-theme="light"] .drawer { --card: #ebebee; --card-press: #dfdfe3; --card-line: rgba(0, 0, 0, .1); --track: #b2b2b8; --meter: rgba(0, 0, 0, .12); --sub: #56565b; --chev: #86868b; }
 :root[data-theme="light"] .sheet.drawer { background: #fff; }
 .drawer .sheet-head { padding: 16px 16px 4px; min-height: 68px; gap: 14px; }
 .drawer .sheet-body { padding: 4px 16px calc(28px + var(--safe-bottom)); touch-action: pan-y; }
 .drawer.headless .sheet-body { padding-top: 14px; } /* Settings itself: no header above it */
 .drawer .group { background: var(--card); border: 0; border-radius: var(--radius-group); margin: 0; overflow: hidden; }
 .drawer .group + .group { margin-top: 14px; }
-.drawer .group-label { margin: 22px 16px 7px; color: var(--muted); font-size: 13.5px; line-height: 18px; font-weight: 500; letter-spacing: 0; text-transform: none; }
-.drawer .group-note { margin: 7px 16px 12px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.drawer .group-label { margin: 22px 16px 7px; color: var(--sub); font-size: 13.5px; line-height: 18px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.drawer .group-note { margin: 7px 16px 12px; color: var(--sub); font-size: 13px; line-height: 1.45; font-weight: 450; }
 .drawer .row { width: 100%; margin: 0; min-height: 50px; padding: 9.5px 16px; gap: 12px; border-radius: 0; }
 /* The line between rows, from the text's edge to the surface's. */
 .drawer .row + .row::before, .drawer .row + .row-wrap::before, .drawer .row-wrap + .row::before, .drawer .drawer-account + .row::before {
   content: ""; position: absolute; top: 0; left: 16px; right: 0; display: block; height: 1px; background: var(--card-line); }
 .drawer button.row:active { background: var(--card-press); }
 @media (hover: hover) { .drawer button.row:hover { background: var(--card-press); } }
-.drawer .row .label .t { color: var(--text); font-size: 16px; line-height: 21px; }
-.drawer .row .label .s { margin-top: 2px; color: var(--muted); font-size: 13px; line-height: 17.5px; }
-.drawer .row .value { color: var(--muted); font-size: 15px; line-height: 21px; }
+.drawer .row .label .t { color: var(--text); font-size: 16px; line-height: 21px; font-weight: 500; }
+.drawer .row .label .s { margin-top: 2px; color: var(--sub); font-size: 13.5px; line-height: 18px; font-weight: 450; }
+.drawer .row .value { color: var(--sub); font-size: 15px; line-height: 21px; font-weight: 450; }
 /* A chevron's stroke sits 5 px inside its box: pulled out to the edge a
    switch ends on, and in towards a value. The external-link icon fills its box. */
-.drawer .row .chev { width: 16px; height: 16px; margin: 0 -5px 0 -9px; color: var(--dim); }
-.drawer .row .chev.ext { margin: 0 -1px 0 -4px; }
+.drawer .row .chev { width: 16px; height: 16px; margin: 0 -5px 0 -9px; color: var(--chev); stroke-width: 2.5; }
+.drawer .row .chev.ext { margin: 0 -1px 0 -4px; stroke-width: 2.25; }
 .drawer .row > svg:first-child { flex: none; color: var(--text-2); }
 .drawer .row.danger .label .t { color: var(--red); }
-:root[data-theme="light"] .drawer .row.danger .label .t { color: var(--red-strong); }
+:root[data-theme="light"] .drawer .row.danger .label .t { color: #d70015; }
 /* Switches the size and look of iOS's. */
 .drawer .toggle { width: 51px; height: 31px; border-radius: 16px; background: var(--track); }
 .drawer .toggle.on { background: var(--green); }
+:root[data-theme="light"] .drawer .toggle.on { background: #34c759; }
 .drawer .toggle::after { top: 2px; left: 2px; width: 27px; height: 27px; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .06); }
 .drawer .toggle.on::after { transform: translateX(20px); }
 /* Beside a title and a description, the switch lines up with the title. */
@@ -427,17 +431,18 @@ button.row:active { background: var(--surface-2); }
 /* The top of Settings, one surface: who is signed in, then Usage, a row
    with what's left at its right and a slim meter under it. */
 .drawer-account { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
-.drawer-account .initials { width: 46px; height: 46px; font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+.drawer-account .initials { width: 46px; height: 46px; font-size: 16px; font-weight: 600; letter-spacing: .3px; border: 0; background: #3c3c40; color: #e6e6ea; }
+:root[data-theme="light"] .drawer-account .initials { background: #d2d2d7; color: #2c2c2e; }
 .drawer-account .who { flex: 1; min-width: 0; }
 .drawer-account .name { font-size: 16.5px; line-height: 21px; font-weight: 600; overflow-wrap: anywhere; }
-.drawer-account .detail { margin-top: 1px; color: var(--muted); font-size: 13px; line-height: 17.5px; overflow-wrap: anywhere; }
+.drawer-account .detail { margin-top: 1px; color: var(--sub); font-size: 13.5px; line-height: 18px; font-weight: 450; overflow-wrap: anywhere; }
 .drawer .usage-row { flex-wrap: wrap; row-gap: 9px; padding-bottom: 13px; }
-.drawer .usage-row .credits-bar { flex: 0 0 100%; height: 4px; margin: 0; border-radius: 2px; background: var(--card-line); }
+.drawer .usage-row .credits-bar { flex: 0 0 100%; height: 5px; margin: 0; border-radius: 3px; background: var(--meter); }
 
 /* The bottom: Sign Out on a surface of its own, then the app and its version. */
 .drawer-signout { margin-top: 22px; background: var(--card); border-radius: var(--radius-group); overflow: hidden; }
-.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 18px 16px 0; color: var(--muted); font-size: 12.5px; }
-.drawer-foot .n { color: var(--text-2); font-size: 13.5px; font-weight: 600; }
+.drawer-foot { display: flex; align-items: center; gap: 8px; margin: 18px 16px 0; color: var(--sub); font-size: 13px; font-weight: 450; }
+.drawer-foot .n { color: var(--text); font-size: 13.5px; font-weight: 600; }
 .drawer-foot .v { font-variant-numeric: tabular-nums; }
 
 /* ---------- forms ---------- */
