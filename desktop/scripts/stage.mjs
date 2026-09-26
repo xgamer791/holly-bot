@@ -11,11 +11,11 @@
 //   node scripts/stage.mjs            everything
 //   node scripts/stage.mjs --no-node  everything but Node.js (it's kept from before)
 import { build } from 'esbuild';
-import extract from 'extract-zip';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateRawSync } from 'node:zlib';
 
 const desktop = fileURLToPath(new URL('..', import.meta.url));
 const root = join(desktop, '..');
@@ -75,18 +75,19 @@ if (process.argv.includes('--no-node') && existsSync(join(nodeDir, 'node.exe')))
   const sums = await fetchText(`https://nodejs.org/dist/v${version}/SHASUMS256.txt`);
   const want = sums.split('\n').map((line) => line.trim().split(/\s+/)).find(([, file]) => file === `${name}.zip`)?.[0];
   if (!want) throw new Error(`nodejs.org lists no ${name}.zip`);
-  if (!existsSync(zip) || sha256(readFileSync(zip)) !== want) {
+  let data = existsSync(zip) ? readFileSync(zip) : null;
+  if (!data || sha256(data) !== want) {
     mkdirSync(cache, { recursive: true });
     const res = await fetch(`https://nodejs.org/dist/v${version}/${name}.zip`);
     if (!res.ok) throw new Error(`Downloading ${name}.zip failed (${res.status})`);
-    const data = Buffer.from(await res.arrayBuffer());
+    data = Buffer.from(await res.arrayBuffer());
     if (sha256(data) !== want) throw new Error(`${name}.zip doesn't match its SHA-256 on nodejs.org`);
     writeFileSync(zip, data);
   }
   const unpacked = join(stage, 'node-unpacked');
   rmSync(unpacked, { recursive: true, force: true });
   rmSync(nodeDir, { recursive: true, force: true });
-  await extract(zip, { dir: unpacked });
+  unzip(data, unpacked);
   renameSync(join(unpacked, name), nodeDir);
   rmSync(unpacked, { recursive: true, force: true });
   if (!existsSync(join(nodeDir, 'node.exe'))) throw new Error(`${name}.zip has no node.exe`);
@@ -101,4 +102,35 @@ async function fetchText(url) {
 
 function sha256(data) {
   return createHash('sha256').update(data).digest('hex');
+}
+
+/** Unpacks a zip (stored and deflated files, as Node.js's own is) into `dir`,
+ * refusing any path that would land outside it. */
+function unzip(zip, dir) {
+  let end = zip.length - 22;
+  while (end >= 0 && zip.readUInt32LE(end) !== 0x06054b50) end--;
+  if (end < 0) throw new Error('not a zip file');
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  for (let i = 0; i < count; i++) {
+    if (zip.readUInt32LE(at) !== 0x02014b50) throw new Error('the zip file is damaged');
+    const method = zip.readUInt16LE(at + 10);
+    const size = zip.readUInt32LE(at + 20);
+    const nameLength = zip.readUInt16LE(at + 28);
+    const local = zip.readUInt32LE(at + 42);
+    const path = zip.toString('utf8', at + 46, at + 46 + nameLength);
+    at += 46 + nameLength + zip.readUInt16LE(at + 30) + zip.readUInt16LE(at + 32);
+    const parts = path.split(/[\\/]/).filter(Boolean);
+    if (/^[\\/]|^[a-z]:/i.test(path) || parts.includes('..')) throw new Error(`the zip file has a path outside it: ${path}`);
+    const out = join(dir, ...parts);
+    if (path.endsWith('/')) {
+      mkdirSync(out, { recursive: true });
+      continue;
+    }
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const body = zip.subarray(start, start + size);
+    if (method !== 0 && method !== 8) throw new Error(`the zip file packs ${path} in a way this can't unpack (${method})`);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, method === 8 ? inflateRawSync(body) : body);
+  }
 }
