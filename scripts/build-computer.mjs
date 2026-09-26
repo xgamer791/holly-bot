@@ -1,4 +1,4 @@
-// Builds Holly Bot Computer into one file you can run with Node.js 22+:
+// Builds Holli Bot Computer into one file you can run with Node.js 22+:
 //
 //   computer/holly-computer.mjs
 //
@@ -50,7 +50,7 @@ const code = result.outputFiles[0].text.replace(/^#!.*\n/, '');
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 const header = `#!/usr/bin/env node
-// Holly Bot Computer — your Holly bots live on this computer; control them from your phone.
+// Holli Bot Computer — your Holli bots live on this computer; control them from your phone.
 // Run:  node holly-computer.mjs      (needs Node.js 22 or newer: https://nodejs.org)
 // Help: node holly-computer.mjs --help
 // Built from https://github.com/xgamer791/holly-bot (app ${version}). Generated file — edit computer/src and src instead.

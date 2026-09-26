@@ -12,7 +12,7 @@ export const LIVE_SITE = "https://xgamer791.github.io/holly-bot";
  * Where Google and Apple may send someone back to: the live app, `SITE_URL`
  * (the same address), and local development on http://localhost.
  *
- * Everything else is refused, Holly Bot Computer's tunnel and LAN addresses
+ * Everything else is refused, Holli Bot Computer's tunnel and LAN addresses
  * included. Whoever starts a sign-in holds the verifier its one-time code is
  * redeemed with, so a sign-in that could finish on a site someone else
  * controls would hand them the account.
@@ -41,7 +41,7 @@ const AppleOAuth = Apple({
 });
 
 /**
- * Holly Bot Computer signing in to the account it is being linked to. The app
+ * Holli Bot Computer signing in to the account it is being linked to. The app
  * made a one-time code for it (devices:createLink) and handed it over; the
  * code is checked against its stored hash and spent (convex/devices.ts).
  */

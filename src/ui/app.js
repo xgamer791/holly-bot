@@ -116,9 +116,9 @@ export function Root({ app }) {
     }
     const icon = `data:image/svg+xml,${encodeURIComponent(avatarSvgString(agent || {}))}`;
     const opts = { body: phraseOr(say, text), icon, tag: threadId, data: { threadId } };
-    navigator.serviceWorker?.ready.then((reg) => reg.showNotification(agent?.name || 'Holly Bot', opts)).catch(() => {
+    navigator.serviceWorker?.ready.then((reg) => reg.showNotification(agent?.name || 'Holli Bot', opts)).catch(() => {
       try {
-        new Notification(agent?.name || 'Holly Bot', opts);
+        new Notification(agent?.name || 'Holli Bot', opts);
       } catch { /* unsupported */ }
     });
   }), []);
@@ -162,7 +162,7 @@ export function Root({ app }) {
   // What src/main.js has to say while the app is open (connecting to a computer).
   useEffect(() => app.on('toast', ({ text, error }) => ui.toast(text, { error: !!error })), []);
 
-  // On Holly Bot Computer's own page: a phone just connected to this computer
+  // On Holli Bot Computer's own page: a phone just connected to this computer
   // (computer/src/server.mjs hello). The first time (Connect), a word to
   // confirm it; after that, when it connects by itself, a quieter one.
   useEffect(() => app.on('hello', (hello) => {
@@ -170,19 +170,19 @@ export function Root({ app }) {
     const device = deviceName(hello.kind);
     const name = app.server?.name || tr('this computer');
     if (!hello.first) {
-      ui.toast(tr('Holly Bot on your {device} connected to {name}.', { device, name }));
+      ui.toast(tr('Holli Bot on your {device} connected to {name}.', { device, name }));
       return;
     }
     ui.confirm({
       title: tr('Connected to your {device}', { device }),
-      message: tr('Holly Bot on your {device} is connected to {name}. Your bots run here, and you can use them from your {device}.', { device, name }),
+      message: tr('Holli Bot on your {device} is connected to {name}. Your bots run here, and you can use them from your {device}.', { device, name }),
       confirmText: tr('OK'),
       cancelText: null,
     });
   }), []);
 
   // Routine scheduler for bots that run in this app (one tab at a time when Web Locks exist).
-  // When a Holly Bot Computer runs them (this app controls it, or it's linked to
+  // When a Holli Bot Computer runs them (this app controls it, or it's linked to
   // the account), it runs routines 24/7 instead.
   useEffect(() => {
     if (app.remote || app.linkedComputers?.length) return undefined;
@@ -202,7 +202,7 @@ export function Root({ app }) {
   const unread = app.listThreads().filter((t) => t.unread).length;
   useEffect(() => {
     const t = route.threadId && app.getThread(route.threadId);
-    document.title = `${unread ? `(${unread}) ` : ''}${t ? `${threadTitle(app, t)} · ` : ''}Holly Bot`;
+    document.title = `${unread ? `(${unread}) ` : ''}${t ? `${threadTitle(app, t)} · ` : ''}Holli Bot`;
     navigator.setAppBadge?.(unread + waitingCount).catch?.(() => {});
   });
 

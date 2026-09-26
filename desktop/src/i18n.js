@@ -1,4 +1,4 @@
-// What Holly Bot for Windows shows, in Windows' own language when Holly
+// What Holli Bot for Windows shows, in Windows' own language when Holli
 // Bot speaks it (English, Spanish or Chinese), like the app's System choice.
 // It's written in English, and each piece goes through tr('…'), which looks
 // it up in the app's own dictionaries (src/ui/i18n/es.js and zh.js), so
@@ -11,7 +11,7 @@ import { fill, resolveLanguage } from '../../src/core/i18n.js';
 const DICTIONARIES = { es, zh };
 let current = 'en';
 
-/** Shows everything in the first of `preferred` (language tags, most wanted first) Holly Bot speaks. */
+/** Shows everything in the first of `preferred` (language tags, most wanted first) Holli Bot speaks. */
 export function setLanguage(preferred = []) {
   current = resolveLanguage('system', preferred);
   return current;

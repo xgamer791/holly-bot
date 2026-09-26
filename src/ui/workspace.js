@@ -10,7 +10,7 @@ import { shortTime, tr } from './i18n.js';
 
 // A chat's workspace (thread.workspace): what its bot works on. GitHub
 // repositories (as many as you like), or one server (a computer linked to the
-// account, running Holly Bot Computer) and, if you like, some of its apps. Never
+// account, running Holli Bot Computer) and, if you like, some of its apps. Never
 // both: picking one side clears the other. The bot's tools and instructions
 // follow (src/core/tools/index.js, src/core/prompts.js). Opened from the
 // Workspace button in the prompt bar (src/ui/composer.js).
@@ -145,10 +145,10 @@ function ServerPane({ ws, save, bots }) {
     }
     if (!computerConnection(d)) {
       ui.toast(computerState(d) === 'hidden' && d.tunnel === 'blocked'
-        ? tr("{name} is on, but its network blocks the secure tunnel Holly Bot Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: d.name })
+        ? tr("{name} is on, but its network blocks the secure tunnel Holli Bot Computer uses (Cloudflare, port 7844), so this app can't reach it.", { name: d.name })
         : computerState(d) === 'hidden' && d.tunnel === 'starting'
           ? tr('{name} is on and opening its connection. Try again in a moment.', { name: d.name })
-          : tr('{name} is off. Start Holly Bot Computer on it, then pick it here.', { name: d.name }), { error: true });
+          : tr('{name} is off. Start Holli Bot Computer on it, then pick it here.', { name: d.name }), { error: true });
       return;
     }
     if (!(await ui.confirm({
@@ -176,8 +176,8 @@ function ServerPane({ ws, save, bots }) {
       <div class="ws-empty">
         <span class="ws-empty-icon"><${Icon.server} size="28" /></span>
         <b>${tr('No servers yet')}</b>
-        <p>${tr('Run Holly Bot Computer on a computer or server and link it to your account. Then pick it here.')}</p>
-        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>${tr('Set Up Holly Bot Computer')}</button>
+        <p>${tr('Run Holli Bot Computer on a computer or server and link it to your account. Then pick it here.')}</p>
+        <button class="btn primary" onClick=${() => ui.openSheet('settings', { page: 'computer' })}>${tr('Set Up Holli Bot Computer')}</button>
       </div>`;
   }
 
@@ -211,7 +211,7 @@ function serverStatus(d, here, answers) {
   if (state === 'hidden' && d.tunnel === 'starting') return tr('On · connecting…');
   if (state === 'hidden' && d.tunnel === 'blocked') return tr('On, but its network blocks the connection');
   if (state === 'hidden') return tr("On, but this app can't reach it");
-  if (state === 'old') return tr('Needs the latest Holly Bot Computer');
+  if (state === 'old') return tr('Needs the latest Holli Bot Computer');
   return d.seenAt ? tr('Off · seen {when}', { when: shortTime(d.seenAt) }) : tr('Off');
 }
 
@@ -240,7 +240,7 @@ function AppsPane({ ws, save }) {
     <div class="group-label ws-apps-label">${tr('Apps on {name}', { name: ws.name })}</div>
     <p class="ws-lead small">${tr('Pick apps to keep the bot to them, or none for the whole server.')}</p>
     ${apps.loading && !apps.data && html`<div class="ws-empty"><span class="spinner"></span></div>`}
-    ${apps.error && html`<p class="ws-note">${old ? tr('Restart Holly Bot Computer on it to update it, and its apps show up here.') : tr("Couldn't look for its apps.")}
+    ${apps.error && html`<p class="ws-note">${old ? tr('Restart Holli Bot Computer on it to update it, and its apps show up here.') : tr("Couldn't look for its apps.")}
       ${!old && html` <button class="ws-link" onClick=${apps.reload}>${tr('Try again')}</button>`}</p>`}
     ${rows.length > 0 && html`
       <div class="ws-list">

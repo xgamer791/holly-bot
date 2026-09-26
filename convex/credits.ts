@@ -7,7 +7,7 @@ import { PLANS, planById } from "./lib/plans";
 import { INACTIVE, hasAccess, isExempt, subscriberOf } from "./lib/subscription";
 import { MICROS_PER_CENT, anchorFor, costOf, estimateUsage, refillIn, settle, type Ledger } from "./lib/credits";
 
-// AI credits. Holly Bot's AI is DeepSeek on Holly Bot's own key
+// AI credits. Holli Bot's AI is DeepSeek on Holli Bot's own key
 // (convex/ai.ts), and each account gets its plan's allowance of it every month
 // (convex/lib/plans.ts): Starter $10, Pro $20, Ultra $35 of DeepSeek use,
 // which the app shows as credits, 1 per cent. Every request is let in only
@@ -51,7 +51,7 @@ async function save(ctx: MutationCtx, userId: Id<"users">, row: Doc<"credits"> |
 
 /** The signed-in account's credits this month, for the app's bar: what the
  * month gives and what's left (millionths of a dollar; the app shows credits),
- * and when they refill. `ready`: Holly Bot's server can run its AI (its
+ * and when they refill. `ready`: Holli Bot's server can run its AI (its
  * DeepSeek key is set). Null without a subscription that lets it in. */
 export const mine = query({
   args: {},
@@ -67,7 +67,7 @@ export const mine = query({
 });
 
 /**
- * Lets a request to Holly Bot's AI through (convex/ai.ts) for an account
+ * Lets a request to Holli Bot's AI through (convex/ai.ts) for an account
  * signed in with a session that's still open, whose subscription lets it in,
  * and that has credits left. It holds back `hold`, what the request could
  * cost at most, or whatever is left when that's less; `charge` settles it.
@@ -81,7 +81,7 @@ export const admit = internalMutation({
   handler: async (ctx, { userId, sessionId, hold }) => {
     const session = await ctx.db.get(sessionId);
     if (!session || session.userId !== userId) {
-      return { ok: false as const, status: 401, code: "not_signed_in", message: "Sign in to Holly Bot again to keep using its AI." };
+      return { ok: false as const, status: 401, code: "not_signed_in", message: "Sign in to Holli Bot again to keep using its AI." };
     }
     const plan = await planOf(ctx, userId);
     if (!plan) return { ok: false as const, status: 402, code: "not_subscribed", message: INACTIVE };

@@ -34,7 +34,7 @@ export const routineTools = [
       }
       const r = await ctx.app.routines.create({ agentId: ctx.agent.id, title: args.title, prompt: args.prompt, schedule });
       return {
-        content: `Routine ${r.id} created: ${describeSchedule(r.schedule)}; next run ${new Date(r.nextRunAt).toLocaleString()}. Runs happen while Holly is open (missed runs catch up on next launch).`,
+        content: `Routine ${r.id} created: ${describeSchedule(r.schedule)}; next run ${new Date(r.nextRunAt).toLocaleString()}. Runs happen while Holli Bot is open (missed runs catch up on next launch).`,
         display: { kind: 'routine', routineId: r.id, title: r.title, schedule: describeSchedule(r.schedule), plan: r.schedule, nextRunAt: r.nextRunAt },
       };
     },

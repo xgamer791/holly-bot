@@ -1,4 +1,4 @@
-// Bots on Holly Bot's AI (src/core/providers/index.js): requests go to the
+// Bots on Holli Bot's AI (src/core/providers/index.js): requests go to the
 // backend's /ai route with the account's session, renewed once when turned
 // down; its refusals (credits used up) read as it says them; only DeepSeek's
 // models; and a saved DeepSeek key until the server can run the AI.
@@ -48,7 +48,7 @@ const hello = () => sse([
 ]);
 const ask = (hub, agent = null) => hub.chat({ cfg: hub.resolve(agent), system: 'You are Holly.', messages: [{ role: 'user', parts: [{ type: 'text', text: 'Hi' }] }], tools: [] });
 
-test('a bot asks Holly Bot\'s AI with the account\'s session, and gets the answer streamed', async () => {
+test('a bot asks Holli Bot\'s AI with the account\'s session, and gets the answer streamed', async () => {
   const hub = new ProviderHub(appWith());
   const calls = stubFetch(() => hello());
   const res = await ask(hub);
@@ -65,7 +65,7 @@ test('a session the server turns down is renewed once, and the request asked aga
   const app = appWith();
   const hub = new ProviderHub(app);
   const calls = stubFetch((call, n) => (n === 1
-    ? new Response(JSON.stringify({ error: { message: 'Sign in to Holly Bot to use its AI.', type: 'holly_bot', code: 'not_signed_in' } }), { status: 401 })
+    ? new Response(JSON.stringify({ error: { message: 'Sign in to Holli Bot to use its AI.', type: 'holly_bot', code: 'not_signed_in' } }), { status: 401 })
     : hello()));
   const res = await ask(hub);
   assert.equal(res.text, 'Hello there');

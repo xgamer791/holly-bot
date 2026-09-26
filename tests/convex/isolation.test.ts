@@ -62,7 +62,7 @@ async function account(email: string) {
   const { userId, sessionId } = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { email });
     const sessionId = await ctx.db.insert("authSessions", { userId, expirationTime: Date.now() + 3_600_000 });
-    // Holly Bot's server keeps an account's data only while it has an active
+    // Holli Bot's server keeps an account's data only while it has an active
     // subscription (convex/lib/subscription.ts).
     await ctx.db.insert("subscribers", {
       userId,
@@ -89,7 +89,7 @@ async function connectGmail(a: Awaited<ReturnType<typeof account>>) {
   return a.as.mutation(api.connectors.claim, { claim });
 }
 
-describe("connected accounts stay with the Holly Bot account that connected them", () => {
+describe("connected accounts stay with the Holli Bot account that connected them", () => {
   test("each account sees, uses and removes only its own", async () => {
     const alice = await account("alice@example.com");
     const bob = await account("bob@example.com");
@@ -132,11 +132,11 @@ describe("connected accounts stay with the Holly Bot account that connected them
     expect(rows.every((row) => row.userId === alice.userId)).toBe(true);
   });
 
-  test("the same account's other sessions (another phone, a linked Holly Bot Computer) share them; nobody else does", async () => {
+  test("the same account's other sessions (another phone, a linked Holli Bot Computer) share them; nobody else does", async () => {
     const alice = await account("alice@example.com");
     const bob = await account("bob@example.com");
     await alice.as.action(api.connectors.connectToken, { token: TOKEN_A });
-    // Alice's Holly Bot Computer signs in with a session of its own on her account.
+    // Alice's Holli Bot Computer signs in with a session of its own on her account.
     const computerSession = await t.run((ctx) => ctx.db.insert("authSessions", { userId: alice.userId, expirationTime: Date.now() + 3_600_000 }));
     const computer = t.withIdentity({ subject: `${alice.userId}|${computerSession}` });
     expect((await computer.query(api.connectors.list, {})).map((c) => c.account)).toEqual(["alice-gh"]);
@@ -162,7 +162,7 @@ describe("connected accounts stay with the Holly Bot account that connected them
     const authorize = new URL(await bob.as.action(api.connectors.start, { service: "gmail", returnTo: SITE }));
     const res = await t.fetch(`/connectors/gmail/callback?state=${authorize.searchParams.get("state")}&code=alices-approval`, { method: "GET" });
     const claim = new URL(res.headers.get("location")!).searchParams.get("connect")!;
-    expect(await alice.as.mutation(api.connectors.claim, { claim })).toMatchObject({ error: expect.stringMatching(/another Holly Bot account/) });
+    expect(await alice.as.mutation(api.connectors.claim, { claim })).toMatchObject({ error: expect.stringMatching(/another Holli Bot account/) });
     // Thrown away: Bob can't pick it up afterwards either.
     expect(await bob.as.mutation(api.connectors.claim, { claim })).toMatchObject({ error: expect.stringMatching(/expired/) });
     expect(await alice.as.query(api.connectors.list, {})).toEqual([]);

@@ -175,7 +175,7 @@ function CoreMemory({ agent }) {
       <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr("Bot's job")}
         placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} />
     <//>
-    <${Field} label=${tr('Rules')} hint=${tr("Hard rules {name} must always follow, unless one goes against Holly Bot's own safety and behavior rules. It reads them in full at the start of every chat.", { name: agent.name })}>
+    <${Field} label=${tr('Rules')} hint=${tr("Hard rules {name} must always follow, unless one goes against Holli Bot's own safety and behavior rules. It reads them in full at the start of every chat.", { name: agent.name })}>
       <${AgentText} key=${`rules_${agent.id}`} agent=${agent} field="rules" rules label=${tr("Bot's rules")}
         placeholder=${tr('e.g. Never send an email without my OK')} />
     <//>

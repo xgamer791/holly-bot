@@ -10,7 +10,7 @@ import { buildSystemPrompt } from '../../src/core/prompts.js';
 import { computerState, computerSummary } from '../../src/core/computers.js';
 import { App } from '../../src/core/app.js';
 
-const agent = { id: 'bot1', name: 'Holly Bot Debug', core: {}, tools: {} };
+const agent = { id: 'bot1', name: 'Holli Bot Debug', core: {}, tools: {} };
 const thread = { id: 'dm_bot1', kind: 'dm', agentIds: ['bot1'] };
 const shellTools = [{ name: 'shell' }, { name: 'read_file' }];
 
@@ -37,9 +37,9 @@ const section = (prompt, heading) => {
 test('on the plan\'s server: the bot says so, and knows GOAT, the Windows PC, is on but not in use', () => {
   const prompt = buildSystemPrompt({
     app: appWith({
-      info: { name: 'Holly Server', hostname: 'holly-5-161-2-10', platform: 'linux' },
+      info: { name: 'Holli Server', hostname: 'holly-5-161-2-10', platform: 'linux' },
       linked: [
-        { id: 'devServer', name: 'Holly Server', server: true, platform: 'linux', state: 'running', here: true },
+        { id: 'devServer', name: 'Holli Server', server: true, platform: 'linux', state: 'running', here: true },
         { id: 'devGoat', name: 'GOAT', server: false, platform: 'win32', state: 'running' },
       ],
     }),
@@ -48,9 +48,9 @@ test('on the plan\'s server: the bot says so, and knows GOAT, the Windows PC, is
     tools: shellTools,
   });
   const mine = section(prompt, 'Your computers');
-  assert.match(mine, /Right now you're working on Holly Server, the server that comes with their Holly Bot plan, and you can use it/);
-  assert.match(mine, /- GOAT \(their Windows PC\): on, but you're not working on it: to have their bots work there, the user connects Holly Bot to it/);
-  assert.doesNotMatch(mine, /- Holly Server/, 'this one isn\'t listed among the others');
+  assert.match(mine, /Right now you're working on Holli Server, the server that comes with their Holli Bot plan, and you can use it/);
+  assert.match(mine, /- GOAT \(their Windows PC\): on, but you're not working on it: to have their bots work there, the user connects Holli Bot to it/);
+  assert.doesNotMatch(mine, /- Holli Server/, 'this one isn\'t listed among the others');
   assert.match(mine, /never "I don't know"/);
   assert.doesNotMatch(prompt, /holly-5-161-2-10/, 'not the host name');
 });
@@ -62,7 +62,7 @@ test('on GOAT: "are you on my Windows PC?" has its answer, and the plan\'s serve
       info: { name: 'GOAT', hostname: 'GOAT', platform: 'win32' },
       linked: [
         { id: 'devGoat', name: 'GOAT', server: false, state: 'running' },
-        { id: 'devServer', name: 'Holly Server', server: true, platform: 'linux', state: 'off' },
+        { id: 'devServer', name: 'Holli Server', server: true, platform: 'linux', state: 'off' },
       ],
     }),
     agent,
@@ -71,7 +71,7 @@ test('on GOAT: "are you on my Windows PC?" has its answer, and the plan\'s serve
   });
   const mine = section(prompt, 'Your computers');
   assert.match(mine, /Right now you're working on GOAT, their Windows PC, and you can use it/);
-  assert.match(mine, /- Holly Server \(the server that comes with their Holly Bot plan\): off: Holly Bot Computer isn't running there/);
+  assert.match(mine, /- Holli Server \(the server that comes with their Holli Bot plan\): off: Holli Bot Computer isn't running there/);
   assert.doesNotMatch(mine, /- GOAT/);
 });
 
@@ -81,7 +81,7 @@ test('running in the app: on none of their computers, and why each can\'t be use
       linked: [
         { id: 'devGoat', name: 'GOAT', server: false, platform: 'win32', state: 'blocked' },
         { id: 'devMac', name: 'Studio', server: false, platform: 'darwin', state: 'unreachable' },
-        { id: 'devServer', name: 'Holly Server', server: true, state: 'starting' },
+        { id: 'devServer', name: 'Holli Server', server: true, state: 'starting' },
       ],
     }),
     agent,
@@ -90,16 +90,16 @@ test('running in the app: on none of their computers, and why each can\'t be use
   });
   const mine = section(prompt, 'Your computers');
   assert.match(mine, /Right now you're not working on any of their computers/);
-  assert.match(mine, /Their computers linked to Holly Bot:/);
-  assert.match(mine, /- GOAT \(their Windows PC\): on, but that computer's network blocks the secure tunnel Holly Bot Computer uses \(Cloudflare Tunnel, outbound port 7844\)/);
-  assert.match(mine, /- Studio \(their Mac\): says it's on, but Holly Bot can't reach it right now/);
-  assert.match(mine, /- Holly Server \(the server that comes with their Holly Bot plan\): on, and opening its connection/);
+  assert.match(mine, /Their computers linked to Holli Bot:/);
+  assert.match(mine, /- GOAT \(their Windows PC\): on, but that computer's network blocks the secure tunnel Holli Bot Computer uses \(Cloudflare Tunnel, outbound port 7844\)/);
+  assert.match(mine, /- Studio \(their Mac\): says it's on, but Holli Bot can't reach it right now/);
+  assert.match(mine, /- Holli Server \(the server that comes with their Holli Bot plan\): on, and opening its connection/);
 });
 
 test('no computer yet, and computer tools turned off', () => {
   const none = section(buildSystemPrompt({ app: appWith(), agent, thread, tools: [] }), 'Your computers');
   assert.match(none, /not working on any of their computers/);
-  assert.match(none, /No computer of theirs is linked to Holly Bot yet/);
+  assert.match(none, /No computer of theirs is linked to Holli Bot yet/);
   const off = section(buildSystemPrompt({ app: appWith({ info: { name: 'GOAT', platform: 'win32' } }), agent, thread, tools: [] }), 'Your computers');
   assert.match(off, /working on GOAT, their Windows PC, but your computer tools are off in your profile/);
 });
@@ -134,7 +134,7 @@ test('a real turn: "Are you connected to goat?" reaches the bot with its compute
   await app.saveSettings({ providers: { deepseek: { apiKey: 'sk-test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, memory: { auto: false } });
   app.linkedComputers = [
     { id: 'devGoat', name: 'GOAT', server: false, platform: 'win32', state: 'running' },
-    { id: 'devServer', name: 'Holly Server', server: true, platform: 'linux', state: 'running' },
+    { id: 'devServer', name: 'Holli Server', server: true, platform: 'linux', state: 'running' },
   ];
   const sent = [];
   app.providers.chat = async (req) => {
@@ -143,13 +143,13 @@ test('a real turn: "Are you connected to goat?" reaches the bot with its compute
     req.onEvent?.({ type: 'text', text });
     return { text, thinking: '', toolCalls: [], stopReason: 'end', usage: { input: 10, output: 5 }, citations: [], model: 'test' };
   };
-  const bot = await app.createAgent({ name: 'Holly Bot Debug', greet: false });
+  const bot = await app.createAgent({ name: 'Holli Bot Debug', greet: false });
   await app.runtime.send(`dm_${bot.id}`, { text: 'Are you connected to goat?' });
   for (let i = 0; i < 100 && !sent.length; i++) await new Promise((r) => setTimeout(r, 10));
   const turn = sent.find((req) => /## Your computers/.test(req.system || ''));
   assert.ok(turn, 'the bot got its computers');
   assert.match(turn.system, /- GOAT \(their Windows PC\): on, but you're not working on it/);
-  assert.match(turn.system, /- Holly Server \(the server that comes with their Holly Bot plan\): on, but you're not working on it/);
+  assert.match(turn.system, /- Holli Server \(the server that comes with their Holli Bot plan\): on, but you're not working on it/);
   const last = turn.messages.at(-1);
   const texts = last.parts.filter((p) => p.type === 'text').map((p) => p.text);
   assert.ok(texts.includes('Are you connected to goat?'));

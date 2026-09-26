@@ -1,4 +1,4 @@
-// A screen of its own for each bot on a Holly Bot server, the way Grok Bot
+// A screen of its own for each bot on a Holli Bot server, the way Grok Bot
 // does it: the bots share one computer (files, apps, and the browser with its
 // logins), and each works on a screen of its own, with its own browser window,
 // so two bots can use the browser at once without getting in each other's way.
@@ -35,7 +35,7 @@ function which(cmd, env = process.env) {
 }
 
 export class BotScreens {
-  /** Whether bots get screens of their own here: Linux run by systemd (a Holly
+  /** Whether bots get screens of their own here: Linux run by systemd (a Holli
    * Bot server), or with HOLLY_BOT_SCREENS=1, with Xvfb, xdotool and scrot. */
   static available(env = process.env) {
     return process.platform === 'linux' && !!(env.INVOCATION_ID || env.HOLLY_BOT_SCREENS === '1')

@@ -16,10 +16,10 @@ import {
 
 const APPEARANCE = { system: mark('System · Black'), black: mark('Black'), dark: mark('Dark'), light: mark('Light') };
 const SIGN_IN_WITH = { apple: 'Apple', google: 'Google' };
-/** Holly Bot for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
+/** Holli Bot for Windows' installer, from its latest GitHub release (.github/workflows/windows.yml). */
 const WINDOWS_SETUP = 'https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe';
 
-/** The Holly Bot account, re-rendering when it changes and refreshing who is
+/** The Holli Bot account, re-rendering when it changes and refreshing who is
  * signed in from the database each time Settings opens. */
 function useAccount() {
   const [, setTick] = useState(0);
@@ -46,7 +46,7 @@ const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 /** The top of Settings: who is signed in (their initials, name, email and
  * how they sign in), and under it the usage meter, how much of the month's
  * AI credits is left, which opens the Usage page. Where there are no
- * accounts (Holly Bot Computer's Wi-Fi links, browser automation) only the meter
+ * accounts (Holli Bot Computer's Wi-Fi links, browser automation) only the meter
  * shows. */
 function AccountHeader({ acct, go }) {
   const { credits, here } = useCredits();
@@ -59,7 +59,7 @@ function AccountHeader({ acct, go }) {
       ${acct.signedIn && html`<div class="drawer-account">
         <span class="initials">${initials(user.name || user.email)}</span>
         <div class="who">
-          <div class="name">${user.name || user.email || tr('Holly Bot account')}</div>
+          <div class="name">${user.name || user.email || tr('Holli Bot account')}</div>
           ${user.name && user.email && html`<div class="detail">${user.email}</div>`}
           <div class="detail">${via ? tr('Signed in with {via}', { via }) : tr('Signed in')}</div>
         </div>
@@ -134,7 +134,7 @@ function MainPage({ go, onClose }) {
         if (v && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
           const p = await Notification.requestPermission().catch(() => 'denied');
           if (p !== 'granted') {
-            ui.toast(tr('Notifications are blocked for this site. On iPhone, add Holly Bot to your Home Screen first.'), { error: true });
+            ui.toast(tr('Notifications are blocked for this site. On iPhone, add Holli Bot to your Home Screen first.'), { error: true });
             return;
           }
         }
@@ -174,7 +174,7 @@ function MainPage({ go, onClose }) {
 }
 
 /** Signs out of the account, leaving nothing of it on this device: unsent
- * changes go up first (for a few seconds), and the link to a Holly Bot Computer is
+ * changes go up first (for a few seconds), and the link to a Holli Bot Computer is
  * forgotten here (signing in again finds one linked to the account; one that
  * isn't needs its link opened again). */
 async function signOut(app, ui) {
@@ -182,7 +182,7 @@ async function signOut(app, ui) {
   const message = app.remote && app.server?.account?.linked
     ? tr("You'll be back at the welcome screen. Your bots stay in your account and {name} keeps running them. Sign in again and this device connects to it by itself.", { name })
     : app.remote
-      ? tr("You'll be back at the welcome screen, and this device forgets your Holly Bot Computer until you open its link again. Your bots stay on the computer.")
+      ? tr("You'll be back at the welcome screen, and this device forgets your Holli Bot Computer until you open its link again. Your bots stay on the computer.")
       : tr("You'll be back at the welcome screen. Your bots, chats, memories and API keys stay in your account for when you sign in again.");
   if (!(await ui.confirm({ title: tr('Sign out?'), message, confirmText: tr('Sign Out'), danger: true }))) return;
   ui.toast(tr('Signing out…'));
@@ -228,10 +228,10 @@ function UsagePage() {
     return () => clearInterval(t);
   }, []);
   if (!account.signedIn || !signInWorksHere()) {
-    return html`<p class="hint" style="font-size:14.5px;margin:4px">${tr('Your AI credits come with your Holly Bot plan. Sign in to Holly Bot at {site} to see them.', { site: SITE.replace(/^https:\/\//, '') })}</p>`;
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">${tr('Your AI credits come with your Holli Bot plan. Sign in to Holli Bot at {site} to see them.', { site: SITE.replace(/^https:\/\//, '') })}</p>`;
   }
   if (!credits) {
-    return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? tr('Loading…') : tr('Your AI credits come with your Holly Bot plan.')}</p>`;
+    return html`<p class="hint" style="font-size:14.5px;margin:4px">${loading ? tr('Loading…') : tr('Your AI credits come with your Holli Bot plan.')}</p>`;
   }
   const pct = creditsShare(credits);
   const refill = dateText(credits.refillsAt, { month: 'long', day: 'numeric' });
@@ -241,7 +241,7 @@ function UsagePage() {
       <div class="credits-bar"><span class=${pct <= 10 ? 'low' : pct <= 25 ? 'mid' : ''} style=${`width:${pct}%`}></span></div>
       <div class="credits-sub">${tr('{left} of {total} left · Refills {date}', { left: asCredits(credits.balance), total: asCredits(credits.allowance), date: refill })}</div>
     </div>
-    ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">${tr("Holly Bot's AI isn't switched on yet, so your bots aren't using these credits.")}</p>`}
+    ${!credits.ready && html`<p class="hint" style="font-size:14px;margin:4px 4px 10px">${tr("Holli Bot's AI isn't switched on yet, so your bots aren't using these credits.")}</p>`}
     <p class="hint" style="font-size:14px;margin:4px">${tr("Your plan's credits refill every month; what's left doesn't carry over. Everything your bots think through uses some: long chats, files and DeepSeek V4 Pro use more. When they run out, your bots pause until they refill.")}</p>
     <p class="hint" style="font-size:14px;margin:10px 4px 4px">${tr("Credits go twice as far outside DeepSeek's busy hours (01:00–04:00 and 06:00–10:00 UTC on weekdays).")}</p>`;
 }
@@ -441,7 +441,7 @@ function AddServers({ servers, saveServers, onAdded, onCancel }) {
       return;
     }
     if (localNames.length && !app.computer.info?.capabilities?.mcpConfig) {
-      setError(tr('Your Bot Computer needs the latest Holly Bot Computer for this. A Holly Bot server updates itself within a few minutes; on your own computer, restart Holly Bot Computer.'));
+      setError(tr('Your Bot Computer needs the latest Holli Bot Computer for this. A Holli Bot server updates itself within a few minutes; on your own computer, restart Holli Bot Computer.'));
       return;
     }
     setError('');
@@ -520,7 +520,7 @@ function ConnectedAccounts() {
   const [busy, setBusy] = useState('');
   if (!signedIn) {
     return html`<div class="group-label">${tr('Connected accounts')}</div>
-      <div class="group-note" style="margin-top:0">${tr('Connect Gmail, Outlook, GitHub and Higgsfield for your bots in Holly Bot at {site}, signed in to your account.', { site: SITE.replace(/^https:\/\//, '') })}</div>`;
+      <div class="group-note" style="margin-top:0">${tr('Connect Gmail, Outlook, GitHub and Higgsfield for your bots in Holli Bot at {site}, signed in to your account.', { site: SITE.replace(/^https:\/\//, '') })}</div>`;
   }
   const changed = () => {
     reload();
@@ -559,7 +559,7 @@ function ConnectedAccounts() {
   const disconnect = async (c, conn) => {
     const message = c.id === 'github' && conn.via === 'token'
       ? tr('Your bots stop using {account}. To cancel the token itself, delete it on GitHub.', { account: conn.account })
-      : tr('Your bots stop using {account}, and Holly Bot gives up its access.', { account: conn.account });
+      : tr('Your bots stop using {account}, and Holli Bot gives up its access.', { account: conn.account });
     if (!(await ui.confirm({ title: tr('Disconnect {service}?', { service: c.label }), message, confirmText: tr('Disconnect'), danger: true }))) return;
     setBusy(c.id);
     try {
@@ -588,16 +588,16 @@ function ConnectedAccounts() {
             ${conn.outdated && oauth && html`<${Row} key=${`${c.id}-again`} title=${tr('Connect {service} again', { service: c.label })} sub=${tr('It was connected before bots could delete email. Connecting again lets them.')} onClick=${() => connect(c)} />`}`;
         }
         if ((!ready && readyError) || (!list && listError)) {
-          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Couldn't reach Holly Bot's server")} value=${tr('Retry')} onClick=${() => { reloadReady(); reload(); }} />`;
+          return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Couldn't reach Holli Bot's server")} value=${tr('Retry')} onClick=${() => { reloadReady(); reload(); }} />`;
         }
         if (!ready || !list) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value="…" />`;
-        if (!can) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Not set up on Holly Bot's server yet")} />`;
+        if (!can) return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr("Not set up on Holli Bot's server yet")} />`;
         return html`<${Row} key=${c.id} icon=${icon} title=${c.label} sub=${tr(c.does)} value=${tr('Connect')} onClick=${() => (oauth ? connect(c) : useToken())} />`;
       })}
       ${ready?.github && ready?.githubToken && !(list || []).some((x) => x.service === 'github') && busy !== 'github'
         && html`<${Row} title=${tr('Connect GitHub with a token instead')} sub=${tr('A personal access token you made on GitHub')} onClick=${useToken} />`}
     <//>
-    <div class="group-note">${tr('Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holly Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.')}</div>`;
+    <div class="group-note">${tr('Bots use them when you ask. With Auto-review on, they ask you before sending or deleting email (showing you exactly which emails) and before making a repository public. Deleting email for good, and deleting a repository, always asks. Holli Bot keeps the access encrypted on its server, only for your bots. Disconnect any time.')}</div>`;
 }
 
 /** What a computer linked to the account is doing (computerState), in
@@ -608,7 +608,7 @@ function computerStatus(device, answers) {
   if (state === 'hidden' && device.tunnel === 'starting') return tr('Running · opening its connection…');
   if (state === 'hidden' && device.tunnel === 'blocked') return tr('Running, but its network blocks the secure tunnel (Cloudflare, port 7844)');
   if (state === 'hidden') return tr("Running without --tunnel, so this app can't reach it");
-  if (state === 'old') return tr('Needs the latest Holly Bot Computer (below) before this app can use it');
+  if (state === 'old') return tr('Needs the latest Holli Bot Computer (below) before this app can use it');
   return device.seenAt ? tr('Not running · last seen {when}', { when: shortTime(device.seenAt) }) : tr('Not running');
 }
 
@@ -655,19 +655,19 @@ function LinkedComputers() {
     <div class="group-label">${tr('Linked to your account')}</div>
     <${Group}>
       ${devices.map((device) => (device.server
-        ? html`<${Row} key=${device.id} title=${device.name} sub=${tr("{status} · your plan's own computer, kept linked by Holly Bot", { status: status(device) })} />`
+        ? html`<${Row} key=${device.id} title=${device.name} sub=${tr("{status} · your plan's own computer, kept linked by Holli Bot", { status: status(device) })} />`
         : html`<${Row} key=${device.id} title=${device.name}
           sub=${tr('{status} · linked {date}', { status: status(device), date: dateText(device.linkedAt) })} value=${tr('Unlink')} onClick=${() => unlink(device)} />`))}
     <//>
     ${running.map((device) => html`<button key=${device.id} class="btn primary block" style="margin-bottom:10px" disabled=${!!busy} onClick=${() => connect(device)}>
       ${busy === device.id ? html`<span class="spinner"></span>` : html`<${Icon.monitor} size="18" /> ${tr('Connect to {name}', { name: device.name })}`}
     </button>`)}
-    <div class="group-note">${tr('While Holly Bot Computer runs on a linked computer, Holly Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.')}</div>`;
+    <div class="group-note">${tr('While Holli Bot Computer runs on a linked computer, Holli Bot on every device signed in to your account connects to it by itself, and your bots run there with its shell, files, browser, screen, mouse and keyboard.')}</div>`;
 }
 
 /** Whether the computer this app controls is the one that comes with the
  * plan, which stays linked to the account and connected (no Unlink or
- * Disconnect for it): Holly Bot Computer says so
+ * Disconnect for it): Holli Bot Computer says so
  * (computer/src/home.mjs), and so does the account's list of computers
  * (convex/devices.ts). Null until that's known. */
 function usePlanServer(app) {
@@ -709,8 +709,8 @@ function ComputerPage() {
       ${info.notes?.length > 0 && html`<div class="group-note">${info.notes.join(' ')}</div>`}
       ${app.server?.account?.linked && html`
         <div class="group-label">${tr('Your account')}</div>
-        <${Group}><${Row} title=${tr('Kept in your account')} sub=${tr('Its bots, chats, memories and keys are kept in your Holly Bot account, and {name} runs them. Holly Bot on any device signed in to your account connects to it by itself.', { name })} /><//>`}
-      <div class="group-note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with --new-token and the old links stop working.", { name })}</div>
+        <${Group}><${Row} title=${tr('Kept in your account')} sub=${tr('Its bots, chats, memories and keys are kept in your Holli Bot account, and {name} runs them. Holli Bot on any device signed in to your account connects to it by itself.', { name })} /><//>`}
+      <div class="group-note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holli Bot Computer with --new-token and the old links stop working.", { name })}</div>
       <button class="btn block" onClick=${() => ui.openSheet('computer', { tab: 'screen' })}><${Icon.monitor} size="18" /> ${tr('Open the computer screen')}</button>
       ${app.server?.account?.linked && planServer === false && html`<button class="btn block danger" style="margin-top:10px" onClick=${async () => {
         if (!(await ui.confirm({ title: tr('Unlink {name}?', { name }), message: tr('Your bots stay in your account, and this device switches to them. {name} stops running them until you link it again.', { name }), confirmText: tr('Unlink'), danger: true }))) return;
@@ -774,11 +774,11 @@ function ComputerPage() {
     ${app.db?.cloud && html`<${LinkedComputers} />`}
     <div class="welcome" style="padding-bottom:4px">
       ${app.db?.cloud
-        ? html`<p>${trx('**Run your bots on your computer.** Link Holly Bot Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.')}</p>`
-        : html`<p>${trx('**Put your bots on your computer.** Run Holly Bot Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
+        ? html`<p>${trx('**Run your bots on your computer.** Link Holli Bot Computer on your PC or Mac to your account and it runs your bots around the clock, using the computer like you would: apps, files, a real browser, the screen, mouse and keyboard. Your bots stay in your account, your phone becomes the remote control, and you approve risky actions from it.')}</p>`
+        : html`<p>${trx('**Put your bots on your computer.** Run Holli Bot Computer on your PC or Mac and your bots live there around the clock. They use it like you would: apps, files, a real browser, the screen, mouse and keyboard. Your phone becomes the remote control, and you approve risky actions from it.')}</p>`}
     </div>
     <div class="group" style="padding:14px 18px;font-size:15px;line-height:1.55">
-      <p style="margin-top:0">${trx('**Windows:** download {app} on the computer and open it. It installs Holly Bot with Holly Bot Computer inside it, which starts silently with Windows so your bots keep working, with no Node.js or terminal needed. Then sign in on the Holly Bot window it opens.', { app: html`<a href=${WINDOWS_SETUP} rel="noopener">${tr('Holly Bot for Windows')}</a>` })}</p>
+      <p style="margin-top:0">${trx('**Windows:** download {app} on the computer and open it. It installs Holli Bot with Holli Bot Computer inside it, which starts silently with Windows so your bots keep working, with no Node.js or terminal needed. Then sign in on the Holli Bot window it opens.', { app: html`<a href=${WINDOWS_SETUP} rel="noopener">${tr('Holli Bot for Windows')}</a>` })}</p>
       <p>${trx('**Mac, Linux, or Windows from a terminal:**')}</p>
       <p>${trx('1. Install {node} on the computer.', { node: html`<a href="https://nodejs.org" target="_blank" rel="noopener">${tr('Node.js 22 or newer')}</a>` })}</p>
       <p>${trx('2. Download {file} and run it. Or paste this into a terminal:', { file: html`<a href=${scriptUrl} download>holly-computer.mjs</a>` })}</p>
@@ -797,11 +797,11 @@ function ComputerPage() {
             }
           }}>${cmd}</button>
         </div>`)}
-      <p>${app.db?.cloud ? tr("3. Sign in on the page it opens on the computer, with the account you use here. Holly Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it.") : tr("3. Open the page it opens on the computer. That's it.")}</p>
-      <p>${trx('**Keep that link private, like a password.** Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with --new-token and the old links stop working.')}</p>
+      <p>${app.db?.cloud ? tr("3. Sign in on the page it opens on the computer, with the account you use here. Holli Bot here then asks to connect to it, and from then on connects by itself whenever it's running. That's it.") : tr("3. Open the page it opens on the computer. That's it.")}</p>
+      <p>${trx('**Keep that link private, like a password.** Anyone who has it can control the computer and see your bots, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holli Bot Computer with --new-token and the old links stop working.')}</p>
       <p style="margin-bottom:0;color:var(--muted);font-size:13.5px">${app.db?.cloud
-        ? trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Bot Computer restarts, and once it's linked to your account the app finds the new one by itself. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })
-        : trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holly Bot Computer restarts. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })}</p>
+        ? trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holli Bot Computer restarts, and once it's linked to your account the app finds the new one by itself. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })
+        : trx("{tunnel} reaches your computer from anywhere through Cloudflare's free quick tunnel (downloaded automatically the first time); the link changes each time Holli Bot Computer restarts. On the same Wi-Fi you can use {lan} instead. Chrome, Edge or Brave on the computer gives bots a real browser. On a Mac, allow your terminal under Privacy & Security → Accessibility and Screen Recording so bots can see and use the screen.", { tunnel: kbd('--tunnel'), lan: kbd('--lan') })}</p>
     </div>
     <div class="group-label">${tr('Or connect manually')}</div>
     <${Field} label=${tr('Computer URL')}><input class="input mono" value=${url} autocapitalize="off" onInput=${(e) => setUrl(e.currentTarget.value)} /><//>
@@ -859,7 +859,7 @@ function DataPage() {
   const [withKeys, setWithKeys] = useState(false);
   const exportNow = async () => {
     const data = await app.exportData({ includeKeys: withKeys });
-    downloadBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `holly-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    downloadBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `holli-bot-backup-${new Date().toISOString().slice(0, 10)}.json`);
   };
   const importNow = () => {
     const input = document.createElement('input');
@@ -897,7 +897,7 @@ function DataPage() {
     <//>
     <div class="group-note">${app.db?.cloud
       ? tr('Everything is kept in your account, on every device you sign in on. A backup is a copy of your own. Treat exports that include keys like passwords.')
-      : tr('Use a backup to move Holly Bot to another device or browser. Treat exports that include keys like passwords.')}</div>
+      : tr('Use a backup to move Holli Bot to another device or browser. Treat exports that include keys like passwords.')}</div>
     <${Group}>
       <${Row} title=${tr('Pause all routines')} onClick=${async () => {
         const n = await app.routines.setAllEnabled(false);
@@ -918,7 +918,7 @@ function HelpPage() {
     <h3>${tr('Getting started')}</h3>
     <p>${trx('1. Tap **+ → New Bot**, name it and pick a look.')}<br />${tr('2. Chat. Your bot learns about you and remembers across conversations.')}</p>
     <h3>${tr('AI credits')}</h3>
-    <p>${trx("Your bots think with Holly Bot's AI, DeepSeek, and your plan comes with **AI credits** for it every month. Settings → **Usage** shows what's left and when they refill. When they run out, your bots pause until the refill.")}</p>
+    <p>${trx("Your bots think with Holli Bot's AI, DeepSeek, and your plan comes with **AI credits** for it every month. Settings → **Usage** shows what's left and when they refill. When they run out, your bots pause until the refill.")}</p>
     <h3>${tr('Multiple bots')}</h3>
     <p>${trx('Every bot has its own name, personality, model, memory, files and routines. Bots can **message each other** (“Ask Nova to review this”), **delegate** longer tasks, and share a **team memory**. Start a **group chat** with + → New Group Chat and @mention bots.')}</p>
     <h3>${tr('Memory')}</h3>

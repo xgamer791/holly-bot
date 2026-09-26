@@ -1,4 +1,4 @@
-// Integration: boots Holly Bot Computer (bots living on the computer) and drives it
+// Integration: boots Holli Bot Computer (bots living on the computer) and drives it
 // through the same HTTP API the phone app uses, with a fake OpenAI-compatible
 // model server standing in for DeepSeek.
 import { test, before, after } from 'node:test';
@@ -84,7 +84,7 @@ test('health is public, everything else needs the pairing token', async () => {
   assert.equal(state.computer.capabilities.shell, true);
 });
 
-test('health says which run of Holly Bot Computer answers, so its tunnel can tell it apart', async () => {
+test('health says which run of Holli Bot Computer answers, so its tunnel can tell it apart', async () => {
   const h = await (await fetch(`${base()}/v1/health`)).json();
   assert.equal(h.app, 'holly-computer');
   assert.match(h.instance, /^[0-9a-f-]{36}$/);
@@ -105,7 +105,7 @@ test('a phone connecting says hello: every device watching the computer hears it
   } finally {
     console.log = log;
   }
-  assert.ok(said.some((line) => /Holly Bot on your iPhone is connected to this computer/.test(line)), said.join('\n'));
+  assert.ok(said.some((line) => /Holli Bot on your iPhone is connected to this computer/.test(line)), said.join('\n'));
   const r = await (await fetch(`${base()}/api/poll?since=${state.seq}&boot=${state.boot}&client=desktop`, { headers: auth() })).json();
   const hellos = r.events.filter((e) => e.topic === 'hello').map((e) => e.data);
   // The latest stands for them all; one that isn't a known device, or first, is just a device connecting.
@@ -136,7 +136,7 @@ test('shell and files on the computer', async () => {
 });
 
 test('phone creates a bot, chats, bot runs a shell command on the computer; events stream back', async () => {
-  // Holly Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
+  // Holli Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
   await rpc('settings.save', { providers: { deepseek: { baseURL: modelUrl, apiKey: 'test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, askFirst: false });
   const events = [];
   const state = await (await fetch(`${base()}/api/state`, { headers: auth() })).json();

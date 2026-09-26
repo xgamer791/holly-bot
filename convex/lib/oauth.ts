@@ -14,7 +14,7 @@ export interface Tokens {
   /** When the access token stops working (ms); none for tokens that don't expire (GitHub). */
   expiresAt?: number;
   scopes: string[];
-  /** The client the tokens were issued to, for a service Holly Bot registers
+  /** The client the tokens were issued to, for a service Holli Bot registers
    * with as each connection starts (Higgsfield: registerClient). */
   clientId?: string;
 }
@@ -81,7 +81,7 @@ export const SERVICES: Record<Service, ServiceConfig> = {
     params: { allow_signup: "false" },
   },
   // Higgsfield's MCP server's own sign-in (in front of Clerk's). There's no
-  // app to set up: Holly Bot registers a client with it as each connection
+  // app to set up: Holli Bot registers a client with it as each connection
   // starts (registerClient), a public one, so PKCE is what keeps the code safe.
   higgsfield: {
     label: "Higgsfield",
@@ -103,7 +103,7 @@ export const APP_VARIABLES: Partial<Record<Service, [string, string]>> = {
   github: ["CONNECT_GITHUB_ID", "CONNECT_GITHUB_SECRET"],
 };
 
-/** Services whose client Holly Bot registers as a connection starts
+/** Services whose client Holli Bot registers as a connection starts
  * (RFC 7591), instead of an app set up in the deployment's variables. */
 const REGISTRATION: Partial<Record<Service, string>> = {
   higgsfield: `${HIGGSFIELD_AUTH}/register`,
@@ -114,7 +114,7 @@ export function registersClient(service: Service): boolean {
   return !!REGISTRATION[service];
 }
 
-/** Registers Holly Bot with a service as a public client that comes back to
+/** Registers Holli Bot with a service as a public client that comes back to
  * `redirectUri`: the client ID to connect through. */
 export async function registerClient(service: Service, o: { redirectUri: string; fetch?: Fetch }): Promise<string> {
   const url = REGISTRATION[service];
@@ -123,7 +123,7 @@ export async function registerClient(service: Service, o: { redirectUri: string;
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      client_name: "Holly Bot",
+      client_name: "Holli Bot",
       redirect_uris: [o.redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -252,7 +252,7 @@ export async function refreshTokens(service: Service, o: { app: OAuthApp; tokens
       refresh_token: o.tokens.refreshToken,
       ...client(o.app),
       // Microsoft wants the scopes named again: the ones this connection was
-      // granted, so one made before Holly Bot asked for more keeps working.
+      // granted, so one made before Holli Bot asked for more keeps working.
       ...(service === "outlook" ? { scope: outlookScope(o.tokens.scopes) } : {}),
       ...resource(service),
     },
@@ -274,7 +274,7 @@ function outlookScope(granted: string[]): string {
 
 /**
  * Takes the access back from the service where it can be, when the person
- * disconnects or deletes their account. Google ends Holly Bot's whole grant
+ * disconnects or deletes their account. Google ends Holli Bot's whole grant
  * to that mailbox; GitHub and Higgsfield end just this connection's token.
  * Microsoft has no such endpoint for one app: its tokens simply stop being
  * renewed.
@@ -298,7 +298,7 @@ export async function revokeTokens(service: Service, o: { app: OAuthApp | null; 
       headers: {
         Authorization: `Basic ${btoa(`${o.app.clientId}:${o.app.clientSecret}`)}`,
         Accept: "application/vnd.github+json",
-        "User-Agent": "Holly-Bot",
+        "User-Agent": "Holli-Bot",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ access_token: o.tokens.accessToken }),
@@ -307,7 +307,7 @@ export async function revokeTokens(service: Service, o: { app: OAuthApp | null; 
 }
 
 /** Permissions bots need that a connection lacks: unticked on the service's
- * consent screen, or granted before Holly Bot asked for them (Gmail and
+ * consent screen, or granted before Holli Bot asked for them (Gmail and
  * Outlook connected before bots could delete email). */
 export function missingScopes(service: Service, granted: string[]): string[] {
   const have = new Set(granted.map((s) => s.toLowerCase().replace(/^https:\/\/graph\.microsoft\.com\//, "")));

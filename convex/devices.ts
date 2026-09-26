@@ -4,8 +4,9 @@ import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { requireUserId } from "./lib/auth";
+import { SERVERS } from "./lib/plans";
 
-// Holly Bot Computer, linked to an account. The signed-in app makes a random code,
+// Holli Bot Computer, linked to an account. The signed-in app makes a random code,
 // keeps it, and sends only its SHA-256 hash here (createLink). The code goes
 // to the computer over the connection the two already share, and the computer
 // trades it for a session of its own on the account (the `device` sign-in in
@@ -22,11 +23,11 @@ import { requireUserId } from "./lib/auth";
 const LINK_MS = 10 * 60 * 1000;
 
 /** A computer's session. It runs unattended, so it lasts a year (a phone's
- * lasts 30 days); Holly Bot Computer renews it well before then, and the account
+ * lasts 30 days); Holli Bot Computer renews it well before then, and the account
  * can end it at any time (unlink). */
 const DEVICE_SESSION_MS = 365 * 24 * 60 * 60 * 1000;
 
-/** Ends the Holly Bot Computer session of a subscriber's server that's being
+/** Ends the Holli Bot Computer session of a subscriber's server that's being
  * deleted (convex/servers.ts), and drops its link code if it was never used. */
 export async function forgetServerSessions(ctx: MutationCtx, serverKey: string) {
   for (const device of await ctx.db.query("devices").withIndex("by_server_key", (q) => q.eq("serverKey", serverKey)).collect()) {
@@ -60,7 +61,7 @@ async function endSession(ctx: MutationCtx, sessionId: Id<"authSessions">) {
  * a new one replaces any left over (but not one a subscriber's server is
  * waiting to use). Also tidies away computers whose session has ended
  * (unlinked, or renewed into a new one). A subscriber's server renewing its
- * own link (Holly Bot Computer does after 300 days) stays marked as that server. */
+ * own link (Holli Bot Computer does after 300 days) stays marked as that server. */
 export const createLink = mutation({
   args: { codeHash: v.string() },
   returns: v.null(),
@@ -109,7 +110,7 @@ export const redeem = internalMutation({
     await ctx.db.insert("devices", {
       userId: link.userId,
       sessionId,
-      name: name.trim().slice(0, 60) || "Holly Bot Computer",
+      name: name.trim().slice(0, 60) || "Holli Bot Computer",
       linkedAt: now,
       ...(link.serverKey ? { serverKey: link.serverKey } : null),
       ...(link.pairedAt ? { pairedAt: link.pairedAt } : null),
@@ -120,7 +121,7 @@ export const redeem = internalMutation({
 
 /** The computers linked to the signed-in account, with where the account's
  * devices can reach each one while it runs (or why they can't: `tunnel`).
- * `server`: the subscriber's own server, which Holly Bot links and unlinks
+ * `server`: the subscriber's own server, which Holli Bot links and unlinks
  * itself (convex/servers.ts). `paired`: a device has connected to it before,
  * so the account's devices connect to it by themselves (pair). */
 export const list = query({
@@ -167,7 +168,7 @@ export const pair = mutation({
 });
 
 /** A public https address, as the app will call it: no query, no fragment,
- * no trailing slash (Holly Bot Computer's tunnel, or its --public-url). */
+ * no trailing slash (Holli Bot Computer's tunnel, or its --public-url). */
 const ADDRESS = /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~%-]+)*$/;
 /** The computer's access key: random, base64url. */
 const ACCESS = /^[A-Za-z0-9_-]{32,128}$/;
@@ -204,7 +205,7 @@ export const report = mutation({
     const sessionId = await getAuthSessionId(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
     const device = devices.find((row) => row.sessionId === sessionId);
-    if (!device) throw new ConvexError("Only a linked Holly Bot Computer can say where it is");
+    if (!device) throw new ConvexError("Only a linked Holli Bot Computer can say where it is");
     const answer = { server: !!device.serverKey, id: device._id };
     if (stopping) {
       await ctx.db.patch(device._id, { url: undefined, access: undefined, tunnel: undefined, stoppedAt: Date.now() });
@@ -217,6 +218,9 @@ export const report = mutation({
       access: url ? access : undefined,
       tunnel: !url && tunnel && TUNNEL_STATES.includes(tunnel) ? tunnel : undefined,
       ...(platform && PLATFORMS.includes(platform) ? { platform } : {}),
+      // The server that comes with a plan was called Holly Server before the
+      // app was Holli Bot: it takes the new name as it reports in.
+      ...(device.serverKey && device.name === "Holly Server" ? { name: SERVERS.name } : {}),
       seenAt: Date.now(),
       stoppedAt: undefined,
     });

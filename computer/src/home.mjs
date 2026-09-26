@@ -1,5 +1,5 @@
 // Where this computer's bots are kept, and the app that runs them. Linked to a
-// Holly Bot account (computer/src/account.mjs), they're kept in the account,
+// Holli Bot account (computer/src/account.mjs), they're kept in the account,
 // like the app keeps its own (src/account/cloud-db.js), and this computer runs
 // them around the clock. Until it's linked, they're kept in its data folder
 // (NodeDB). Linking moves what the folder holds into the account.
@@ -72,7 +72,7 @@ export class BotHome {
     // A renewed link is a new computer to the account, which doesn't know where it is yet.
     const renew = () => this.account.renewIfDue()
       .then((renewed) => renewed && this.report())
-      .catch((err) => this.log.warn?.(`  Renewing the link to your Holly Bot account: ${err.message}`));
+      .catch((err) => this.log.warn?.(`  Renewing the link to your Holli Bot account: ${err.message}`));
     renew();
     this.renewTimer = setInterval(renew, 24 * 60 * 60 * 1000);
     this.renewTimer.unref();
@@ -84,7 +84,7 @@ export class BotHome {
   /** Where the account's devices can reach this computer: its tunnel or
    * --public-url address, or null (none, or the tunnel isn't working), and
    * then why (`tunnel`: 'off', 'starting' or 'blocked', computer/src/tunnel.mjs).
-   * Only https will do: the Holly Bot site can't call a plain-http address. */
+   * Only https will do: the Holli Bot site can't call a plain-http address. */
   setAddress(url, { tunnel = null } = {}) {
     if (this.closing) return this.reporting;
     this.address = /^https:\/\//i.test(url || '') ? url.replace(/\/+$/, '') : null;
@@ -125,7 +125,7 @@ export class BotHome {
       } catch (err) {
         // A ConvexError carries the server's own words in `data`.
         const why = typeof err?.data === 'string' ? err.data : err?.message;
-        if (!this.reportFailed && !stopping) this.log.warn?.(`  Couldn't tell your Holly Bot account where this computer is (${why}). Trying again in a few minutes.`);
+        if (!this.reportFailed && !stopping) this.log.warn?.(`  Couldn't tell your Holli Bot account where this computer is (${why}). Trying again in a few minutes.`);
         this.reportFailed = true;
       }
     };
@@ -183,12 +183,12 @@ export class BotHome {
         if (once) throw err;
         if (!this.account.linked) return NodeDB.open(this.localDir());
         if (inactive(err)) {
-          if (!told) this.log.log?.("\n  Your Holly Bot account's subscription isn't active. Your bots start as soon as it is: choose a plan in the Holly Bot app.\n");
+          if (!told) this.log.log?.("\n  Your Holli Bot account's subscription isn't active. Your bots start as soon as it is: choose a plan in the Holli Bot app.\n");
           told = true;
           await sleep(5 * 60_000);
           continue;
         }
-        this.log.log?.(`  Can't reach your Holly Bot account (${err.message}). Trying again in ${Math.round(wait / 1000)}s…`);
+        this.log.log?.(`  Can't reach your Holli Bot account (${err.message}). Trying again in ${Math.round(wait / 1000)}s…`);
         await sleep(wait);
       }
     }
@@ -226,8 +226,8 @@ export class BotHome {
    * fails, nothing changes: the bots keep running from the folder.
    */
   async link(code) {
-    if (this.busy) throw new Error('Holly Bot Computer is busy. Try again in a minute.');
-    if (this.account.linked) throw new Error('This computer is already linked to a Holly Bot account.');
+    if (this.busy) throw new Error('Holli Bot Computer is busy. Try again in a minute.');
+    if (this.account.linked) throw new Error('This computer is already linked to a Holli Bot account.');
     this.busy = 'link';
     const local = this.app.db;
     let cloud = null;
@@ -258,9 +258,9 @@ export class BotHome {
       this.log.warn?.(`  Couldn't set aside the old data folder: ${err.message}`);
     }
     this.busy = null;
-    this.log.log?.('\n  This computer keeps its bots in your Holly Bot account now.');
+    this.log.log?.('\n  This computer keeps its bots in your Holli Bot account now.');
     if (aside) this.log.log?.(`  What it kept before is set aside in ${aside}. Delete it once you've checked your bots are all there.`);
-    if (this.address) this.log.log?.('  Holly Bot on any device signed in to your account connects to this computer by itself.');
+    if (this.address) this.log.log?.('  Holli Bot on any device signed in to your account connects to this computer by itself.');
     this.log.log?.('');
     this.report();
     return this.status();
@@ -270,10 +270,10 @@ export class BotHome {
    * sends what's left, ends its session, forgets what it kept of the
    * account, and starts again with an empty folder. */
   async unlink() {
-    if (this.busy) throw new Error('Holly Bot Computer is busy. Try again in a minute.');
+    if (this.busy) throw new Error('Holli Bot Computer is busy. Try again in a minute.');
     if (!this.account.linked) return this.status();
     if (!this.planServer) await this.report(); // the account says which this is
-    if (this.planServer) throw new Error('This is the computer that comes with your Holly Bot plan: it stays linked to your account.');
+    if (this.planServer) throw new Error('This is the computer that comes with your Holli Bot plan: it stays linked to your account.');
     this.busy = 'unlink';
     try {
       const { userId } = this.account;
@@ -285,7 +285,7 @@ export class BotHome {
       await rm(this.outboxDir(userId), { recursive: true, force: true });
       await this.forgetAccountFiles();
       this.swap(await this.build(await NodeDB.open(this.localDir())));
-      this.log.log?.('\n  This computer is no longer linked to a Holly Bot account.\n');
+      this.log.log?.('\n  This computer is no longer linked to a Holli Bot account.\n');
       return this.status();
     } finally {
       this.busy = null;
@@ -307,7 +307,7 @@ export class BotHome {
       if (this.app?.db?.cloud) {
         await this.app.db.discard();
         this.swap(await this.build(await NodeDB.open(this.localDir())));
-        this.log.log?.('\n  This computer was unlinked from its Holly Bot account. Open Holly Bot on your phone to link it again.\n');
+        this.log.log?.('\n  This computer was unlinked from its Holli Bot account. Open Holli Bot on your phone to link it again.\n');
       }
       await this.forgetAccountFiles();
     })().catch((err) => this.log.warn?.(`  Leaving the account: ${err.message}`)).finally(() => {

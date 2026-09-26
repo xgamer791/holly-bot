@@ -43,7 +43,7 @@ export const DEFAULT_SETTINGS = {
   // do them. Replaces `autoReview`, which was on; saved values of it are ignored.
   askFirst: false,
   // The person's time zone, as the app last saw it on their device (src/main.js):
-  // what bots on Holly Bot Computer go by (timeZone()).
+  // what bots on Holli Bot Computer go by (timeZone()).
   timeZone: '',
   notifications: false,
   appearance: 'black',
@@ -124,7 +124,7 @@ function markInterrupted(m) {
 
 export class App {
   /**
-   * @param {object} db   IndexedDB wrapper (browser) or NodeDB (Holly Bot Computer)
+   * @param {object} db   IndexedDB wrapper (browser) or NodeDB (Holli Bot Computer)
    * @param {object} [opts]
    * @param {object} [opts.computer] computer implementation (defaults to the HTTP client for a remote Bot Computer)
    * @param {string} [opts.host] 'browser' | 'computer' — where the bots run
@@ -205,7 +205,7 @@ export class App {
 
   /**
    * Run due routines every 30s (and right away). `lock` lets a browser make sure
-   * only one tab runs them; Holly Bot Computer runs them 24/7. Storage shared by
+   * only one tab runs them; Holli Bot Computer runs them 24/7. Storage shared by
    * several devices (an account's) is asked first whether this device is up to
    * date, then for each run, so only one device does it.
    */
@@ -305,7 +305,7 @@ export class App {
   }
 
   /** The person's time zone: this device's, where the bots run in the app.
-   * Holly Bot Computer goes by the one the app last saw on the person's own
+   * Holli Bot Computer goes by the one the app last saw on the person's own
    * device (settings.timeZone), and its own until then. */
   timeZone() {
     return (this.host === 'computer' && this.settings.timeZone) || deviceTimeZone();
@@ -508,7 +508,7 @@ export class App {
     this.emit(`agent:${id}`);
     const dm = this.threads.get(`dm_${id}`);
     if (dm && patch.name) await this.updateThread(dm.id, { title: patch.name });
-    // A new job, or new rules: a new briefing. New rules are checked against Holly Bot's own too.
+    // A new job, or new rules: a new briefing. New rules are checked against Holli Bot's own too.
     if (next.description !== a.description || (next.rules || '') !== (a.rules || '')) this.briefSoon(id);
     if ((next.rules || '') !== (a.rules || '')) this.checkRulesSoon(id);
     return next;
@@ -525,7 +525,7 @@ export class App {
   }
 
   /**
-   * Has Holly Bot's AI read a bot's job (its description) and rules, in the
+   * Has Holli Bot's AI read a bot's job (its description) and rules, in the
    * user's words, and write it a briefing and a summary of the job, in the
    * background. Returns the work in progress for the job and rules as they
    * are now (null when there's none to do).
@@ -584,7 +584,7 @@ export class App {
     clearTimeout(timer);
   }
 
-  // ----- a bot's rules, against Holly Bot's own (src/core/brief.js) ----------------
+  // ----- a bot's rules, against Holli Bot's own (src/core/brief.js) ----------------
 
   /** Whether a bot's rules, as they are now, are yet to be checked (by the
    * current check: RULES_CHECK). */
@@ -595,7 +595,7 @@ export class App {
   }
 
   /**
-   * Has Holly Bot's AI check a bot's rules against Holly Bot's own safety and
+   * Has Holli Bot's AI check a bot's rules against Holli Bot's own safety and
    * behavior rules for every bot, in the background. The bot ignores a rule
    * that goes against them (src/core/prompts.js Your rules), and when one
    * newly does, it types in its chat, flat out, that it won't follow it and
@@ -658,7 +658,7 @@ export class App {
       threadId: thread.id, authorType: 'system', authorId: 'rules', forModel: true, quiet: true,
       parts: [{
         type: 'text',
-        text: `[Note to you, not from the user: the user just wrote your rules, and ${one ? 'this one goes' : 'these go'} against Holly Bot's own rules for every bot, so you won't follow ${one ? 'it' : 'them'}:\n`
+        text: `[Note to you, not from the user: the user just wrote your rules, and ${one ? 'this one goes' : 'these go'} against Holli Bot's own rules for every bot, so you won't follow ${one ? 'it' : 'them'}:\n`
           + `${refused.map((r) => `- “${r.rule}”${r.why ? `: ${r.why}` : ''}`).join('\n')}\n`
           + `Tell the user now, in a few short sentences: flat out, that you won't follow ${one ? 'that rule' : 'those rules'}, and why, and that you'll keep the rest of your rules. Don't do anything else.]`,
       }],
@@ -668,7 +668,7 @@ export class App {
   }
 
   /** The bot says in its chat with the user that it follows these of their
-   * rules ([{ rule }]) after all: it said it wouldn't, and Holly Bot's own
+   * rules ([{ rule }]) after all: it said it wouldn't, and Holli Bot's own
    * rules no longer stand in their way (RULES_CHECK). As tellRefused. */
   async tellLifted(agent, lifted) {
     const thread = await this.ensureDmThread(agent.id);
@@ -677,7 +677,7 @@ export class App {
       threadId: thread.id, authorType: 'system', authorId: 'rules', forModel: true, quiet: true,
       parts: [{
         type: 'text',
-        text: `[Note to you, not from the user: you told the user you wouldn't follow ${one ? 'this rule' : 'these rules'} of theirs, but Holly Bot's own rules no longer stand in ${one ? 'its' : 'their'} way, so you follow ${one ? 'it' : 'them'} from now on, like the rest of your rules:\n`
+        text: `[Note to you, not from the user: you told the user you wouldn't follow ${one ? 'this rule' : 'these rules'} of theirs, but Holli Bot's own rules no longer stand in ${one ? 'its' : 'their'} way, so you follow ${one ? 'it' : 'them'} from now on, like the rest of your rules:\n`
           + `${lifted.map((r) => `- “${r.rule}”`).join('\n')}\n`
           + `Tell the user now, in a sentence or two, that you'll follow ${one ? 'that rule' : 'those rules'} after all. Don't do anything else.]`,
       }],
@@ -944,7 +944,7 @@ export class App {
       const { reflect } = await import('./memory/extract.js');
       const llm = (req) => this.providers.complete({ agent: null, purpose: 'memory', ...req });
       const top = facts.sort((a, b) => (b.importance || 5) - (a.importance || 5) || b.updatedAt - a.updatedAt).slice(0, 40);
-      const insights = await reflect({ llm, agentName: 'Holly Bot', memories: top.map((m) => ({ memory: m })) });
+      const insights = await reflect({ llm, agentName: 'Holli Bot', memories: top.map((m) => ({ memory: m })) });
       for (const ins of insights) await this.memory.add(USER_ID, { text: ins.text, type: 'reflection', importance: ins.importance, source: { kind: 'reflection' } });
       return insights.length;
     } finally {
@@ -1052,7 +1052,7 @@ export class App {
   // ----- AI credits -------------------------------------------------------------
 
   /** This month's AI credits (convex/credits.ts `mine`): what the plan gives,
-   * what's left and when they refill, and `ready`, whether Holly Bot's server
+   * what's left and when they refill, and `ready`, whether Holli Bot's server
    * can run its AI; null without a subscription. Loaded like connections:
    * when what's held is older than `maxAge`, never throwing, and waiting at
    * most a few seconds. Only storage that is the account's has credits. */
@@ -1079,7 +1079,7 @@ export class App {
 
   /** Asks the server to do `op` on a connected service for a bot (convex/connectors.ts `run`). */
   async connector(service, op, args = {}, { signal } = {}) {
-    if (!this.db?.cloud || typeof this.db.call !== 'function') throw new Error('Connected accounts need you signed in to your Holly Bot account.');
+    if (!this.db?.cloud || typeof this.db.call !== 'function') throw new Error('Connected accounts need you signed in to your Holli Bot account.');
     const call = this.db.call('action', 'connectors:run', { service, op, args });
     try {
       return await (signal ? untilAborted(call, signal) : call);

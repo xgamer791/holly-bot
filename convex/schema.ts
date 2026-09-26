@@ -57,7 +57,7 @@ export default defineSchema({
     at: v.number(),
   }).index("by_user_key", ["userId", "key"]),
 
-  /** One-time codes that link a Holly Bot Computer to an account, stored as the
+  /** One-time codes that link a Holli Bot Computer to an account, stored as the
    * SHA-256 of the code (convex/devices.ts). */
   deviceLinks: defineTable({
     userId: v.id("users"),
@@ -73,14 +73,14 @@ export default defineSchema({
     .index("by_server_key", ["serverKey"]),
 
   /**
-   * Holly Bot Computers linked to an account, each signed in with a session of
+   * Holli Bot Computers linked to an account, each signed in with a session of
    * its own. While one runs it says where the account's devices can reach it
    * (devices:report): `url`, its public https address, and `access`, a key
    * of its own for them (not the pairing token in its QR code) that stops
    * working when it's unlinked. `seenAt` is when it last said it was running,
    * `stoppedAt` when it said it stopped. `tunnel` says why a running one has
    * no address: 'off' (none wanted), 'starting' (opening its tunnel) or
-   * 'blocked' (its network blocks the tunnel). `pairedAt`: when Holly Bot on a
+   * 'blocked' (its network blocks the tunnel). `pairedAt`: when Holli Bot on a
    * phone first connected to it (Connect), after which the account's devices
    * connect to it by themselves (devices:pair). `platform`: its system
    * ('win32', 'darwin' or 'linux'), so the bots can say "your Windows PC".
@@ -128,7 +128,7 @@ export default defineSchema({
     state: v.string(),
     verifier: v.string(),
     returnTo: v.string(),
-    /** The client registered for this connection, for a service Holly Bot
+    /** The client registered for this connection, for a service Holli Bot
      * registers with as each connection starts (Higgsfield). */
     clientId: v.optional(v.string()),
     expiresAt: v.number(),
@@ -156,13 +156,13 @@ export default defineSchema({
   /**
    * Each subscriber: their Stripe customer and subscription as Stripe last
    * described them (convex/billing.ts), and the dedicated Vultr server that
-   * runs Holly for them (convex/servers.ts). One row per account, made when it
+   * runs Holli Bot for them (convex/servers.ts). One row per account, made when it
    * first starts a checkout. Times are in ms.
    *
    * serverStatus is none, provisioning, ready, resizing (an upgrade, or a move
    * to a smaller server), deleting or error. serverReadyToken holds the
    * SHA-256 of the one-time token a server reports ready with. serverKey ties a
-   * server to the Holly Bot Computer session it links with (devices.serverKey). A
+   * server to the Holli Bot Computer session it links with (devices.serverKey). A
    * downgrade builds the smaller server as nextServer*, then swaps it in.
    */
   subscribers: defineTable({
@@ -185,7 +185,7 @@ export default defineSchema({
     serverCreatedAt: v.optional(v.number()),
     serverError: v.optional(v.string()),
     serverKey: v.optional(v.string()),
-    /** Where the app reaches the server, and its Holly Bot Computer pairing token. */
+    /** Where the app reaches the server, and its Holli Bot Computer pairing token. */
     serverUrl: v.optional(v.string()),
     serverPairingToken: v.optional(v.string()),
     /** When the work under way (provisioning, resizing) started. */

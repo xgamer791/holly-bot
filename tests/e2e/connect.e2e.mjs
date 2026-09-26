@@ -1,7 +1,7 @@
 // End to end, the way a person connects their phone to their desktop: two
-// real Holly Bot Computers linked to the account (the server that comes with the
+// real Holli Bot Computers linked to the account (the server that comes with the
 // plan, and GOAT, the desktop), GOAT's own page open on the desktop, and
-// Holly Bot on a phone. The account's backend (Convex) is a stand-in in the
+// Holli Bot on a phone. The account's backend (Convex) is a stand-in in the
 // browser; everything else is the real app.
 //
 //   1. Signed in on both: only the phone offers Connect; the desktop says to
@@ -65,7 +65,7 @@ function serveSite() {
 
 const listen = (server) => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 
-/** A real Holly Bot Computer named `name`, linked to the account as far as the
+/** A real Holli Bot Computer named `name`, linked to the account as far as the
  * app can tell (its bots stay in its own folder in this test). */
 async function computer(name, { server = false, port = 0 } = {}) {
   const data = join(dir, name, 'data');
@@ -92,7 +92,7 @@ function setDevice(id, fields) {
   devicesById.set(id, { ...devicesById.get(id), ...fields });
 }
 
-/** Holly Bot's backend, as far as this app needs it. */
+/** Holli Bot's backend, as far as this app needs it. */
 function convex(path, args) {
   switch (path) {
     case 'account:viewer': return { name: 'Sam', email: 'sam@example.com' };
@@ -163,9 +163,9 @@ before(async () => {
   });
   cloudflare.origin = `http://127.0.0.1:${await listen(cloudflare)}`;
 
-  serverPc = await computer('Holly Server', { server: true });
+  serverPc = await computer('Holli Server', { server: true });
   goat = await computer('GOAT');
-  setDevice('devServer', { id: 'devServer', name: 'Holly Server', linkedAt: 1, url: serverPc.base, access: serverPc.token, server: true, paired: false });
+  setDevice('devServer', { id: 'devServer', name: 'Holli Server', linkedAt: 1, url: serverPc.base, access: serverPc.token, server: true, paired: false });
   setDevice('devGoat', { id: 'devGoat', name: 'GOAT', linkedAt: 2, url: goat.base, access: goat.token, server: false, paired: false });
 
   browser = await chromium.launch();
@@ -190,15 +190,15 @@ test('signed in on the desktop: its own page never offers Connect, and says to t
   await signIn(desktop, goatOrigin);
   const link = Buffer.from(JSON.stringify({ url: '', token: goat.token })).toString('base64url');
   await desktop.goto(`${goatOrigin}/?signin#connect=${link}`);
-  await note(desktop, 'Open Holly Bot on your phone and tap Connect to use GOAT from it.').waitFor({ timeout: 20_000 });
+  await note(desktop, 'Open Holli Bot on your phone and tap Connect to use GOAT from it.').waitFor({ timeout: 20_000 });
   assert.equal(await desktop.locator('.dialog').count(), 0, 'no Connect question on the desktop');
   await shot(desktop, 'desktop-waiting');
 });
 
 test('the phone, on the plan\'s server, offers Connect once the desktop answers; Connect is confirmed on both', async () => {
-  await signIn(phone, site.origin, { url: serverPc.base, token: serverPc.token, name: 'Holly Server', device: 'devServer' });
+  await signIn(phone, site.origin, { url: serverPc.base, token: serverPc.token, name: 'Holli Server', device: 'devServer' });
   await phone.goto(`${site.origin}/?signin`);
-  await phone.waitForFunction(() => window.holly?.remote && window.holly.server?.name === 'Holly Server', null, { timeout: 20_000 });
+  await phone.waitForFunction(() => window.holly?.remote && window.holly.server?.name === 'Holli Server', null, { timeout: 20_000 });
   const ask = dialog(phone, 'Connect to GOAT?');
   await ask.waitFor({ timeout: 20_000 });
   await shot(phone, 'phone-offer');
@@ -214,7 +214,7 @@ test('the phone, on the plan\'s server, offers Connect once the desktop answers;
   // The desktop confirms it too, and stops asking for the phone.
   const confirm = dialog(desktop, 'Connected to your iPhone');
   await confirm.waitFor({ timeout: 20_000 });
-  assert.match(await confirm.textContent(), /Holly Bot on your iPhone is connected to GOAT\. Your bots run here, and you can use them from your iPhone\./);
+  assert.match(await confirm.textContent(), /Holli Bot on your iPhone is connected to GOAT\. Your bots run here, and you can use them from your iPhone\./);
   await shot(desktop, 'desktop-confirmed');
   await confirm.getByRole('button', { name: 'OK' }).click();
   await note(desktop, 'tap Connect').waitFor({ state: 'detached', timeout: 5000 });
@@ -223,7 +223,7 @@ test('the phone, on the plan\'s server, offers Connect once the desktop answers;
 
 test('after that, the phone connects to the desktop by itself: as it opens, and while it\'s open', async () => {
   // As it opens, on the plan's server: straight onto GOAT, no question.
-  await phone.evaluate(({ user, conn }) => localStorage.setItem(`holly.connection:${user}`, JSON.stringify(conn)), { user: USER, conn: { url: serverPc.base, token: serverPc.token, name: 'Holly Server', device: 'devServer' } });
+  await phone.evaluate(({ user, conn }) => localStorage.setItem(`holly.connection:${user}`, JSON.stringify(conn)), { user: USER, conn: { url: serverPc.base, token: serverPc.token, name: 'Holli Server', device: 'devServer' } });
   await phone.reload();
   await phone.waitForFunction(() => window.holly?.server?.name === 'GOAT', null, { timeout: 20_000 });
   assert.equal(await phone.locator('.dialog').count(), 0);
@@ -233,7 +233,7 @@ test('after that, the phone connects to the desktop by itself: as it opens, and 
   await stopComputer(goat);
   setDevice('devGoat', { url: undefined, access: undefined, stoppedAt: Date.now(), seenAt: Date.now() });
   await phone.reload();
-  await phone.waitForFunction(() => window.holly?.server?.name === 'Holly Server', null, { timeout: 30_000 });
+  await phone.waitForFunction(() => window.holly?.server?.name === 'Holli Server', null, { timeout: 30_000 });
   // GOAT starts again while the phone is open: it moves over by itself, once nothing's going on.
   goat = await computer('GOAT', { port });
   setDevice('devGoat', { url: goat.base, access: goat.token, stoppedAt: undefined });
@@ -241,7 +241,7 @@ test('after that, the phone connects to the desktop by itself: as it opens, and 
   assert.equal(await phone.evaluate(() => window.holly.server?.name), 'GOAT');
   assert.equal(await dialog(phone, 'Connect to GOAT?').count(), 0, 'not asked again');
   // The desktop says so, quietly this time.
-  await toast(desktop, 'Holly Bot on your iPhone connected to GOAT.').waitFor({ timeout: 20_000 });
+  await toast(desktop, 'Holli Bot on your iPhone connected to GOAT.').waitFor({ timeout: 20_000 });
   assert.equal(await dialog(desktop, 'Connected to your iPhone').count(), 0);
 });
 
@@ -251,8 +251,8 @@ test('a computer listed as on, whose address only gets Cloudflare\'s error page,
   assert.equal(await dialog(phone, 'Connect to LAPTOP?').count(), 0, 'never offered while it doesn\'t answer');
 
   // The Workspace sheet (where "Load failed" showed): its status, and why picking it doesn't work.
-  const bot = await goat.app.createAgent({ name: 'Holly Bot Debug', greet: false });
-  await phone.locator('.row-bot', { hasText: 'Holly Bot Debug' }).click();
+  const bot = await goat.app.createAgent({ name: 'Holli Bot Debug', greet: false });
+  await phone.locator('.row-bot', { hasText: 'Holli Bot Debug' }).click();
   await phone.getByRole('button', { name: 'Workspace' }).click();
   await phone.getByRole('tab', { name: 'Server' }).click();
   const laptopRow = phone.locator('.ws-row', { hasText: 'LAPTOP' });
@@ -261,7 +261,7 @@ test('a computer listed as on, whose address only gets Cloudflare\'s error page,
   await shot(phone, 'phone-workspace');
   await laptopRow.click();
   await dialog(phone, 'Connect to LAPTOP?').getByRole('button', { name: 'Connect', exact: true }).click();
-  await toast(phone, "LAPTOP didn't answer at its address. Make sure it's on and Holly Bot Computer is running there.").waitFor({ timeout: 20_000 });
+  await toast(phone, "LAPTOP didn't answer at its address. Make sure it's on and Holli Bot Computer is running there.").waitFor({ timeout: 20_000 });
   assert.equal(await phone.getByText(/Load failed|Failed to fetch/).count(), 0);
   assert.equal(await phone.evaluate(() => window.holly.server?.name), 'GOAT', 'still on GOAT');
   await shot(phone, 'phone-workspace-error');
@@ -305,11 +305,11 @@ test('when the desktop stops, the phone moves to the plan\'s server by itself', 
   try {
     // Two minutes on, still no GOAT: the phone moves by itself, and says so.
     await phone.clock.fastForward('02:10');
-    await phone.waitForFunction(() => window.holly?.server?.name === 'Holly Server' && JSON.parse(sessionStorage.getItem('toasts') || '[]').includes('Connected to Holly Server.'), null, { timeout: 40_000 });
+    await phone.waitForFunction(() => window.holly?.server?.name === 'Holli Server' && JSON.parse(sessionStorage.getItem('toasts') || '[]').includes('Connected to Holli Server.'), null, { timeout: 40_000 });
     // And the plan's server heard it: a phone connected, by itself this time.
     const end = Date.now() + 10_000;
-    while (!heard.some((line) => /Holly Bot on your iPhone connected\./.test(line)) && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
-    assert.ok(heard.some((line) => /Holly Bot on your iPhone connected\./.test(line)), heard.join('\n'));
+    while (!heard.some((line) => /Holli Bot on your iPhone connected\./.test(line)) && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(heard.some((line) => /Holli Bot on your iPhone connected\./.test(line)), heard.join('\n'));
   } finally {
     console.log = log;
   }

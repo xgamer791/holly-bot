@@ -1,4 +1,4 @@
-// Remote-control API: lets the Holly Bot app on your phone (or any browser)
+// Remote-control API: lets the Holli Bot app on your phone (or any browser)
 // drive the bots that live on this computer. Methods mirror the app core.
 
 const MASK = '••••';

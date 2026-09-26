@@ -4,7 +4,7 @@ import { Avatar } from './avatar.js';
 import { Icon } from './icons.js';
 import { dateText, mark, number, tr, trx } from './i18n.js';
 
-// The subscription page, on the same white page as signing in. Holly Bot opens
+// The subscription page, on the same white page as signing in. Holli Bot opens
 // only for an account with an active subscription, so src/main.js shows this
 // instead of the app right after an account is created, and whenever its
 // subscription isn't active. Plans are the server's (convex/lib/plans.ts),
@@ -14,7 +14,7 @@ import { dateText, mark, number, tr, trx } from './i18n.js';
 // payment that didn't go through leads to Stripe's billing portal instead.
 
 const EVERY = { month: mark('Monthly'), year: mark('Yearly') };
-/** A subscription in one of these needs something done before Holly Bot opens. */
+/** A subscription in one of these needs something done before Holli Bot opens. */
 const NEEDS = ['past_due', 'unpaid', 'incomplete', 'paused'];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -43,12 +43,12 @@ function yearlyPercent(plans) {
 /** The server's message for a call it turned down, or `fallback`. */
 function serverSays(err, fallback) {
   if (typeof err?.data === 'string') return tr(err.data);
-  if (err?.name === 'TypeError') return tr("Couldn't reach Holly Bot's server. Check your connection and try again.");
+  if (err?.name === 'TypeError') return tr("Couldn't reach Holli Bot's server. Check your connection and try again.");
   return fallback;
 }
 
 /** Where Stripe sends people back to: this page's address, which the server
- * checks against the places Holly Bot may return to (convex/auth.ts). */
+ * checks against the places Holli Bot may return to (convex/auth.ts). */
 const here = () => `${location.origin}${location.pathname}`;
 
 /**
@@ -155,25 +155,25 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
       </div>`;
   }
 
-  // A subscription that isn't over but doesn't pay for Holly Bot right now
+  // A subscription that isn't over but doesn't pay for Holli Bot right now
   // (a renewal that didn't go through, a payment still processing, paused),
   // or one Stripe hasn't confirmed lately: sorted out in Stripe's portal, not
   // with a second subscription.
   const stale = sub && ['active', 'trialing'].includes(sub.status);
   if (sub && (NEEDS.includes(sub.status) || stale)) {
     const renew = planName
-      ? tr("Holly Bot couldn't renew your {plan} plan. Update your payment method to keep using Holly Bot. Your bots, chats and memories are safe in your account.", { plan: planName })
-      : tr("Holly Bot couldn't renew your subscription. Update your payment method to keep using Holly Bot. Your bots, chats and memories are safe in your account.");
+      ? tr("Holli Bot couldn't renew your {plan} plan. Update your payment method to keep using Holli Bot. Your bots, chats and memories are safe in your account.", { plan: planName })
+      : tr("Holli Bot couldn't renew your subscription. Update your payment method to keep using Holli Bot. Your bots, chats and memories are safe in your account.");
     const say = {
       past_due: [tr("Your payment didn't go through"), renew, tr('Update Payment Method')],
       unpaid: [tr("Your payment didn't go through"), renew, tr('Update Payment Method')],
       paused: [tr('Your subscription is paused'), planName
-        ? tr('Resume your {plan} plan to keep using Holly Bot. Your bots, chats and memories are safe in your account.', { plan: planName })
-        : tr('Resume your subscription to keep using Holly Bot. Your bots, chats and memories are safe in your account.'), tr('Manage Billing')],
-      incomplete: [tr('Your payment is processing'), tr('Holly Bot opens as soon as Stripe confirms your payment.'), null],
+        ? tr('Resume your {plan} plan to keep using Holli Bot. Your bots, chats and memories are safe in your account.', { plan: planName })
+        : tr('Resume your subscription to keep using Holli Bot. Your bots, chats and memories are safe in your account.'), tr('Manage Billing')],
+      incomplete: [tr('Your payment is processing'), tr('Holli Bot opens as soon as Stripe confirms your payment.'), null],
     }[sub.status] || [tr('Checking your subscription'), planName
-      ? tr("Holly Bot couldn't confirm your {plan} plan with Stripe just now. Check again in a minute.", { plan: planName })
-      : tr("Holly Bot couldn't confirm your subscription with Stripe just now. Check again in a minute."), null];
+      ? tr("Holli Bot couldn't confirm your {plan} plan with Stripe just now. Check again in a minute.", { plan: planName })
+      : tr("Holli Bot couldn't confirm your subscription with Stripe just now. Check again in a minute."), null];
     const [title, text, fix] = say;
     return html`
       <div class="hello">
@@ -253,7 +253,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
           <h2>${tr('Every plan includes')}</h2>
           <ul>
             <li><${Icon.bot} size=${18} /><span>${tr('Your bots, chats and memories in your account, on every device')}</span></li>
-            <li><${Icon.brain} size=${18} /><span>${tr("Holly Bot's AI, DeepSeek, with AI credits that refill every month")}</span></li>
+            <li><${Icon.brain} size=${18} /><span>${tr("Holli Bot's AI, DeepSeek, with AI credits that refill every month")}</span></li>
             <li><${Icon.mail} size=${18} /><span>${tr('Gmail, Outlook and GitHub for your bots to use')}</span></li>
             <li><${Icon.check} size=${18} /><span>${tr('Cancel anytime in Settings')}</span></li>
           </ul>
@@ -266,7 +266,7 @@ export function SubscribeScreen({ status: first, back, onActive, onSignOut }) {
 
         <div class="sub-dock">
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
-          ${!status.ready && html`<p class="sub-fine">${tr("Subscriptions aren't set up on Holly Bot's server yet.")}</p>`}
+          ${!status.ready && html`<p class="sub-fine">${tr("Subscriptions aren't set up on Holli Bot's server yet.")}</p>`}
           <button class="hello-cta" disabled=${!!busy || !status.ready || !plan} onClick=${subscribe}>
             ${busy === 'checkout' ? html`<span class="spinner"></span>` : plan
               ? every === 'year' ? tr('Subscribe for {price}/year', { price: money(plan.price[every]) }) : tr('Subscribe for {price}/month', { price: money(plan.price[every]) })

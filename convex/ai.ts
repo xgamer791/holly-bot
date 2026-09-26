@@ -3,9 +3,9 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { MODELS, RENAMED, costOf, promptTokens, usageOf, type Usage } from "./lib/credits";
 
-// Holly Bot's AI: DeepSeek, on Holly Bot's own key (DEEPSEEK_API_KEY), paid
+// Holli Bot's AI: DeepSeek, on Holli Bot's own key (DEEPSEEK_API_KEY), paid
 // for with each account's monthly credits (convex/credits.ts). The app and
-// Holly Bot Computer send their bots' OpenAI-style chat requests here
+// Holli Bot Computer send their bots' OpenAI-style chat requests here
 // (src/core/providers) with the account's session in place of a key. This
 // lets a request through while the account has credits, passes it on to
 // DeepSeek, streams the answer back as it comes, and charges what DeepSeek
@@ -32,7 +32,7 @@ const CORS = {
   "Access-Control-Max-Age": "600",
 };
 
-/** A refusal the app shows as it is: `type` says it's Holly Bot's own, `code` what happened. */
+/** A refusal the app shows as it is: `type` says it's Holli Bot's own, `code` what happened. */
 function refuse(status: number, code: string, message: string): Response {
   return new Response(JSON.stringify({ error: { message, type: "holly_bot", code } }), {
     status,
@@ -40,7 +40,7 @@ function refuse(status: number, code: string, message: string): Response {
   });
 }
 
-/** DeepSeek turned a request down: in words for the app, and, when it's Holly
+/** DeepSeek turned a request down: in words for the app, and, when it's Holli
  * Bot's key or DeepSeek balance at fault, in the logs for the owner. */
 async function fromDeepSeek(res: Response): Promise<Response> {
   const text = await res.text().catch(() => "");
@@ -49,8 +49,8 @@ async function fromDeepSeek(res: Response): Promise<Response> {
     detail = JSON.parse(text)?.error?.message || detail;
   } catch { /* not JSON */ }
   if (res.status === 401 || res.status === 402 || res.status === 403) {
-    console.error(`DeepSeek refused Holly Bot's key (${res.status}: ${detail}). ${res.status === 402 ? "Top up the DeepSeek balance." : "Check DEEPSEEK_API_KEY."}`);
-    return refuse(503, "unavailable", "Holly Bot's AI is unavailable right now. Try again soon.");
+    console.error(`DeepSeek refused Holli Bot's key (${res.status}: ${detail}). ${res.status === 402 ? "Top up the DeepSeek balance." : "Check DEEPSEEK_API_KEY."}`);
+    return refuse(503, "unavailable", "Holli Bot's AI is unavailable right now. Try again soon.");
   }
   if (res.status === 429) return refuse(429, "busy", "DeepSeek is busy right now. Try again in a moment.");
   if (res.status >= 500) return refuse(502, "unavailable", "DeepSeek had a problem answering. Try again in a moment.");
@@ -62,7 +62,7 @@ export const preflight = httpAction(async () => new Response(null, { status: 204
 /** POST /ai/chat/completions (convex/http.ts): a bot's chat request. */
 export const chat = httpAction(async (ctx, request) => {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!key) return refuse(503, "not_set_up", "Holly Bot's AI isn't set up on its server yet.");
+  if (!key) return refuse(503, "not_set_up", "Holli Bot's AI isn't set up on its server yet.");
   // A token Convex can't verify (expired, or not one of its own) throws here:
   // that's "not signed in" too, so the app renews its session and asks again.
   let userId: Awaited<ReturnType<typeof getAuthUserId>> = null;
@@ -71,7 +71,7 @@ export const chat = httpAction(async (ctx, request) => {
     userId = await getAuthUserId(ctx);
     sessionId = await getAuthSessionId(ctx);
   } catch { /* below */ }
-  if (!userId || !sessionId) return refuse(401, "not_signed_in", "Sign in to Holly Bot to use its AI.");
+  if (!userId || !sessionId) return refuse(401, "not_signed_in", "Sign in to Holli Bot to use its AI.");
 
   let body: Record<string, any>;
   try {
@@ -81,7 +81,7 @@ export const chat = httpAction(async (ctx, request) => {
   }
   const asked = String(body?.model ?? "");
   const model = RENAMED[asked] ?? asked;
-  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holly Bot's AI runs DeepSeek V4.1 Flash and V4 Pro, not ${asked || "that model"}.`);
+  if (!MODELS.includes(model)) return refuse(400, "bad_model", `Holli Bot's AI runs DeepSeek V4.1 Flash and V4 Pro, not ${asked || "that model"}.`);
 
   const stream = body.stream === true;
   const out: Record<string, unknown> = { model };
@@ -98,7 +98,7 @@ export const chat = httpAction(async (ctx, request) => {
     admitted = await ctx.runMutation(internal.credits.admit, { userId, sessionId, hold });
   } catch (err) {
     console.error(`Letting ${userId}'s request in failed: ${err instanceof Error ? err.message : err}`);
-    return refuse(503, "unavailable", "Holly Bot's AI couldn't take that request. Try again in a moment.");
+    return refuse(503, "unavailable", "Holli Bot's AI couldn't take that request. Try again in a moment.");
   }
   if (!admitted.ok) return refuse(admitted.status, admitted.code, admitted.message);
   const { held } = admitted;

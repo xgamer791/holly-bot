@@ -1,4 +1,4 @@
-// What a linked Holly Bot Computer tells the account about where it can be
+// What a linked Holli Bot Computer tells the account about where it can be
 // reached (computer/src/home.mjs report, convex/devices.ts report): its
 // address while its tunnel works, and otherwise why there's none, and its
 // system, which an account server from before that doesn't take: then
@@ -69,7 +69,7 @@ test('its bots hear of the account\'s computers: which one they\'re on, and what
   const now = Date.now();
   const list = [
     { id: 'devGoat', name: 'GOAT', linkedAt: 1, url: 'https://a.trycloudflare.com', access: 'k'.repeat(43), seenAt: now, server: false, paired: true, platform: 'win32' },
-    { id: 'devServer', name: 'Holly Server', linkedAt: 2, url: 'https://1-2-3-4.sslip.io', access: 's'.repeat(43), seenAt: now, server: true, paired: false, platform: 'linux' },
+    { id: 'devServer', name: 'Holli Server', linkedAt: 2, url: 'https://1-2-3-4.sslip.io', access: 's'.repeat(43), seenAt: now, server: true, paired: false, platform: 'linux' },
     { id: 'devOld', name: 'Laptop', linkedAt: 3, seenAt: now - 60 * 60_000, server: false, paired: false },
   ];
   const account = linkedAccount(() => ({ server: false, id: 'devGoat' }), () => list);
@@ -80,7 +80,7 @@ test('its bots hear of the account\'s computers: which one they\'re on, and what
   assert.equal(home.deviceId, 'devGoat');
   assert.deepEqual(home.app.linkedComputers, [
     { id: 'devGoat', name: 'GOAT', server: false, platform: 'win32', state: 'running', here: true },
-    { id: 'devServer', name: 'Holly Server', server: true, platform: 'linux', state: 'running' },
+    { id: 'devServer', name: 'Holli Server', server: true, platform: 'linux', state: 'running' },
     { id: 'devOld', name: 'Laptop', server: false, state: 'off' },
   ]);
   assert.doesNotMatch(JSON.stringify(home.app.linkedComputers), /trycloudflare|sslip|kkkk|ssss/);

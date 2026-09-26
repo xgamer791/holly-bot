@@ -1,6 +1,6 @@
 name: Deploy Convex
 
-# Pushes convex/ to Holly Bot's own production deployment (impressive-ferret-800)
+# Pushes convex/ to Holli Bot's own production deployment (impressive-ferret-800)
 # and keeps the variables sign-in needs in place. GitHub Pages serves the app
 # itself straight from main; this job only handles the backend.
 
@@ -43,8 +43,8 @@ jobs:
         run: npm ci
 
       # Deploying with another project's key would replace that project's
-      # backend with Holly Bot's, so only Holly Bot's own production key is used.
-      - name: Require Holly Bot's deploy key
+      # backend with Holli Bot's, so only Holli Bot's own production key is used.
+      - name: Require Holli Bot's deploy key
         run: |
           if [ -z "$CONVEX_DEPLOY_KEY" ]; then
             echo "::error::CONVEX_DEPLOY_KEY is not set. Create a production deploy key for the holly-bot project in the Convex dashboard (Settings → Deploy keys) and add it as a repository secret. See CONVEX.md."
@@ -53,7 +53,7 @@ jobs:
           case "${CONVEX_DEPLOY_KEY%%|*}" in
             *impressive-ferret-800) ;;
             *)
-              echo "::error::CONVEX_DEPLOY_KEY is not the production key for impressive-ferret-800, Holly Bot's own deployment. Refusing to deploy."
+              echo "::error::CONVEX_DEPLOY_KEY is not the production key for impressive-ferret-800, Holli Bot's own deployment. Refusing to deploy."
               exit 1
               ;;
           esac
@@ -109,7 +109,7 @@ jobs:
             fi
           done
 
-      # Holly Bot's AI: the DeepSeek key its server calls DeepSeek with for
+      # Holli Bot's AI: the DeepSeek key its server calls DeepSeek with for
       # everyone's bots, paid for with their monthly credits (convex/ai.ts).
       # It can also be set in the Convex dashboard; a secret that isn't set
       # here leaves the deployment's own value alone.

@@ -1,4 +1,4 @@
-// Shell command execution for Holly Bot Computer: streams output, enforces
+// Shell command execution for Holli Bot Computer: streams output, enforces
 // timeouts (killing the whole process tree), and can start background jobs.
 
 import { spawn, spawnSync } from 'node:child_process';

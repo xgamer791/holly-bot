@@ -1,4 +1,4 @@
-// Holly Bot service worker: offline app shell and notification clicks. API
+// Holli Bot service worker: offline app shell and notification clicks. API
 // calls are never cached.
 // Network first, so every open runs the current build, from old links and
 // installed home-screen apps too. The saved copy is for when the network fails
@@ -7,7 +7,7 @@
 
 const CACHE = 'holly-v6';
 const WAIT_MS = 8000;
-// Only the app's own files are cached. Everything else — notably Holly
+// Only the app's own files are cached. Everything else — notably Holli Bot
 // Computer's /api and /v1 calls when the app is served by it — goes straight
 // to the network.
 const APP_FILE = /(\/|\/index\.html|\/(privacy|terms)\.html|\/styles\.css|\/manifest\.webmanifest|\/(src|vendor|icons)\/[^?#]+)$/;

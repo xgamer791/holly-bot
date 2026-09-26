@@ -1,9 +1,9 @@
-// Gets Holly Bot for Windows ready to run (npm start) or to package
+// Gets Holli Bot for Windows ready to run (npm start) or to package
 // (electron-builder, which takes app\ and stage\: package.json "build"):
 //
 //   app\main.cjs              the app (src\), in one file, with the app's dictionaries
-//   app\preload.cjs, status\ (with Holly Bot's font, Satoshi), icons\
-//   stage\computer\           holly-computer.mjs, as the Holly Bot site serves it (build it first:
+//   app\preload.cjs, status\ (with Holli Bot's font, Satoshi), icons\
+//   stage\computer\           holly-computer.mjs, as the Holli Bot site serves it (build it first:
 //                             npm run build:computer in the project)
 //   stage\node\               Node.js for Windows (x64), the version in package.json "config",
 //                             from nodejs.org, checked against its published SHA-256
@@ -51,13 +51,13 @@ await build({
 });
 cpSync(join(desktop, 'src', 'preload.cjs'), join(app, 'preload.cjs'));
 for (const file of ['index.html', 'status.css']) cpSync(join(desktop, 'src', 'status', file), join(app, 'status', file));
-// Holly Bot's one font, with its license (vendor/fonts/satoshi).
+// Holli Bot's one font, with its license (vendor/fonts/satoshi).
 mkdirSync(join(app, 'status', 'fonts'), { recursive: true });
 for (const file of ['Satoshi-Variable.woff2', 'FFL.txt']) cpSync(join(root, 'vendor', 'fonts', 'satoshi', file), join(app, 'status', 'fonts', file));
 cpSync(join(desktop, 'src', 'icons'), join(app, 'icons'), { recursive: true });
 console.log('app: main.cjs, preload.cjs, status/ (with Satoshi), icons/');
 
-// ----- Holly Bot Computer ------------------------------------------------------------------------
+// ----- Holli Bot Computer ------------------------------------------------------------------------
 
 const script = join(root, 'computer', 'holly-computer.mjs');
 if (!existsSync(script)) throw new Error('computer/holly-computer.mjs is missing: run npm run build:computer in the project first.');

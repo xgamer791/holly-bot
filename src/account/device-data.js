@@ -2,7 +2,7 @@ import { DB, SCHEMA } from '../core/db.js';
 import { deviceConnection, forgetDeviceConnection, savedConnection, saveConnection } from '../remote/remote-app.js';
 import { tr } from '../ui/i18n.js';
 
-// Before Holly Bot had accounts it kept everything in this browser (IndexedDB
+// Before Holli Bot had accounts it kept everything in this browser (IndexedDB
 // 'holly'), where anyone who signed in on the device could see it. Now it lives
 // in each account. What a device still holds from before is offered once to
 // whoever signs in there: add it to their account, or delete it. Either way it

@@ -1,4 +1,4 @@
-// Holly Bot Computer's own session on the Holly Bot account it keeps its bots in.
+// Holli Bot Computer's own session on the Holli Bot account it keeps its bots in.
 // The app links it (convex/devices.ts): it makes a one-time code, and the
 // computer trades the code for a session of its own, separate from the
 // phone's, kept in <data>/account.json (readable only by you). The protocol is
@@ -43,7 +43,7 @@ const isAuthError = (err) => /unauthenticated|invalidauthheader|oidc|expired|not
 const newAccessKey = () => randomBytes(32).toString('base64url');
 
 export class AccountLink {
-  constructor(file, { url = CONVEX_URL, name = 'Holly Bot Computer', log = console } = {}) {
+  constructor(file, { url = CONVEX_URL, name = 'Holli Bot Computer', log = console } = {}) {
     this.file = file;
     this.url = url;
     this.name = name;
@@ -101,7 +101,7 @@ export class AccountLink {
     const result = await this.call('action', 'auth:signIn', { provider: 'device', params: { code: String(code || ''), name: this.name } });
     const tokens = result?.tokens;
     const userId = userIdOf(tokens?.token);
-    if (!userId) throw new Error("That link didn't work. Open Holly Bot and try again.");
+    if (!userId) throw new Error("That link didn't work. Open Holli Bot and try again.");
     await this.save({ url: this.url, userId, token: tokens.token, refreshToken: tokens.refreshToken, linkedAt: Date.now(), access: newAccessKey() });
     return userId;
   }
@@ -132,7 +132,7 @@ export class AccountLink {
     return result.tokens.token;
   }
 
-  /** The link's JWT, for a request that carries it itself (Holly Bot's AI,
+  /** The link's JWT, for a request that carries it itself (Holli Bot's AI,
    * src/core/providers); "Not signed in" once the link has ended. `force`
    * renews it first. */
   async tokenOf({ force = false } = {}) {
@@ -179,7 +179,7 @@ export class AccountLink {
     if (!result?.tokens || userIdOf(result.tokens.token) !== old.userId) throw new Error('The link could not be renewed');
     await this.save({ ...old, token: result.tokens.token, refreshToken: result.tokens.refreshToken, linkedAt: Date.now() });
     await this.call('action', 'auth:signOut', {}, oldToken).catch(() => {});
-    this.log.log?.('  Renewed this computer\'s link to your Holly Bot account.');
+    this.log.log?.('  Renewed this computer\'s link to your Holli Bot account.');
     return true;
   }
 }

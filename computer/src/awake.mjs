@@ -1,4 +1,4 @@
-// Keep the computer from going to sleep while Holly Bot Computer runs, so the phone
+// Keep the computer from going to sleep while Holli Bot Computer runs, so the phone
 // can always reach it and bots can finish their work. Each helper watches this
 // process and exits with it.
 
@@ -10,7 +10,7 @@ export function keepAwake({ platform = process.platform } = {}) {
   let child = null;
   try {
     if (platform === 'darwin') {
-      // -i: no idle sleep; -w: stop when Holly Bot Computer exits
+      // -i: no idle sleep; -w: stop when Holli Bot Computer exits
       child = spawn('caffeinate', ['-i', '-w', String(pid)], { stdio: 'ignore' });
     } else if (platform === 'win32') {
       const ps = `Add-Type -Name P -Namespace HollyAwake -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';
@@ -18,7 +18,7 @@ export function keepAwake({ platform = process.platform } = {}) {
 while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 20 }`;
       child = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', ps], { stdio: 'ignore', windowsHide: true });
     } else if (which('systemd-inhibit')) {
-      child = spawn('systemd-inhibit', ['--what=idle:sleep', '--who=Holly Bot Computer', '--why=Your bots are working', '--mode=block',
+      child = spawn('systemd-inhibit', ['--what=idle:sleep', '--who=Holli Bot Computer', '--why=Your bots are working', '--mode=block',
         'sh', '-c', `while kill -0 ${pid} 2>/dev/null; do sleep 20; done`], { stdio: 'ignore' });
     }
   } catch {

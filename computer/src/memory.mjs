@@ -1,6 +1,6 @@
 // How much of the computer's memory (RAM) is in use, counted the way its own
 // system monitor counts it, for the RAM meter under the Screen tab
-// (src/ui/computer.js, GET /v1/memory). Every computer Holly Bot Computer runs on:
+// (src/ui/computer.js, GET /v1/memory). Every computer Holli Bot Computer runs on:
 // - Windows: Task Manager's Memory in use (fromNode)
 // - Linux: /proc/meminfo, the total less MemAvailable (what `free` counts as used)
 // - macOS: vm_stat, Activity Monitor's Memory Used (app memory, wired and compressed)

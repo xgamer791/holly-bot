@@ -28,5 +28,5 @@ const server = createServer(async (req, res) => {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
   }
 });
-server.listen(port, () => console.log(`Holly Bot → http://localhost:${port}/`));
+server.listen(port, () => console.log(`Holli Bot → http://localhost:${port}/`));
 export default server;

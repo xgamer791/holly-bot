@@ -1,5 +1,5 @@
 // Stripe's REST API, for subscriptions (convex/billing.ts): plain functions
-// over fetch, like the other services Holly Bot talks to, plus the check on
+// over fetch, like the other services Holli Bot talks to, plus the check on
 // the signature of Stripe's webhook calls. No imports: plain TypeScript.
 
 type Fetch = typeof fetch;
@@ -104,7 +104,7 @@ export async function verifySignature(body: string, header: string | null, secre
   return signatures.some((signature) => same(signature, expected));
 }
 
-/** A subscription as Holly Bot keeps it (times in ms). */
+/** A subscription as Holli Bot keeps it (times in ms). */
 export interface SubscriptionState {
   subscriptionId: string;
   customerId: string;
@@ -125,7 +125,7 @@ export interface SubscriptionState {
 
 const idOf = (value: any): string | undefined => (typeof value === "string" ? value : value?.id) || undefined;
 
-/** The parts of a Stripe subscription Holly Bot keeps. The period's end is on
+/** The parts of a Stripe subscription Holli Bot keeps. The period's end is on
  * its item in this API version, and on the subscription in older ones. */
 export function subscriptionState(sub: any): SubscriptionState {
   const item = sub?.items?.data?.[0];

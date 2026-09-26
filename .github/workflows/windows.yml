@@ -1,16 +1,17 @@
-name: Holly Bot for Windows
+name: Holli Bot for Windows
 
-# Builds Holly Bot for Windows (desktop/) into its installer,
-# Holly-Bot-Setup.exe, on Windows. On main, when desktop/package.json has a
+# Builds Holli Bot for Windows (desktop/) into its installer,
+# Holli-Bot-Setup.exe, on Windows. On main, when desktop/package.json has a
 # version that isn't released yet, it publishes that as a GitHub release,
 # windows-v<version>: the installer people download (the latest one is always
-# at releases/latest/download/Holly-Bot-Setup.exe, and under its names
-# before, Holly-Bot-Computer-Setup.exe and Holly-Computer-Setup.exe, for links
-# to those), and what the app updates itself from (electron-updater reads
-# latest.yml there). Otherwise the installer is kept with the run, to try.
+# at releases/latest/download/Holli-Bot-Setup.exe, and under its names
+# before, Holly-Bot-Setup.exe, Holly-Bot-Computer-Setup.exe and
+# Holly-Computer-Setup.exe, for links to those), and what the app updates
+# itself from (electron-updater reads latest.yml there). Otherwise the
+# installer is kept with the run, to try.
 #
-# Holly Bot Computer itself (computer/holly-computer.mjs) keeps itself current
-# from the Holly Bot site, in the app as everywhere, so a new app version is
+# Holli Bot Computer itself (computer/holly-computer.mjs) keeps itself current
+# from the Holli Bot site, in the app as everywhere, so a new app version is
 # only needed when desktop/ changes: raise its version in desktop/package.json.
 
 on:
@@ -82,10 +83,10 @@ jobs:
       - name: Keep the installer with the run
         uses: actions/upload-artifact@v4
         with:
-          name: Holly-Bot-Setup-${{ steps.version.outputs.version }}
+          name: Holli-Bot-Setup-${{ steps.version.outputs.version }}
           path: |
-            desktop/dist/Holly-Bot-Setup.exe
-            desktop/dist/Holly-Bot-Setup.exe.blockmap
+            desktop/dist/Holli-Bot-Setup.exe
+            desktop/dist/Holli-Bot-Setup.exe.blockmap
             desktop/dist/latest.yml
           if-no-files-found: error
 
@@ -97,19 +98,20 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           cat > notes.md <<'EOF'
-          **Download [Holly-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holly-Bot-Setup.exe) and open it.** Holly Bot installs and opens, with Holly Bot Computer inside it, and no Node.js or terminal needed.
+          **Download [Holli-Bot-Setup.exe](https://github.com/xgamer791/holly-bot/releases/latest/download/Holli-Bot-Setup.exe) and open it.** Holli Bot installs and opens, with Holli Bot Computer inside it, and no Node.js or terminal needed.
 
-          - Sign in on the Holly Bot window it opens, with the Apple or Google account you use in Holly Bot. That links this PC to your account. Then open Holly Bot on your phone and tap Connect.
-          - Holly Bot Computer starts silently when you sign in to Windows, so your bots keep working around the clock, with an icon in the taskbar's corner (its settings are there). Open Holly Bot from the Start menu or the desktop whenever you like.
+          - Sign in on the Holli Bot window it opens, with the Apple or Google account you use in Holli Bot. That links this PC to your account. Then open Holli Bot on your phone and tap Connect.
+          - Holli Bot Computer starts silently when you sign in to Windows, so your bots keep working around the clock, with an icon in the taskbar's corner (its settings are there). Open Holli Bot from the Start menu or the desktop whenever you like.
           - A PC that ran `node holly-computer.mjs` carries on as the same computer, with the same bots, keys and browser logins.
           - Windows may say it protected your PC the first time: choose **More info → Run anyway**.
           - It keeps itself up to date, with no one needing to be at the PC: updates install themselves once no bot is working.
           EOF
           # Also under its names before, for links to those.
-          cp dist/Holly-Bot-Setup.exe dist/Holly-Bot-Computer-Setup.exe
-          cp dist/Holly-Bot-Setup.exe dist/Holly-Computer-Setup.exe
+          cp dist/Holli-Bot-Setup.exe dist/Holly-Bot-Setup.exe
+          cp dist/Holli-Bot-Setup.exe dist/Holly-Bot-Computer-Setup.exe
+          cp dist/Holli-Bot-Setup.exe dist/Holly-Computer-Setup.exe
           gh release create "$TAG" \
-            dist/Holly-Bot-Setup.exe dist/Holly-Bot-Setup.exe.blockmap dist/latest.yml \
-            dist/Holly-Bot-Computer-Setup.exe dist/Holly-Computer-Setup.exe \
+            dist/Holli-Bot-Setup.exe dist/Holli-Bot-Setup.exe.blockmap dist/latest.yml \
+            dist/Holly-Bot-Setup.exe dist/Holly-Bot-Computer-Setup.exe dist/Holly-Computer-Setup.exe \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Holly Bot for Windows $VERSION" --notes-file notes.md
+            --title "Holli Bot for Windows $VERSION" --notes-file notes.md

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-// Holly Bot's AI and AI credits (convex/ai.ts, convex/credits.ts,
+// Holli Bot's AI and AI credits (convex/ai.ts, convex/credits.ts,
 // convex/lib/credits.ts) on convex-test's stand-in for the Convex backend,
 // with DeepSeek answering the way its API does: a streamed answer passed
 // through and charged exactly what DeepSeek says it used, holds, refusals
@@ -117,7 +117,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Holly Bot's AI", () => {
+describe("Holli Bot's AI", () => {
   test("a streamed answer comes back as DeepSeek sent it, and costs exactly what it used", async () => {
     const t = convexTest(schema, modules);
     const { userId, as } = await signIn(t);
@@ -131,7 +131,7 @@ describe("Holly Bot's AI", () => {
     expect(text).toContain('" there"');
     expect(text).toContain("[DONE]");
 
-    // DeepSeek got Holly Bot's key and only the parameters it takes.
+    // DeepSeek got Holli Bot's key and only the parameters it takes.
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("https://api.deepseek.com/chat/completions");
     expect(calls[0].headers.get("authorization")).toBe("Bearer sk-holly");
@@ -209,13 +209,13 @@ describe("Holly Bot's AI", () => {
     expect((await ledger(t, userId))?.balance).toBe(5_000 - cost);
   });
 
-  test("DeepSeek turning Holly Bot's key down reads as unavailable, and costs nothing", async () => {
+  test("DeepSeek turning Holli Bot's key down reads as unavailable, and costs nothing", async () => {
     const t = convexTest(schema, modules);
     const { userId, as } = await signIn(t);
     deepseek(() => new Response(JSON.stringify({ error: { message: "Insufficient Balance", type: "unknown_error" } }), { status: 402 }));
     const res = await as.fetch("/ai/chat/completions", ask());
     expect(res.status).toBe(503);
-    expect((await res.json()).error).toMatchObject({ code: "unavailable", message: "Holly Bot's AI is unavailable right now. Try again soon." });
+    expect((await res.json()).error).toMatchObject({ code: "unavailable", message: "Holli Bot's AI is unavailable right now. Try again soon." });
     expect((await ledger(t, userId))?.balance).toBe(STARTER);
   });
 
@@ -259,7 +259,7 @@ describe("Holly Bot's AI", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("without Holly Bot's DeepSeek key it says it isn't set up, and the app keeps to saved keys", async () => {
+  test("without Holli Bot's DeepSeek key it says it isn't set up, and the app keeps to saved keys", async () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "");
     const t = convexTest(schema, modules);
     const { as } = await signIn(t);

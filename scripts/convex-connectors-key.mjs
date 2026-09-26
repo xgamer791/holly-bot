@@ -1,4 +1,4 @@
-// Creates CONNECTORS_KEY on Holly Bot's Convex deployment: the key that seals
+// Creates CONNECTORS_KEY on Holli Bot's Convex deployment: the key that seals
 // the Gmail, Outlook and GitHub connections people make for their bots
 // (convex/lib/seal.ts). 32 random bytes in base64, handed to
 // `npx convex env set` on stdin: never printed, written to disk or committed.

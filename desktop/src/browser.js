@@ -1,9 +1,9 @@
-// Holly Bot opens in a window of its own: an app window of a Chromium browser
+// Holli Bot opens in a window of its own: an app window of a Chromium browser
 // (the default browser when it's Chrome, Edge, Brave, Vivaldi or Chromium, or
 // else Microsoft Edge, which Windows comes with). It's a real browser, signed
 // in to what you're signed in to there, so signing in with Apple or Google,
 // dictation, voice mode and notifications work in it just as they do on
-// Holly Bot Computer's page in a browser tab. Without one, the default browser
+// Holli Bot Computer's page in a browser tab. Without one, the default browser
 // opens it in a tab.
 
 import { execFile, spawn } from 'node:child_process';
@@ -60,7 +60,7 @@ async function edge() {
   return programOf(await readRegistry('HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe', null));
 }
 
-/** The browser Holly Bot opens in: one that makes app windows, or null. */
+/** The browser Holli Bot opens in: one that makes app windows, or null. */
 async function appBrowser() {
   if (process.platform !== 'win32') return null;
   const chosen = await defaultBrowser().catch(() => null);
@@ -68,7 +68,7 @@ async function appBrowser() {
   return edge().catch(() => null);
 }
 
-/** Opens Holly Bot at `url` (Holly Bot Computer's own page) in a window of its own. */
+/** Opens Holli Bot at `url` (Holli Bot Computer's own page) in a window of its own. */
 export async function openHollyBot(url) {
   const program = await appBrowser();
   if (program) {

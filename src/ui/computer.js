@@ -698,7 +698,7 @@ function ComputerAbout({ onSetup }) {
     return html`
       <div class="welcome">
         <p>${tr('Right now this bot works entirely in your browser: its own drive, a Python/JavaScript sandbox, web search and memory.')}</p>
-        <p>${trx('Connect a **Bot Computer** — your own PC, Mac, Linux box or server running the small {program} companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.', { program: html`<span class="kbd">holly-computer</span>` })}</p>
+        <p>${trx('Connect a **Bot Computer** — your own PC, Mac, Linux box or server running the small {program} companion — to let bots run shell commands, edit files, use a real browser and local MCP plugins, with your approval for risky actions.', { program: 'Holli Bot Computer' })}</p>
         ${app.computer.error && html`<p style="color:var(--red)">${app.computer.error}</p>`}
         <button class="btn primary" onClick=${onSetup}>${tr('Set up Bot Computer')}</button>
       </div>`;
@@ -711,8 +711,8 @@ function ComputerAbout({ onSetup }) {
       <${Row} title=${tr('Shell')} value=${info?.shell || '—'} />
       <${Row} title=${tr('Workspace')} value=${info?.workspace || info?.cwd || '—'} />
       <${Row} title=${tr('Time zone')} value=${info?.tz || '—'} />
-      <${Row} title=${tr('Holly Bot Computer')} value=${info?.version || '—'} />
-      ${info?.desktopApp && html`<${Row} title=${tr('Holly Bot for Windows')} value=${info.desktopApp} />`}
+      <${Row} title=${tr('Holli Bot Computer')} value=${info?.version || '—'} />
+      ${info?.desktopApp && html`<${Row} title=${tr('Holli Bot for Windows')} value=${info.desktopApp} />`}
     <//>
     <${Group} label=${tr('Capabilities')}>
       ${['shell', 'files', 'fetch', 'search', 'screenshot', 'browser', 'mcp'].map((k) => html`<${Row} key=${k} title=${tr(CAPABILITIES[k])} value=${caps[k] ? tr('Yes') : tr('No')} />`)}

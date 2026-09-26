@@ -36,12 +36,12 @@ export function BotProfileSheet({ agentId, onClose }) {
         <div class="row"><div class="label"><div class="t">${tr('Name')}</div></div>
           <input type="text" value=${agent.name} maxlength="40" aria-label=${tr('Name')} onChange=${(e) => e.currentTarget.value.trim() && save({ name: e.currentTarget.value.trim() })} /></div>
       <//>
-      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. It keeps this in its memory and reads it before every chat, and Holly Bot's AI briefs it on it.")}>
+      <${Field} label=${tr('Job')} hint=${!chief && tr("What it's for, in your words. It keeps this in its memory and reads it before every chat, and Holli Bot's AI briefs it on it.")}>
         <${AgentText} key=${`job_${agent.id}`} agent=${agent} field="description" summary=${jobSummary(agent)} label=${tr("Bot's job")}
           placeholder=${tr('e.g. Plan my meals for the week and make the shopping list')} />
       <//>
       ${!chief && agent.description?.trim() && html`<${Briefing} agent=${agent} />`}
-      <${Field} label=${tr('Rules')} hint=${tr("Hard rules it must always follow, in your words. It keeps them in its memory and reads them before every chat. If one goes against Holly Bot's own safety and behavior rules, it won't follow that one, and it will tell you why in your chat.")}>
+      <${Field} label=${tr('Rules')} hint=${tr("Hard rules it must always follow, in your words. It keeps them in its memory and reads them before every chat. If one goes against Holli Bot's own safety and behavior rules, it won't follow that one, and it will tell you why in your chat.")}>
         <${AgentText} key=${`rules_${agent.id}`} agent=${agent} field="rules" rules label=${tr("Bot's rules")}
           placeholder=${tr('e.g. Never send an email without my OK')} />
       <//>
@@ -99,7 +99,7 @@ export function BotProfileSheet({ agentId, onClose }) {
     <//>`;
 }
 
-/** The briefing Holly Bot's AI wrote the bot from its job and rules
+/** The briefing Holli Bot's AI wrote the bot from its job and rules
  * (src/core/brief.js), folded away until it's opened; while it's being
  * written, a note saying so. */
 function Briefing({ agent }) {
@@ -114,7 +114,7 @@ function Briefing({ agent }) {
 function toolSub(app, key, g) {
   const description = tr(g.description);
   if (key === 'computer' && !app.computer.connected) return tr('{description} (not connected)', { description });
-  if (key === 'images' && !app.providers.imageProvider()) return tr("{description} (not available with Holly Bot's AI)", { description });
+  if (key === 'images' && !app.providers.imageProvider()) return tr("{description} (not available with Holli Bot's AI)", { description });
   if (key === 'plugins' && !app.plugins.list().some((p) => p.status === 'ok')) return tr('{description} (none connected)', { description });
   if ((key === 'email' || key === 'github') && app.connection) {
     const accounts = (key === 'email' ? ['gmail', 'outlook'] : ['github']).map((s) => app.connection(s)?.account).filter(Boolean);
@@ -126,7 +126,7 @@ function toolSub(app, key, g) {
   return description;
 }
 
-/** What Holly Bot's AI models are called in the app. */
+/** What Holli Bot's AI models are called in the app. */
 export const MODEL_NAMES = { 'deepseek-flash': 'DeepSeek V4.1 Flash', 'deepseek-v4-pro': 'DeepSeek V4 Pro' };
 
 /** What each costs in credits, next to the other. */
@@ -141,7 +141,7 @@ export function modelLabel(app, agent) {
   }
 }
 
-/** A bot's brain: one of Holly Bot's AI models, paid for with the account's
+/** A bot's brain: one of Holli Bot's AI models, paid for with the account's
  * credits (src/core/providers). Flash unless the bot picks Pro. */
 export function ModelPickerSheet({ agentId, onClose }) {
   const app = useApp();

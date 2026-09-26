@@ -1,4 +1,4 @@
-// Holly Bot Computer's tunnel (computer/src/tunnel.mjs): an address goes to the
+// Holli Bot Computer's tunnel (computer/src/tunnel.mjs): an address goes to the
 // account only once cloudflared has connected and the address answers as this
 // computer, and a tunnel that stops working is replaced. A stand-in
 // cloudflared plays each way a real one behaves, including the one that broke
@@ -128,7 +128,7 @@ test('the address is told once cloudflared has connected and it answers as this 
   assert.equal(url, A);
   assert.equal(t.state, 'up');
   assert.deepEqual(changes, [{ url: A, state: 'up', why: '' }]);
-  // cloudflared reaches Holly Bot Computer on 127.0.0.1, not "localhost" (which can mean ::1).
+  // cloudflared reaches Holli Bot Computer on 127.0.0.1, not "localhost" (which can mean ::1).
   assert.deepEqual(cf.runs()[0].args, ['tunnel', '--no-autoupdate', '--url', 'http://127.0.0.1:8787']);
   t.stop();
 });
@@ -229,7 +229,7 @@ test('cloudflared that can\'t be had is asked for again, with a pause', async ()
   t.stop();
 });
 
-test('tunnelOrigin: 127.0.0.1 unless Holly Bot Computer listens on one address only', () => {
+test('tunnelOrigin: 127.0.0.1 unless Holli Bot Computer listens on one address only', () => {
   assert.equal(tunnelOrigin(undefined, 8787), 'http://127.0.0.1:8787');
   assert.equal(tunnelOrigin('127.0.0.1', 8787), 'http://127.0.0.1:8787');
   assert.equal(tunnelOrigin('0.0.0.0', 8787), 'http://127.0.0.1:8787');

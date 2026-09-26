@@ -1,6 +1,6 @@
-// Linking Holly Bot Computer to an account (convex/devices.ts). The app makes the
+// Linking Holli Bot Computer to an account (convex/devices.ts). The app makes the
 // code and sends the server only its SHA-256; the code itself goes to the
-// computer, which trades it for a session of its own. Holly Bot Computer uses the
+// computer, which trades it for a session of its own. Holli Bot Computer uses the
 // same to renew its link (computer/src/account.mjs).
 
 /** A one-time link code and the hex SHA-256 the server keeps of it. */

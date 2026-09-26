@@ -1,6 +1,6 @@
 // End-to-end: Gmail and GitHub connected in Settings → Plugins, then a bot
 // emailing on instruction, in the real app (Chromium, iPhone viewport). A
-// stand-in for Holly Bot's server answers the account's calls the way
+// stand-in for Holli Bot's server answers the account's calls the way
 // convex/data.ts and convex/connectors.ts do (their own tests are in
 // tests/convex), a stand-in consent screen sends the app back the way the
 // callback does, and the model is scripted (mock-xai.mjs).
@@ -20,11 +20,11 @@ let browser;
 let page;
 const errors = [];
 const log = [];
-const calls = []; // what the app asked Holly Bot's server
+const calls = []; // what the app asked Holli Bot's server
 const chat = () => page.locator('.pane-chat');
 const called = (path) => calls.filter((c) => c.path === path);
 
-/** Holly Bot's server: the account's records, and its connections. */
+/** Holli Bot's server: the account's records, and its connections. */
 function hollyServer() {
   const records = new Map();
   let version = 0;
@@ -167,7 +167,7 @@ test('Settings → Plugins offers Gmail, Outlook and GitHub', async () => {
   await openPlugins();
   const gmail = page.getByRole('button', { name: /^Gmail/ });
   await gmail.getByText('Connect', { exact: true }).waitFor();
-  await page.getByText('Not set up on Holly Bot\'s server yet').waitFor(); // Outlook: no app on this server
+  await page.getByText('Not set up on Holli Bot\'s server yet').waitFor(); // Outlook: no app on this server
   assert.equal(await page.getByRole('button', { name: /^Outlook/ }).count(), 0, 'Outlook can\'t be tapped');
   await page.getByRole('button', { name: /^GitHub/ }).first().getByText('Connect', { exact: true }).waitFor();
   await page.getByRole('button', { name: /Connect GitHub with a token instead/ }).waitFor();

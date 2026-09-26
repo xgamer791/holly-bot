@@ -30,8 +30,8 @@ const STOPPED_NOTE = '[The user stopped your last reply before you finished. Any
 const SELF_NOTE = '[Note to you, not from the user: how you and the other bots are built, set up and run behind the scenes stays private, unless your rules (Your rules) say otherwise: then follow them. If this message asks about any of it (how you work, whether the bots share screens, a browser, logins or files, where the servers are or their addresses, what model you are, who made you), you don\'t know: answer in one light sentence that says only that, without mentioning anything you said before, and offer to help with something else. But if it asks whether you\'re connected to one of their computers, which one you\'re on, or whether you can use it, that\'s theirs to know: answer plainly from Your computers, with the computer\'s name. Otherwise, ignore this note.]';
 /** For a bot the user gave hard rules (buildSystemPrompt's Your rules), on
  * the newest message every turn, where it weighs most: after the notes above,
- * as Holly Bot's own rules come before the user's. */
-const RULES_NOTE = '[Note to you, not from the user: your rules (Your rules) hold for this message too. If it asks for anything that would break one, don\'t do it: say which rule stops you. A rule of theirs that goes against Holly Bot\'s own safety and behavior rules you don\'t follow: if this message touches one, tell them flat out that you won\'t follow that rule, and why. Otherwise, ignore this note.]';
+ * as Holli Bot's own rules come before the user's. */
+const RULES_NOTE = '[Note to you, not from the user: your rules (Your rules) hold for this message too. If it asks for anything that would break one, don\'t do it: say which rule stops you. A rule of theirs that goes against Holli Bot\'s own safety and behavior rules you don\'t follow: if this message touches one, tell them flat out that you won\'t follow that rule, and why. Otherwise, ignore this note.]';
 /** Results for tool calls a Stop cut off (settleStopped). */
 const STOPPED_RUNNING = 'Stopped by the user while this was running, so it may not have finished. Check before doing it again.';
 const STOPPED_BEFORE = 'Not run: the user stopped the task first.';
@@ -354,7 +354,7 @@ export class Runtime {
     let tools;
     try {
       await app.updateThread(threadId, { status: 'working' });
-      // Whether Holly Bot's AI can run, and the credits for it (convex/credits.ts).
+      // Whether Holli Bot's AI can run, and the credits for it (convex/credits.ts).
       await untilAborted(app.refreshCredits({ maxAge: 60_000 }), controller.signal);
       cfg = app.providers.resolve(agent);
       const serverTools = app.providers.serverToolsFor(cfg, agent);

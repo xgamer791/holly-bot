@@ -1,7 +1,7 @@
-// The languages Holly Bot speaks. The app is written in English, and what a
+// The languages Holli Bot speaks. The app is written in English, and what a
 // person sees goes through a translation (src/ui/i18n.js, dictionaries in
 // src/ui/i18n/) that looks the English up. This is the part the app core
-// needs too, wherever the bots run (in the app or on Holly Bot Computer): the
+// needs too, wherever the bots run (in the app or on Holli Bot Computer): the
 // languages, filling in {names}, phrases the app translates as it shows them
 // (what a bot is doing, on its cards), and the few things a new bot says
 // before anyone has written to it, in the language the app was last shown in
@@ -18,7 +18,7 @@ export const LANGUAGES = [
 const CODES = LANGUAGES.map((l) => l.code);
 
 /** The language a choice in Settings → Language comes to: one of LANGUAGES,
- * or for 'system' the first of the device's own languages Holly Bot speaks
+ * or for 'system' the first of the device's own languages Holli Bot speaks
  * (English when it speaks none of them). */
 export function resolveLanguage(choice, preferred = deviceLanguages()) {
   if (CODES.includes(choice)) return choice;

@@ -1,5 +1,5 @@
 // Creates the RS256 key pair Convex Auth signs sessions with and stores it on
-// Holly Bot's Convex deployment as JWT_PRIVATE_KEY and JWKS. The private key is
+// Holli Bot's Convex deployment as JWT_PRIVATE_KEY and JWKS. The private key is
 // generated here and handed to `npx convex env set` on stdin: it is never
 // printed, written to disk or committed.
 //

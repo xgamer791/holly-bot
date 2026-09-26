@@ -1,6 +1,6 @@
 {
-  "name": "Holly Bot",
-  "short_name": "Holly Bot",
+  "name": "Holli Bot",
+  "short_name": "Holli Bot",
   "description": "Your own multi-agent AI assistant — bring your own key.",
   "start_url": "./#/",
   "scope": "./",

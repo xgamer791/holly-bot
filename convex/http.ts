@@ -18,11 +18,11 @@ http.route({ pathPrefix: "/connectors/", method: "GET", handler: callback });
 // /stripe/webhook: Stripe's news of every subscription change (convex/billing.ts).
 http.route({ path: "/stripe/webhook", method: "POST", handler: webhook });
 
-// /servers/ready: a subscriber's server reporting that Holly is running on it,
+// /servers/ready: a subscriber's server reporting that Holli Bot is running on it,
 // or what went wrong (convex/servers.ts, convex/lib/cloudinit.ts).
 http.route({ path: "/servers/ready", method: "POST", handler: ready });
 
-// /ai/chat/completions: bots' requests to Holly Bot's AI, DeepSeek on Holly
+// /ai/chat/completions: bots' requests to Holli Bot's AI, DeepSeek on Holli
 // Bot's key, charged to the account's monthly credits (convex/ai.ts).
 http.route({ path: "/ai/chat/completions", method: "POST", handler: chat });
 http.route({ path: "/ai/chat/completions", method: "OPTIONS", handler: preflight });

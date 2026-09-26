@@ -1,4 +1,4 @@
-// Holly Bot for Windows' settings window: how Holly Bot Computer is doing (Status),
+// Holli Bot for Windows' settings window: how Holli Bot Computer is doing (Status),
 // its settings (Settings) and what it says as it works (Activity). Everything
 // comes from the app (main.js, through preload.cjs), and everything it does
 // goes through it.
@@ -44,18 +44,18 @@ function statusWords(status) {
   }[status] || '';
 }
 
-// ----- the top: name, status, Open Holly Bot, Restart ------------------------------------
+// ----- the top: name, status, Open Holli Bot, Restart ------------------------------------
 
 function renderTop() {
   const s = view.state;
   $('sub').textContent = s
-    ? tr('{name} · Holly Bot Computer {version}', { name: s.name, version: s.version })
-    : view.version ? `Holly Bot Computer ${view.version}` : '';
+    ? tr('{name} · Holli Bot Computer {version}', { name: s.name, version: s.version })
+    : view.version ? `Holli Bot Computer ${view.version}` : '';
   const pill = $('pill');
   pill.className = `pill ${{ running: 'ok', starting: 'busy', restarting: 'busy', stopping: 'busy', failed: 'bad' }[view.status] || ''}`;
   $('pill-text').textContent = statusWords(view.status);
   const open = $('open');
-  open.textContent = tr('Open Holly Bot');
+  open.textContent = tr('Open Holli Bot');
   open.disabled = !(view.status === 'running' && s);
   const run = $('run');
   if (view.status === 'running') {
@@ -78,22 +78,22 @@ function renderBanners() {
   if (view.update) {
     out.push(h('div', { class: 'banner info' },
       h('p', null, view.update.auto
-        ? tr('Holly Bot for Windows {version} is ready. It installs itself once no bot is working.', { version: view.update.version })
-        : tr('Holly Bot for Windows {version} is ready.', { version: view.update.version })),
+        ? tr('Holli Bot for Windows {version} is ready. It installs itself once no bot is working.', { version: view.update.version })
+        : tr('Holli Bot for Windows {version} is ready.', { version: view.update.version })),
       h('button', { class: 'btn small primary', onclick: () => act('update') }, tr('Restart to update'))));
   }
   if (view.restartToApply) {
     out.push(h('div', { class: 'banner warn' },
-      h('p', null, tr('Restart Holly Bot Computer to use your new settings.')),
+      h('p', null, tr('Restart Holli Bot Computer to use your new settings.')),
       h('button', { class: 'btn small', onclick: () => act('apply') }, tr('Restart now'))));
   }
   if (view.status === 'failed' && view.error) {
     const e = view.error;
     const text = e.kind === 'port'
-      ? tr('Port {port} is in use, so Holly Bot Computer can’t start. It may already be running on this computer, in a terminal: close that, then press Start. Or choose another port in Settings.', { port: e.port })
+      ? tr('Port {port} is in use, so Holli Bot Computer can’t start. It may already be running on this computer, in a terminal: close that, then press Start. Or choose another port in Settings.', { port: e.port })
       : e.kind === 'missing'
-        ? tr('Holly Bot Computer’s files are missing. Install Holly Bot for Windows again.')
-        : tr('Holly Bot Computer stopped: {detail}. The Activity tab shows what happened.', { detail: e.detail || '' });
+        ? tr('Holli Bot Computer’s files are missing. Install Holli Bot for Windows again.')
+        : tr('Holli Bot Computer stopped: {detail}. The Activity tab shows what happened.', { detail: e.detail || '' });
     out.push(h('div', { class: 'banner bad' }, h('p', null, text)));
   }
   $('banners').replaceChildren(...out);
@@ -116,7 +116,7 @@ function phoneWords(s) {
   switch (s.tunnel) {
     case 'up': return tr('Your phone can reach this computer from anywhere, through a secure tunnel.');
     case 'starting': return tr('Opening a secure tunnel so your phone can reach this computer…');
-    case 'blocked': return tr("This network blocks the secure tunnel Holly Bot Computer uses (Cloudflare Tunnel, outbound port 7844, UDP and TCP), so your phone can't reach this computer. Allow it, use another network, or give this computer your own address in Settings. Holly Bot Computer keeps trying.");
+    case 'blocked': return tr("This network blocks the secure tunnel Holli Bot Computer uses (Cloudflare Tunnel, outbound port 7844, UDP and TCP), so your phone can't reach this computer. Allow it, use another network, or give this computer your own address in Settings. Holli Bot Computer keeps trying.");
     case 'own': return tr('Your phone reaches this computer at your own address, {address}.', { address: s.address || '' });
     default: return tr("The secure tunnel is off, so your phone can't reach this computer. Turn it on in Settings, or give this computer your own address there.");
   }
@@ -144,9 +144,9 @@ function renderStatus() {
   const s = view.state;
   const page = $('page-status');
   if (!s) {
-    const words = view.status === 'stopped' ? tr('Holly Bot Computer isn’t running. Press Start to run it.')
-      : view.status === 'failed' ? tr('Holly Bot Computer isn’t running.')
-        : tr('Holly Bot Computer is starting. It can take a minute the first time.');
+    const words = view.status === 'stopped' ? tr('Holli Bot Computer isn’t running. Press Start to run it.')
+      : view.status === 'failed' ? tr('Holli Bot Computer isn’t running.')
+        : tr('Holli Bot Computer is starting. It can take a minute the first time.');
     page.replaceChildren(h('div', { class: 'card' }, h('p', null, words)));
     return;
   }
@@ -155,17 +155,17 @@ function renderStatus() {
   page.replaceChildren(...h('div', null,
     h('div', { class: 'label' }, tr('Your bots')),
     h('div', { class: 'card' }, s.linked
-      ? h('p', null, tr('Your bots are kept in your Holly Bot account, and this computer runs them around the clock.'))
+      ? h('p', null, tr('Your bots are kept in your Holli Bot account, and this computer runs them around the clock.'))
       : [
-        h('p', null, tr('Sign in on the Holly Bot window with the Apple or Google account you use in Holly Bot. That links this computer to your account, and your bots run here.')),
+        h('p', null, tr('Sign in on the Holli Bot window with the Apple or Google account you use in Holli Bot. That links this computer to your account, and your bots run here.')),
         h('button', { class: 'btn primary', onclick: () => act('open') }, tr('Sign In')),
       ]),
     h('div', { class: 'label' }, tr('Your phone')),
     h('div', { class: 'card' },
       h('p', null, phoneWords(s)),
       reachable && h('p', null, s.linked
-        ? tr('Holly Bot on your phone, signed in to your account, connects to this computer by itself. The first time, it asks you to tap Connect.')
-        : tr('Once this computer is linked to your account, open Holly Bot on your phone and tap Connect.'))),
+        ? tr('Holli Bot on your phone, signed in to your account, connects to this computer by itself. The first time, it asks you to tap Connect.')
+        : tr('Once this computer is linked to your account, open Holli Bot on your phone and tap Connect.'))),
     s.wifi && [
       h('div', { class: 'label' }, tr('Wi-Fi link')),
       h('div', { class: 'card' }, h('div', { class: 'wifi' },
@@ -181,7 +181,7 @@ function renderStatus() {
         const yes = !!s.can?.[key];
         return h('span', { class: `chip${yes ? '' : ' off'}` }, h('span', { class: 'mark' }, yes ? '✓' : '✗'), tr(label));
       })),
-      // Holly Bot Computer's own notes (how to let bots use the screen), as it words them.
+      // Holli Bot Computer's own notes (how to let bots use the screen), as it words them.
       s.notes?.length > 0 && h('div', { class: 'note', lang: 'en' }, s.notes.map((note) => h('p', null, note)))),
     h('div', { class: 'label' }, tr('Folders')),
     h('div', { class: 'card' },
@@ -193,12 +193,12 @@ function renderStatus() {
 // ----- Settings ----------------------------------------------------------------------------
 
 const TOGGLES = [
-  ['startWithWindows', mark('Start with Windows'), mark('Holly Bot Computer starts in the taskbar’s corner when you sign in to Windows, so your bots are always at work.')],
-  ['keepAwake', mark('Keep this computer awake'), mark('While Holly Bot Computer runs, so your phone can always reach it and bots can finish their work.')],
+  ['startWithWindows', mark('Start with Windows'), mark('Holli Bot Computer starts in the taskbar’s corner when you sign in to Windows, so your bots are always at work.')],
+  ['keepAwake', mark('Keep this computer awake'), mark('While Holli Bot Computer runs, so your phone can always reach it and bots can finish their work.')],
   ['tunnel', mark('Secure tunnel'), mark('Your phone reaches this computer from anywhere, through Cloudflare’s free quick tunnel.')],
   ['lan', mark('Wi-Fi link'), mark('Phones on the same Wi-Fi connect without signing in, with a link and a code on the Status tab.')],
   ['headlessBrowser', mark('Hide the bots’ browser'), mark('The bots’ Chrome runs without a window. They still browse.')],
-  ['update', mark('Keep Holly Bot Computer up to date'), mark('It gets the latest Holly Bot Computer as it starts. Newer versions, of it and of this app, install themselves once no bot is working.')],
+  ['update', mark('Keep Holli Bot Computer up to date'), mark('It gets the latest Holli Bot Computer as it starts. Newer versions, of it and of this app, install themselves once no bot is working.')],
 ];
 
 function toggleRow(key, title, sub) {
@@ -268,10 +268,10 @@ function buildSettings() {
     h('div', { class: 'rows' },
       headless,
       h('div', { class: 'row' },
-        h('div', { class: 'what' }, h('div', { class: 't' }, tr('Port')), h('div', { class: 's' }, tr('Where Holly Bot Computer listens on this computer.'))),
+        h('div', { class: 'what' }, h('div', { class: 't' }, tr('Port')), h('div', { class: 's' }, tr('Where Holli Bot Computer listens on this computer.'))),
         port),
       folderSetting('workspace', tr('Workspace folder'), tr('The folder your bots work in.')),
-      folderSetting('data', tr('Data folder'), tr('Holly Bot Computer’s own files: its keys, its link to your account and the bots’ browser. Until this computer is linked to your account, its bots are kept here too.'))),
+      folderSetting('data', tr('Data folder'), tr('Holli Bot Computer’s own files: its keys, its link to your account and the bots’ browser. Until this computer is linked to your account, its bots are kept here too.'))),
     h('div', { class: 'label' }, tr('Keys')),
     h('div', { class: 'rows' },
       h('div', { class: 'row' },
@@ -335,7 +335,7 @@ async function init() {
   $('tab-status').textContent = tr('Status');
   $('tab-settings').textContent = tr('Settings');
   $('tab-activity').textContent = tr('Activity');
-  $('log-hint').textContent = tr('What Holly Bot Computer says as it works.');
+  $('log-hint').textContent = tr('What Holli Bot Computer says as it works.');
   const copy = $('log-copy');
   copy.textContent = tr('Copy');
   copy.onclick = async () => {
@@ -348,8 +348,8 @@ async function init() {
   $('log-folder').textContent = tr('Open the log folder');
   $('log-folder').onclick = () => act('folder', 'logs');
   $('open').onclick = () => act('open');
-  $('foot-version').textContent = tr('Holly Bot for Windows {version}', { version: view.appVersion });
-  $('quit').textContent = tr('Quit Holly Bot');
+  $('foot-version').textContent = tr('Holli Bot for Windows {version}', { version: view.appVersion });
+  $('quit').textContent = tr('Quit Holli Bot');
   $('quit').onclick = () => act('quit');
   for (const button of document.querySelectorAll('.tabs button')) button.onclick = () => showTab(button.dataset.tab);
   buildSettings();

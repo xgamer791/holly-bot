@@ -171,7 +171,7 @@ export class DB {
   }
 
   async importAll(data, { replace = false } = {}) {
-    if (!data || data.app !== 'holly-bot' || !data.stores) throw new Error('Not a Holly backup file');
+    if (!data || data.app !== 'holly-bot' || !data.stores) throw new Error('Not a Holli Bot backup file');
     for (const [name, rows] of Object.entries(data.stores)) {
       if (!SCHEMA[name] || !Array.isArray(rows)) continue;
       if (replace) await this.clear(name);

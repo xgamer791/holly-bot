@@ -117,7 +117,7 @@ async function request(api: HiggsfieldApi, method: string, params: Record<string
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CALL_MS);
   try {
-    const init = await send(api, "", { id: 1, method: "initialize", params: { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "Holly Bot", version: "1" } } }, controller.signal);
+    const init = await send(api, "", { id: 1, method: "initialize", params: { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "Holli Bot", version: "1" } } }, controller.signal);
     await send(api, init.session, { method: "notifications/initialized" }, controller.signal);
     return (await send(api, init.session, { id: 2, method, params }, controller.signal)).result;
   } catch (err) {

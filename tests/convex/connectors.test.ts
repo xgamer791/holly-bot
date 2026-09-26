@@ -57,7 +57,7 @@ async function signIn(t: ReturnType<typeof convexTest>, email: string) {
   const { userId, sessionId } = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { email });
     const sessionId = await ctx.db.insert("authSessions", { userId, expirationTime: Date.now() + 3_600_000 });
-    // Holly Bot's server keeps an account's data only while it has an active
+    // Holli Bot's server keeps an account's data only while it has an active
     // subscription (convex/lib/subscription.ts).
     await ctx.db.insert("subscribers", {
       userId,
@@ -261,7 +261,7 @@ describe("Gmail", () => {
     const b = await signIn(t, "b@example.com");
     const back = await connectGmail(a.as, g);
     const claim = back.searchParams.get("connect")!;
-    expect(await b.as.mutation(api.connectors.claim, { claim })).toEqual({ error: "That connection was started from another Holly Bot account, so it wasn't added to this one." });
+    expect(await b.as.mutation(api.connectors.claim, { claim })).toEqual({ error: "That connection was started from another Holli Bot account, so it wasn't added to this one." });
     expect(await b.as.query(api.connectors.list, {})).toEqual([]);
     // Thrown away with its tokens: a claim that leaked is no use to anyone.
     expect(await t.run((ctx) => ctx.db.query("connectorClaims").collect())).toEqual([]);
@@ -309,7 +309,7 @@ describe("Gmail", () => {
     expect((await t.fetch(`/connectors/../gmail/callback?state=x`, { method: "GET" })).status).toBeGreaterThanOrEqual(400);
   });
 
-  test("only comes back to Holly Bot, and only for services that are set up", async () => {
+  test("only comes back to Holli Bot, and only for services that are set up", async () => {
     const { as } = await signIn(t, "a@example.com");
     await expect(as.action(api.connectors.start, { service: "gmail", returnTo: "https://evil.example/" })).rejects.toThrow(/can't come back/);
     await expect(as.action(api.connectors.start, { service: "gmail", returnTo: "https://xgamer791.github.io/holly-bot.evil.example/" })).rejects.toThrow(/can't come back/);
@@ -337,7 +337,7 @@ describe("Gmail", () => {
     await as.action(api.connectors.run, { service: "gmail", op: "search", args: {} });
     expect(g.calls.at(-1)!.headers.get("authorization")).toBe("Bearer at-3");
 
-    // The person took Holly Bot's access away at Google: connect again.
+    // The person took Holli Bot's access away at Google: connect again.
     g.expire();
     g.refuseRefresh();
     await expect(as.action(api.connectors.run, { service: "gmail", op: "search", args: {} })).rejects.toThrow(/Gmail needs connecting again/);

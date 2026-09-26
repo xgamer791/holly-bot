@@ -1,15 +1,15 @@
-// Holly Bot Computer itself (computer/holly-computer.mjs), which this app runs on
+// Holli Bot Computer itself (computer/holly-computer.mjs), which this app runs on
 // the Node.js it comes with, with the options from its settings
 // (settings.js), as `node holly-computer.mjs` runs elsewhere.
 //
-// The file is kept current the way Holly Bot Computer keeps itself current
-// (computer/src/update.mjs): as it starts, the Holly Bot site is asked for the
-// latest one, and while it runs, Holly Bot Computer says when a newer one is out
-// and no bot is working; that one is fetched, and Holly Bot Computer restarts to
+// The file is kept current the way Holli Bot Computer keeps itself current
+// (computer/src/update.mjs): as it starts, the Holli Bot site is asked for the
+// latest one, and while it runs, Holli Bot Computer says when a newer one is out
+// and no bot is working; that one is fetched, and Holli Bot Computer restarts to
 // run it once no bot is working. The latest is kept in this app's own folder,
 // next to what the app came with, and whichever is newer runs.
 //
-// What Holly Bot Computer prints goes to the Activity tab and a log file. How
+// What Holli Bot Computer prints goes to the Activity tab and a log file. How
 // things stand there (its page, whether it's linked, the tunnel, what bots
 // can use) comes over Node's IPC (computer/src/main.mjs tellDesktop), and so
 // does the word to stop, which lets it tell the account it's stopping.
@@ -23,13 +23,13 @@ import { net } from 'electron';
 import { LATEST, buildVersion, newerVersion } from '../../computer/src/update.mjs';
 import { computerArgs } from './settings.js';
 
-/** Lines of what Holly Bot Computer printed that the Activity tab keeps. */
+/** Lines of what Holli Bot Computer printed that the Activity tab keeps. */
 const MAX_LINES = 2000;
 /** The log file starts again past this size (the last one is kept as .old). */
 const LOG_LIMIT = 2 * 1024 * 1024;
-/** How long Holly Bot Computer gets to stop by itself (telling the account it's stopping) before it's made to. */
+/** How long Holli Bot Computer gets to stop by itself (telling the account it's stopping) before it's made to. */
 const STOP_MS = 15_000;
-/** Holly Bot Computer that stops by itself after running this long is started again; sooner, it failed to start. */
+/** Holli Bot Computer that stops by itself after running this long is started again; sooner, it failed to start. */
 const STEADY_MS = 60_000;
 /** At most this many of those starts again in half an hour. */
 const MAX_RESTARTS = 5;
@@ -68,7 +68,7 @@ export class HollyComputer extends EventEmitter {
    * @param {object} o
    * @param {string} o.resources  what the app comes with: node\ (Node.js) and computer\ (holly-computer.mjs)
    * @param {string} o.home  the app's own folder: a newer holly-computer.mjs, and the log
-   * @param {string} o.appVersion  this app's version, which Holly Bot Computer tells the phone
+   * @param {string} o.appVersion  this app's version, which Holli Bot Computer tells the phone
    */
   constructor({ resources, home, appVersion }) {
     super();
@@ -81,7 +81,7 @@ export class HollyComputer extends EventEmitter {
     this.logFile = join(home, 'logs', 'holly-computer.log');
     /** 'starting', 'running', 'restarting', 'stopping', 'stopped' or 'failed'. */
     this.status = 'stopped';
-    /** How things stand there, as Holly Bot Computer last said (computer/src/main.mjs tellState). */
+    /** How things stand there, as Holli Bot Computer last said (computer/src/main.mjs tellState). */
     this.state = null;
     /** Why it stopped when it shouldn't have: { kind: 'port' | 'crash' | 'missing', port, detail }. */
     this.error = null;
@@ -113,7 +113,7 @@ export class HollyComputer extends EventEmitter {
     this.emit('change');
   }
 
-  /** Starts Holly Bot Computer with `settings` (settings.js); `newToken`: with
+  /** Starts Holli Bot Computer with `settings` (settings.js); `newToken`: with
    * new keys (--new-token); `quick`: someone's waiting for it, so a newer
    * holly-computer.mjs gets only a few seconds to arrive first (it's
    * fetched while it runs otherwise, and it restarts for it then). */
@@ -179,12 +179,12 @@ export class HollyComputer extends EventEmitter {
   }
 
   fail(err) {
-    this.line(`  Holly Bot Computer couldn't start: ${err?.message || err}`);
+    this.line(`  Holli Bot Computer couldn't start: ${err?.message || err}`);
     this.error = { kind: 'crash', detail: err?.message || String(err) };
     this.set('failed');
   }
 
-  /** Stops Holly Bot Computer: it tells the account it's stopping, and after
+  /** Stops Holli Bot Computer: it tells the account it's stopping, and after
    * STOP_MS it's made to stop, with everything it started. */
   async stop() {
     this.run++;
@@ -217,7 +217,7 @@ export class HollyComputer extends EventEmitter {
   }
 
   /**
-   * Stops Holly Bot Computer once no bot is working, as it restarts for a
+   * Stops Holli Bot Computer once no bot is working, as it restarts for a
    * newer holly-computer.mjs (computer/src/main.mjs restartWhenIdle), so this
    * app can install a newer version of itself. True once it has stopped;
    * false when it wasn't running, or was stopped or restarted meanwhile.
@@ -285,7 +285,7 @@ export class HollyComputer extends EventEmitter {
     if (now - this.startedAt >= STEADY_MS && this.restarts.length < MAX_RESTARTS) {
       // It had been running: it starts again.
       this.restarts.push(now);
-      this.line(`  Holly Bot Computer stopped (${signal || `code ${code}`}). Starting it again…`);
+      this.line(`  Holli Bot Computer stopped (${signal || `code ${code}`}). Starting it again…`);
       this.set('restarting');
       const run = this.run;
       setTimeout(() => {
@@ -299,8 +299,8 @@ export class HollyComputer extends EventEmitter {
   }
 
   /**
-   * Holly Bot Computer says a newer one is out and no bot is working: it's
-   * fetched, and then Holly Bot Computer restarts to run it as soon as no bot is
+   * Holli Bot Computer says a newer one is out and no bot is working: it's
+   * fetched, and then Holli Bot Computer restarts to run it as soon as no bot is
    * working (computer/src/main.mjs restartWhenIdle).
    */
   async onUpdate(version) {
@@ -323,7 +323,7 @@ export class HollyComputer extends EventEmitter {
   }
 
   /** The holly-computer.mjs to run: the newest there is, after asking the
-   * Holly Bot site for a newer one (`update`; `quick`: for a few seconds at
+   * Holli Bot site for a newer one (`update`; `quick`: for a few seconds at
    * most). Null when there's none. */
   async prepare(update, { quick = false } = {}) {
     const own = versionOf(this.own);
@@ -333,13 +333,13 @@ export class HollyComputer extends EventEmitter {
     const current = own && script === this.own ? own : bundled;
     const latest = await this.fetchLatest(quick ? 6000 : 25_000);
     if (latest && (!current || newerVersion(latest.version, current)) && await this.save(latest.text)) {
-      this.line(current ? `  Updated Holly Bot Computer from ${current} to ${latest.version}.` : `  Got Holly Bot Computer ${latest.version}.`);
+      this.line(current ? `  Updated Holli Bot Computer from ${current} to ${latest.version}.` : `  Got Holli Bot Computer ${latest.version}.`);
       script = this.own;
     }
     return script;
   }
 
-  /** The latest holly-computer.mjs on the Holly Bot site: { version, text },
+  /** The latest holly-computer.mjs on the Holli Bot site: { version, text },
    * or null (also when it takes longer than `limit` ms). */
   async fetchLatest(limit = 25_000) {
     const ask = async () => {
@@ -367,13 +367,13 @@ export class HollyComputer extends EventEmitter {
       return true;
     } catch (err) {
       rmSync(download, { force: true });
-      this.line(`  Couldn't update Holly Bot Computer (${err.message}).`);
+      this.line(`  Couldn't update Holli Bot Computer (${err.message}).`);
       return false;
     }
   }
 
   /**
-   * What Holly Bot Computer runs with: this app's environment without Electron's
+   * What Holli Bot Computer runs with: this app's environment without Electron's
    * own variables (with those, an Electron app a bot starts from the shell
    * would run as Node), HOLLY_DESKTOP, which opens its channel to this app,
    * and HOLLY_DESKTOP_VERSION, this app's version (which also says it
@@ -428,7 +428,7 @@ export class HollyComputer extends EventEmitter {
     });
   }
 
-  /** One line of what Holly Bot Computer printed (or of what this app says about it). */
+  /** One line of what Holli Bot Computer printed (or of what this app says about it). */
   line(text) {
     // eslint-disable-next-line no-control-regex
     const clean = String(text).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\s+$/, '');

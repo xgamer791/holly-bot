@@ -65,7 +65,7 @@ export class McpHttpClient {
     const result = await this.rpc('initialize', {
       protocolVersion: PROTOCOL,
       capabilities: {},
-      clientInfo: { name: 'holly-bot', version: '1.0.0' },
+      clientInfo: { name: 'holli-bot', version: '1.0.0' },
     }, { signal });
     this.serverInfo = result?.serverInfo || null;
     this.initialized = true;

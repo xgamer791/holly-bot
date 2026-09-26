@@ -1,6 +1,6 @@
 import { safeJsonParse } from './util.js';
 
-// Client for Holly Bot Computer — the optional companion program (computer/holly-computer.mjs)
+// Client for Holli Bot Computer — the optional companion program (computer/holly-computer.mjs)
 // that gives bots a real computer: shell, files, page fetching without CORS
 // limits, web search, screenshots, a browser, and local MCP servers.
 
@@ -41,7 +41,7 @@ export class ComputerClient {
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
       this.connected = false;
-      throw new Error(`Bot Computer unreachable at ${this.url} — is holly-computer running? (${err.message})`);
+      throw new Error(`Bot Computer unreachable at ${this.url} — is Holli Bot Computer running? (${err.message})`);
     }
     const text = await res.text();
     const data = safeJsonParse(text, { error: text });

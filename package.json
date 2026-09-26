@@ -1,8 +1,8 @@
 {
   "name": "holly-bot",
-  "version": "1.40.3",
+  "version": "1.41.0",
   "private": true,
-  "description": "Holly: a bring-your-own-key, multi-agent AI assistant with per-agent deep memory. Static PWA — no build step.",
+  "description": "Holli Bot: a bring-your-own-key, multi-agent AI assistant with per-agent deep memory. Static PWA — no build step.",
   "type": "module",
   "scripts": {
     "serve": "node scripts/serve.mjs",

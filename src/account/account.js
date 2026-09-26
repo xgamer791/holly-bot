@@ -2,7 +2,7 @@ import { ConvexHttpClient } from '../../vendor/convex.js';
 import { CONVEX_URL, SITE } from './config.js';
 import { tr } from '../ui/i18n.js';
 
-// Holly Bot accounts: Sign in with Apple or Google, kept in Holly Bot's own
+// Holli Bot accounts: Sign in with Apple or Google, kept in Holli Bot's own
 // Convex database (CONVEX.md). This speaks the same protocol as Convex Auth's
 // React client, which a Preact app with no build step can't use:
 //   1. auth:signIn {provider, params: {redirectTo}} returns a URL on the
@@ -17,9 +17,9 @@ export { CONVEX_URL, SITE };
 const USER_KEY = 'holly.account';
 const PENDING_KEY = 'holly.signInPending';
 
-/** Where the app asks you to sign in: the Holly Bot site and localhost
- * (Holly Bot Computer's own page, local development), the only places Google and
- * Apple can send people back to (convex/auth.ts). Holly Bot Computer's tunnel
+/** Where the app asks you to sign in: the Holli Bot site and localhost
+ * (Holli Bot Computer's own page, local development), the only places Google and
+ * Apple can send people back to (convex/auth.ts). Holli Bot Computer's tunnel
  * address hands over to the site instead (src/main.js). A Wi-Fi address can't
  * finish a sign-in, so there the pairing token alone protects the app. Browser
  * automation on localhost (the e2e scripts) skips it unless the URL has ?signin. */
@@ -94,8 +94,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Turns a failed call into something a person can act on. */
 export function friendlyError(err) {
   const message = String(err?.message || err || '');
-  if (isNetworkError(err)) return tr("Couldn't reach Holly Bot's server. Check your connection and try again.");
-  if (/could not find public function/i.test(message)) return tr("Sign-in isn't set up on Holly Bot's server yet.");
+  if (isNetworkError(err)) return tr("Couldn't reach Holli Bot's server. Check your connection and try again.");
+  if (/could not find public function/i.test(message)) return tr("Sign-in isn't set up on Holli Bot's server yet.");
   if (/rate limit|too many/i.test(message)) return tr('Too many attempts. Wait a minute and try again.');
   return tr('Something went wrong signing in. Please try again.');
 }
@@ -249,7 +249,7 @@ class Account {
     }
   }
 
-  /** The session's JWT, for a request that carries it itself (Holly Bot's AI,
+  /** The session's JWT, for a request that carries it itself (Holli Bot's AI,
    * src/core/providers), when it's still `as`'s: throws "Not signed in"
    * otherwise. `force` renews it first. */
   async tokenOf(as, { force = false } = {}) {

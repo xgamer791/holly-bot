@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Holly Bot Computer — run your Holly bots on this computer, 24/7, and control them
+// Holli Bot Computer — run your Holli bots on this computer, 24/7, and control them
 // from your phone. Bots can use this machine: shell, files, a real Chrome
 // browser, the screen/mouse/keyboard, and local MCP plugins.
 
@@ -19,11 +19,11 @@ import { BotHome } from './home.mjs';
 import { latestVersion, newerVersion, runLatest } from './update.mjs';
 import { updateFirstDesktopApp } from './desktop-update.mjs';
 
-/** How often a Holly Bot server looks for a newer Holly Bot Computer. */
+/** How often a Holli Bot server looks for a newer Holli Bot Computer. */
 const UPDATE_EVERY = 5 * 60_000;
 
 /**
- * Holly Bot for Windows (desktop/) runs this file itself, with a channel
+ * Holli Bot for Windows (desktop/) runs this file itself, with a channel
  * to it (HOLLY_DESKTOP=1 and Node's IPC). It updates the file before starting
  * it, shows how things stand here in its window (tellDesktop), and says when
  * to stop (it quits or restarts, or Windows signs out), so the account still
@@ -38,12 +38,12 @@ function tellDesktop(message) {
   } catch { /* the app is gone: 'disconnect' stops this one */ }
 }
 
-const USAGE = `Holly Bot Computer — your Holly bots live on this computer; control them from your phone.
+const USAGE = `Holli Bot Computer — your Holli bots live on this computer; control them from your phone.
 
 Usage: node holly-computer.mjs [options]
 
-Sign in on the page it opens, with the Apple or Google account you use in Holly
-Bot. Holly Bot on your phone then connects to this computer by itself.
+Sign in on the page it opens, with the Apple or Google account you use in Holli
+Bot. Holli Bot on your phone then connects to this computer by itself.
 
   --no-tunnel         Don't open a Cloudflare tunnel (then your phone can't reach this
                       computer, unless you give it --public-url)
@@ -52,13 +52,13 @@ Bot. Holly Bot on your phone then connects to this computer by itself.
   --lan               Allow phones on the same Wi-Fi, without signing in (prints a link)
   --port <n>          Port to listen on (default 8787)
   --workspace <dir>   Folder the bots work in (default ~/Holly)
-  --data <dir>        Holly Bot Computer's own files (default ~/.holly). Until this computer is
-                      linked to your Holly Bot account, its bots are kept here too
+  --data <dir>        Holli Bot Computer's own files (default ~/.holly). Until this computer is
+                      linked to your Holli Bot account, its bots are kept here too
   --headless-browser  Run the bots' Chrome without a window
-  --allow-sleep       Let the computer sleep while Holly Bot Computer runs
+  --allow-sleep       Let the computer sleep while Holli Bot Computer runs
   --new-token         New keys for this computer: every device has to find it again
   --no-open           Don't open the sign-in page in a browser here
-  --no-update         Don't update Holly Bot Computer as it starts
+  --no-update         Don't update Holli Bot Computer as it starts
   -h, --help          Show this help`;
 
 function parseArgs(argv) {
@@ -95,6 +95,9 @@ function loadConfig(dataDir, newToken) {
     } catch { /* regenerate */ }
   }
   if (!cfg.token || newToken) cfg.token = randomBytes(24).toString('base64url');
+  // A plan's server was called Holly Server before the app was Holli Bot
+  // (convex/lib/plans.ts SERVERS.name; its account says the same: devices.report).
+  if (cfg.name === 'Holly Server') cfg.name = 'Holli Server';
   cfg.name ||= os.hostname();
   writeFileSync(file, `${JSON.stringify(cfg, null, 2)}\n`, { mode: 0o600 });
   return cfg;
@@ -121,7 +124,7 @@ function assetLoader() {
 }
 
 /**
- * A server Holly Bot set up for a subscriber (convex/lib/cloudinit.ts) comes
+ * A server Holli Bot set up for a subscriber (convex/lib/cloudinit.ts) comes
  * with a one-time code in the data folder, `link-code`, that links it to the
  * subscriber's account. It's tried a few times through network trouble, then
  * deleted either way.
@@ -136,12 +139,12 @@ async function linkWithCode(home, file) {
   for (let attempt = 1; code && !home.account.linked; attempt++) {
     try {
       await home.link(code);
-      console.log('  Linked to the Holly Bot account this server was set up for.');
+      console.log('  Linked to the Holli Bot account this server was set up for.');
       break;
     } catch (err) {
       // A code that was refused (used, or too old) won't work on a second try.
       if (/didn't work/i.test(err.message) || attempt >= 5) {
-        console.log(`  Couldn't link to the Holly Bot account: ${err.message}`);
+        console.log(`  Couldn't link to the Holli Bot account: ${err.message}`);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
@@ -177,21 +180,21 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const major = Number(process.versions.node.split('.')[0]);
   if (major < 22) {
-    console.error(`Holly Bot Computer needs Node.js 22 or newer (you have ${process.version}). Get it at https://nodejs.org`);
+    console.error(`Holli Bot Computer needs Node.js 22 or newer (you have ${process.version}). Get it at https://nodejs.org`);
     process.exit(1);
   }
   // The single-file build runs the latest one (computer/src/update.mjs).
-  // Holly Bot for Windows has already fetched it.
+  // Holli Bot for Windows has already fetched it.
   if (args.update && globalThis.__HOLLY_BUNDLE__ && !DESKTOP && await runLatest({ file: fileURLToPath(import.meta.url), argv })) return null;
   const dataDir = resolve(expand(args.data || join(os.homedir(), '.holly')));
   const workspace = resolve(expand(args.workspace || defaultWorkspace()));
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(dataDir, args.newToken);
 
-  console.log(`\n  Holly Bot Computer ${VERSION} — ${os.hostname()}\n`);
+  console.log(`\n  Holli Bot Computer ${VERSION} — ${os.hostname()}\n`);
   const computer = new LocalComputer({ workspace, dataDir, headlessBrowser: args.headlessBrowser, name: cfg.name });
   await computer.start();
-  // Linked to a Holly Bot account, the bots are kept in the account; until
+  // Linked to a Holli Bot account, the bots are kept in the account; until
   // then, in the data folder (computer/src/home.mjs). The key the account's
   // devices reach this computer with changes with the pairing token.
   const account = new AccountLink(join(dataDir, 'account.json'), { name: cfg.name });
@@ -206,7 +209,7 @@ export async function main(argv = process.argv.slice(2)) {
     hostname: os.hostname(),
     version: VERSION,
     platform: process.platform,
-    // Which run of Holly Bot Computer this is, so the tunnel can tell it's this
+    // Which run of Holli Bot Computer this is, so the tunnel can tell it's this
     // one answering at its address (computer/src/tunnel.mjs).
     instance: randomUUID(),
     get account() {
@@ -214,7 +217,7 @@ export async function main(argv = process.argv.slice(2)) {
     },
   };
   const server = createHollyServer({ app, home, computer, token: cfg.token, assets: assetLoader(), serverInfo });
-  // What Holly Bot for Windows shows of how things stand here (below).
+  // What Holli Bot for Windows shows of how things stand here (below).
   let tellState = () => {};
   home.onSwap = (next) => {
     server.setApp(next);
@@ -238,8 +241,8 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`  Workspace: ${workspace}`);
   console.log(`  Data:      ${dataDir}`);
   console.log(account.linked
-    ? '  Bots:      kept in your Holly Bot account'
-    : '  Bots:      kept on this computer until you sign in to your Holly Bot account here');
+    ? '  Bots:      kept in your Holli Bot account'
+    : '  Bots:      kept on this computer until you sign in to your Holli Bot account here');
   console.log(`  Can use:   shell ✓  files ✓  web ✓  screen ${caps.screenshot ? '✓' : '✗'}  mouse/keyboard ${caps.desktop ? '✓' : '✗'}  Chrome ${caps.browser ? '✓' : '✗'}  plugins ✓`);
   for (const note of computer.info.notes || []) console.log(`             ${note}`);
   console.log('');
@@ -253,7 +256,7 @@ export async function main(argv = process.argv.slice(2)) {
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    console.log('\n  Stopping Holly Bot Computer…');
+    console.log('\n  Stopping Holli Bot Computer…');
     tunnel?.stop();
     awake?.stop();
     server.close();
@@ -267,7 +270,7 @@ export async function main(argv = process.argv.slice(2)) {
   // Its terminal window closed: the account still hears it stopped, so the
   // phone doesn't try to reach it (Windows allows a few seconds for this).
   process.on('SIGHUP', shutdown);
-  // Holly Bot for Windows has a newer Holly Bot Computer ready
+  // Holli Bot for Windows has a newer Holli Bot Computer ready
   // (below), or a newer version of itself: this one stops for it once no bot
   // is working, and the app starts again.
   let restartTimer = null;
@@ -289,7 +292,7 @@ export async function main(argv = process.argv.slice(2)) {
     process.on('disconnect', shutdown);
   }
 
-  // Holly Bot for Windows hears how things stand here as they change:
+  // Holli Bot for Windows hears how things stand here as they change:
   // its page (with the pairing token, which it keeps to itself), whether
   // this computer is linked, where the account's devices can reach it (the
   // tunnel's state: 'starting', 'up' or 'blocked'; 'own' for --public-url;
@@ -310,7 +313,7 @@ export async function main(argv = process.argv.slice(2)) {
     notes: computer.info.notes || [],
   });
   // Linked, it tells the account where the account's devices can reach it,
-  // so Holly Bot on each of them connects by itself (or asks to, the first
+  // so Holli Bot on each of them connects by itself (or asks to, the first
   // time): no link to open or QR code to scan. A quick tunnel's address is
   // told only while it works, and a new tunnel opens when it stops working
   // (computer/src/tunnel.mjs); without one, the account hears why.
@@ -338,7 +341,7 @@ export async function main(argv = process.argv.slice(2)) {
     tellState();
     publicUrl = await tunnel.start({ waitMs: 90_000 });
     started = true;
-    // Asked to stop meanwhile (Holly Bot for Windows quitting).
+    // Asked to stop meanwhile (Holli Bot for Windows quitting).
     if (stopping) return null;
   } else {
     home.setAddress(publicUrl, { tunnel: 'off' });
@@ -347,22 +350,22 @@ export async function main(argv = process.argv.slice(2)) {
   if (!account.linked) {
     // Signed in on its own page, the computer links itself to that account
     // (src/main.js), and the phone signed in to the same one asks to connect.
-    // Holly Bot for Windows opens that page in a window of its own.
+    // Holli Bot for Windows opens that page in a window of its own.
     console.log(DESKTOP
-      ? '  Sign in on the Holly Bot window, with the Apple or Google account you use in Holly Bot.'
+      ? '  Sign in on the Holli Bot window, with the Apple or Google account you use in Holli Bot.'
       : args.open
-        ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holly Bot.`
-        : `  On this computer, open this page and sign in with the Apple or Google account you use in Holly Bot:\n    ${signIn}`);
-    console.log(`  Then open Holly Bot on your phone and tap Connect. After that it connects to ${name} by itself.`);
+        ? `  Sign in on the page that just opened, with the Apple or Google account you use in Holli Bot.`
+        : `  On this computer, open this page and sign in with the Apple or Google account you use in Holli Bot:\n    ${signIn}`);
+    console.log(`  Then open Holli Bot on your phone and tap Connect. After that it connects to ${name} by itself.`);
   } else if (publicUrl) {
-    console.log(`  Ready. Open Holly Bot on your phone, signed in to your account. It connects to ${name} by itself,`);
+    console.log(`  Ready. Open Holli Bot on your phone, signed in to your account. It connects to ${name} by itself,`);
     console.log('  or asks you to tap Connect the first time.');
   }
   if (!publicUrl && !tunnel) console.log(`\n  Your phone can't reach ${name} without a public address: start without --no-tunnel, or give it --public-url.`);
   else if (!publicUrl && tunnel.state !== 'blocked') console.log('  The secure tunnel is taking a while. Your phone can connect as soon as it\'s open.');
   if (wifi) {
     console.log(`\n  On a phone on the same Wi-Fi, without signing in, scan or open:\n    ${wifi}\n`);
-    // Holly Bot for Windows shows the code in its window.
+    // Holli Bot for Windows shows the code in its window.
     if (!DESKTOP) console.log(qrText(wifi).split('\n').map((l) => `    ${l}`).join('\n'));
   }
   if (wifi || (!account.linked && !args.open && !DESKTOP)) {
@@ -370,14 +373,14 @@ export async function main(argv = process.argv.slice(2)) {
     console.log('  bots, chats and files. If it gets out, restart with --new-token and it stops working.');
   }
   awake = args.awake && args.port !== 0 ? keepAwake() : null;
-  if (awake?.active) console.log(`\n  Keeping this computer awake while Holly Bot Computer runs (${DESKTOP ? 'its settings turn that off' : 'start with --allow-sleep to turn that off'}).`);
+  if (awake?.active) console.log(`\n  Keeping this computer awake while Holli Bot Computer runs (${DESKTOP ? 'its settings turn that off' : 'start with --allow-sleep to turn that off'}).`);
   if (!DESKTOP) console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
   if (args.open && !account.linked) openBrowser(signIn);
 
-  // Run by systemd (a Holly Bot server: convex/lib/cloudinit.ts), which starts
+  // Run by systemd (a Holli Bot server: convex/lib/cloudinit.ts), which starts
   // it again with the latest build: once a newer one is out and no bot is
   // working, it stops for that, so a fix reaches servers without waiting for
-  // one to restart. Run by Holly Bot for Windows, which runs around the
+  // one to restart. Run by Holli Bot for Windows, which runs around the
   // clock too, it tells the app, which fetches that one and then has this
   // one restart (restartWhenIdle). Elsewhere it updates as it starts
   // (runLatest).
@@ -389,18 +392,18 @@ export async function main(argv = process.argv.slice(2)) {
         tellDesktop({ type: 'update', version: latest });
         return;
       }
-      console.log(`\n  Holly Bot Computer ${latest} is out: restarting to run it.`);
+      console.log(`\n  Holli Bot Computer ${latest} is out: restarting to run it.`);
       shutdown();
     }, UPDATE_EVERY).unref();
   }
-  // The first Holly Bot for Windows can't install a newer version of
+  // The first Holli Bot for Windows can't install a newer version of
   // itself without someone at the computer: this does, once no bot is working
   // (computer/src/desktop-update.mjs).
   if (args.update && globalThis.__HOLLY_BUNDLE__ && DESKTOP) {
     updateFirstDesktopApp({
       busy: () => stopping || !!home.app?.runtime.activeRuns().length,
       install: (run, version) => {
-        console.log(`\n  Restarting to update Holly Bot for Windows to ${version}.`);
+        console.log(`\n  Restarting to update Holli Bot for Windows to ${version}.`);
         lastly = run;
         shutdown();
       },
@@ -413,12 +416,12 @@ export async function main(argv = process.argv.slice(2)) {
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked || globalThis.__HOLLY_BUNDLE__) {
   // One slip in a background task mustn't take the bots, and the phone's way
-  // in, down with it: it's said, and Holly Bot Computer keeps running.
+  // in, down with it: it's said, and Holli Bot Computer keeps running.
   process.on('unhandledRejection', (err) => {
     console.warn(`  Something went wrong in the background: ${err?.stack || err?.message || err}`);
   });
   main().catch((err) => {
-    console.error(`\n  Holly Bot Computer failed to start: ${err.stack || err.message}\n`);
+    console.error(`\n  Holli Bot Computer failed to start: ${err.stack || err.message}\n`);
     process.exit(1);
   });
 }

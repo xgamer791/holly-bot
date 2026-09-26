@@ -9,7 +9,7 @@ import { number, tr, trn } from './i18n.js';
 
 /**
  * A bot's job, or its rules, in the user's words (src/core/brief.js): folded
- * away to a few lines (for a long job, the summary Holly Bot's AI wrote of it,
+ * away to a few lines (for a long job, the summary Holli Bot's AI wrote of it,
  * `summary`), which open to the whole of it, to read or edit, in a box that
  * grows to fit it. Empty, it's open, to be written in. `value` and `onInput`:
  * the text as it's written; `onDone`: once it's written (the box loses focus,
@@ -199,7 +199,7 @@ export function CreateBotSheet({ onClose }) {
       return;
     }
     setBusy(true);
-    // Its job and rules: kept in its memory and read before every chat, and Holly Bot's AI briefs it on them (src/core/brief.js).
+    // Its job and rules: kept in its memory and read before every chat, and Holli Bot's AI briefs it on them (src/core/brief.js).
     const agent = await app.createAgent({ name: name.trim(), description: job.trim(), rules: rules.trim(), shape, color, thinking });
     onClose();
     ui.navigate(`#/chat/dm_${agent.id}`);
@@ -216,7 +216,7 @@ export function CreateBotSheet({ onClose }) {
       <div class="hint job-hint">${tr('It keeps this in its memory and reads it before every chat, so it knows exactly what its role is.')}</div>
       <${JobBox} big rules value=${rules} onInput=${setRules} label=${tr("Bot's rules")}
         placeholder=${tr('Rules it must always follow (optional), e.g. Never send an email without my OK')} />
-      <div class="hint job-hint">${tr("Hard rules it keeps in its memory and follows in every chat. If one goes against Holly Bot's own rules, it won't follow it, and it will tell you why.")}</div>
+      <div class="hint job-hint">${tr("Hard rules it keeps in its memory and follows in every chat. If one goes against Holli Bot's own rules, it won't follow it, and it will tell you why.")}</div>
       <${LookPicker} shape=${shape} color=${color} thinking=${thinking}
         onShape=${setShape} onColor=${setColor}
         onThinking=${(k) => { setThinking(k); play(); }} />
@@ -245,7 +245,7 @@ export function NewGroupSheet({ onClose }) {
       <${Field} label=${tr('Group name (optional)')}>
         <input class="input" placeholder=${picked.map((id) => app.getAgent(id)?.name).join(', ') || tr('e.g. Launch team')} value=${title} onInput=${(e) => setTitle(e.currentTarget.value)} />
       <//>
-      <${Field} label=${tr('Who replies')} hint=${mode === 'auto' ? tr('Holly picks the best bot(s) for each message. Use @Name to ask someone directly.') : mode === 'all' ? tr('Every bot answers every message (bots can [PASS]).') : tr('Only bots you @mention reply.')}>
+      <${Field} label=${tr('Who replies')} hint=${mode === 'auto' ? tr('Holli picks the best bot(s) for each message. Use @Name to ask someone directly.') : mode === 'all' ? tr('Every bot answers every message (bots can [PASS]).') : tr('Only bots you @mention reply.')}>
         <${Segmented} value=${mode} onChange=${setMode} options=${[{ value: 'auto', label: tr('Smart') }, { value: 'all', label: tr('Everyone') }, { value: 'mention', label: tr('@Mentions') }]} />
       <//>
       <div class="group" style="margin-top:18px">

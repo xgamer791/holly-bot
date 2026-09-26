@@ -1,4 +1,4 @@
-// Holly Bot's plans: what each costs, the dedicated server each runs on at
+// Holli Bot's plans: what each costs, the dedicated server each runs on at
 // Vultr, and the AI credits each gives every month. This is the one place
 // they're set. The subscription page lists them
 // (billing:status), checkout refuses a Stripe price that doesn't match them
@@ -47,7 +47,7 @@ export const SERVERS = {
    * is made once this many exist. */
   max: 28,
   /** What the subscriber sees their server called (Settings → Bot Computer). */
-  name: "Holly Server",
+  name: "Holli Server",
 };
 
 export function planById(id: string | undefined): Plan | undefined {

@@ -1,5 +1,5 @@
 // End to end, the way Holly is meant to be used: bots live on the computer
-// (Holly Bot Computer) and the phone is the remote control. A fake OpenAI-style
+// (Holli Bot Computer) and the phone is the remote control. A fake OpenAI-style
 // model server stands in for the provider; the phone is Chromium at iPhone size.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -76,7 +76,7 @@ before(async () => {
   });
   await new Promise((r) => modelServer.listen(0, '127.0.0.1', r));
   await startHolly();
-  // Holly Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
+  // Holli Bot's AI on a saved DeepSeek key, pointed at the stand-in model.
   await rpc('settings.save', {
     providers: { deepseek: { baseURL: `http://127.0.0.1:${modelServer.address().port}/v1`, apiKey: 'test' } },
     defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' },

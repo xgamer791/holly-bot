@@ -59,7 +59,7 @@ async function gh(api: GitHubApi, method: string, path: string, body?: unknown):
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "Holly-Bot",
+    "User-Agent": "Holli-Bot",
   };
   if (api.token) headers.Authorization = `Bearer ${api.token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";

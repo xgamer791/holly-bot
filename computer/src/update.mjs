@@ -1,13 +1,13 @@
-// Holly Bot Computer keeps itself current. As it starts, the single-file build
-// asks the Holly Bot site for the latest one. When that's newer, it takes this
+// Holli Bot Computer keeps itself current. As it starts, the single-file build
+// asks the Holli Bot site for the latest one. When that's newer, it takes this
 // file's place and runs instead, with the same options, so a fix reaches the
-// computer the next time Holly Bot Computer starts, the way the app on the phone
+// computer the next time Holli Bot Computer starts, the way the app on the phone
 // gets one the next time it opens. --no-update skips this.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 
-/** The latest build, on the Holly Bot site (Holly Bot for Windows fetches it too: desktop/src/computer.js). */
+/** The latest build, on the Holli Bot site (Holli Bot for Windows fetches it too: desktop/src/computer.js). */
 export const LATEST = 'https://xgamer791.github.io/holly-bot/computer/holly-computer.mjs';
 
 /** The app version a build was made from, from its header ("… (app 1.11.0). …"). */
@@ -15,7 +15,7 @@ export function buildVersion(text) {
   return /\(app (\d+\.\d+\.\d+)\)/.exec(String(text).slice(0, 2000))?.[1] || null;
 }
 
-/** The version of the build the Holly Bot site serves now, from its header;
+/** The version of the build the Holli Bot site serves now, from its header;
  * null when the site can't be reached. */
 export async function latestVersion() {
   try {
@@ -35,7 +35,7 @@ export function newerVersion(a, b) {
 }
 
 /**
- * Replaces `file` (this build) with a newer one from the Holly Bot site, if
+ * Replaces `file` (this build) with a newer one from the Holli Bot site, if
  * there is one, and runs that with `argv` until it stops. True when it did;
  * false to carry on with this build (it's the latest, or the site couldn't be
  * reached, or the new one couldn't be saved).
@@ -64,10 +64,10 @@ export async function runLatest({ file, argv, log = console }) {
     renameSync(download, file);
   } catch (err) {
     rmSync(download, { force: true });
-    log.log?.(`\n  Couldn't update Holly Bot Computer to ${latest} (${err.message}). Starting ${current}.`);
+    log.log?.(`\n  Couldn't update Holli Bot Computer to ${latest} (${err.message}). Starting ${current}.`);
     return false;
   }
-  log.log?.(`\n  Updated Holly Bot Computer from ${current} to ${latest}.`);
+  log.log?.(`\n  Updated Holli Bot Computer from ${current} to ${latest}.`);
   const child = spawn(process.execPath, [...process.execArgv, file, ...argv], { stdio: 'inherit', env: { ...process.env, HOLLY_UPDATED: '1' } });
   // Ctrl+C reaches both: the new one stops itself, and this one waits for it.
   process.on('SIGINT', () => {});
@@ -78,7 +78,7 @@ export async function runLatest({ file, argv, log = console }) {
       resolve();
     });
     child.on('error', (err) => {
-      log.error?.(`  Couldn't start the updated Holly Bot Computer: ${err.message}`);
+      log.error?.(`  Couldn't start the updated Holli Bot Computer: ${err.message}`);
       process.exitCode = 1;
       resolve();
     });

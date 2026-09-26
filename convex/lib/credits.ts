@@ -19,7 +19,7 @@ export const PRICES: Record<string, { cached: number; input: number; output: num
   "deepseek-v4-pro": { cached: 0.044, input: 1.32, output: 3.96 },
 };
 
-/** The models Holly Bot's AI runs. */
+/** The models Holli Bot's AI runs. */
 export const MODELS = Object.keys(PRICES);
 
 /** 1.25.0's name for Flash, when it ran GLM 5.3 Flash: requests that still

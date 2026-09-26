@@ -1,9 +1,9 @@
-// Renders Holly Bot for Windows' icons from Holly Bot's own art, with
+// Renders Holli Bot for Windows' icons from Holli Bot's own art, with
 // Playwright's Chromium (from the project's dev dependencies):
 //   build/icon.png                 the app's icon (electron-builder makes the .ico from it)
 //   src/icons/icon.png             the window's and notifications' icon
 //   src/icons/tray*.png            the icon in the taskbar's corner, for each display scale
-// The app's icon is the one Holly Bot has on phones (icons/icon.svg); the
+// The app's icon is the one Holli Bot has on phones (icons/icon.svg); the
 // tray's is the blue cloud from the app's loading screen (index.html), which
 // shows on light and dark taskbars alike.
 import { chromium } from 'playwright';

@@ -1,9 +1,9 @@
-// The first Holly Bot for Windows (1.0.0, from when it was called
+// The first Holli Bot for Windows (1.0.0, from when it was called
 // Holly Computer) downloads a newer version of itself, but installs it only
 // when someone restarts it for that, or quits it. Later versions install
 // themselves once no bot is working (desktop/src/main.js installWhenIdle),
 // and say which version they are (HOLLY_DESKTOP_VERSION). Run by the first
-// one, which doesn't, Holly Bot Computer updates it, so no one needs to be at
+// one, which doesn't, Holli Bot Computer updates it, so no one needs to be at
 // the computer: it downloads the latest app from the project's GitHub
 // releases, checks it against what the release says it is (latest.yml, as
 // the app's own updates do), and once no bot is working, stops (telling the
@@ -32,9 +32,9 @@ const folder = () => join(process.env.LOCALAPPDATA || join(os.homedir(), 'AppDat
 const appFolder = () => join(process.env.APPDATA || join(os.homedir(), 'AppData', 'Roaming'), 'Holly Computer');
 
 /**
- * Keeps the first Holly Bot for Windows up to date (above), when
- * it's what runs this. `busy()` says when not to (a bot is working, or Holly
- * Bot Computer is stopping); `install(run, version)` stops Holly Bot Computer
+ * Keeps the first Holli Bot for Windows up to date (above), when
+ * it's what runs this. `busy()` says when not to (a bot is working, or Holli
+ * Bot Computer is stopping); `install(run, version)` stops Holli Bot Computer
  * and calls `run`, which starts the installer, just before it exits. Run by a
  * later version, the download is cleared away.
  */
@@ -134,5 +134,5 @@ function startInstaller(installer) {
     const child = spawn(installer, ['--updated', '/S', '--force-run'], { stdio: 'ignore', detached: true });
     child.on('error', () => {});
     child.unref();
-  } catch { /* the app starts Holly Bot Computer again, and this is tried again later */ }
+  } catch { /* the app starts Holli Bot Computer again, and this is tried again later */ }
 }

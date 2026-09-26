@@ -22,7 +22,7 @@ export function RoutinesSheet({ agentId, onClose }) {
   const { data: list = [] } = useAsync(() => app.routines.list(agentId), [agentId], ['routines']);
   return html`
     <${Sheet} title=${agent ? tr("{name}'s routines", { name: agent.name }) : tr('Routines')} onClose=${onClose}>
-      <p class="hint" style="font-size:14px;margin:2px 4px 12px">${tr('Routines run while Holly Bot is open (on any device tab). If a run is missed, it runs next time you open the app.')}</p>
+      <p class="hint" style="font-size:14px;margin:2px 4px 12px">${tr('Routines run while Holli Bot is open (on any device tab). If a run is missed, it runs next time you open the app.')}</p>
       ${!adding && html`<button class="btn block" onClick=${() => setAdding(true)}><${Icon.plus} size="18" /> ${tr('New routine')}</button>`}
       ${adding && html`<${RoutineEditor} agents=${agent ? [agent] : app.listAgents()} onCancel=${() => setAdding(false)} onSave=${async (r) => {
         await app.routines.create(r);

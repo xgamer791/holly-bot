@@ -8,7 +8,7 @@ import { listText, tr, trn, trx } from './i18n.js';
 // screens on a plain white page. A stacked wordmark with two identical actions
 // docked underneath, then Sign In and Create Account pages that sign in with
 // Apple or Google. Each screen is a hash route, so the phone's back gesture works.
-// Holly Bot needs an account: everything it keeps lives in the account.
+// Holli Bot needs an account: everything it keeps lives in the account.
 // After signing in, the same white page asks what to do with anything this
 // device kept from before accounts, and says so when the account can't load.
 
@@ -83,7 +83,7 @@ function ProviderButtons({ signUp, from, notice }) {
   };
 
   const unavailable = options?.problem
-    || (options && !options.apple && !options.google ? tr("Sign-in isn't set up on Holly Bot's server yet.") : null);
+    || (options && !options.apple && !options.google ? tr("Sign-in isn't set up on Holli Bot's server yet.") : null);
   const missing = !unavailable && options && Object.keys(PROVIDERS).find((provider) => !options[provider]);
   const off = (provider) => !!busy || (!!options && !options.problem && !options[provider]);
   const button = (provider, Logo) => html`
@@ -112,7 +112,7 @@ function ProviderButtons({ signUp, from, notice }) {
 
 /** The agreement people make by signing in, with both documents a tap away. */
 function LegalNote() {
-  return html`<p class="auth-legal">${trx("By continuing, you agree to Holly Bot's {terms} and {privacy}.", {
+  return html`<p class="auth-legal">${trx("By continuing, you agree to Holli Bot's {terms} and {privacy}.", {
     terms: html`<a href="terms.html" target="_blank" rel="noopener">${tr('Terms of Service')}</a>`,
     privacy: html`<a href="privacy.html" target="_blank" rel="noopener">${tr('Privacy Policy')}</a>`,
   })}</p>`;
@@ -142,8 +142,8 @@ function WelcomeScreen({ go, notice }) {
     <div class="hello-canvas">
       <div class="hello-hero">
         <${Avatar} shape="cloud" color="blue" size=${84} live />
-        <h1 class="hello-wordmark" aria-label="Holly Bot">
-          <span class="w-holly" aria-hidden="true">HOLLY</span>
+        <h1 class="hello-wordmark" aria-label="Holli Bot">
+          <span class="w-holly" aria-hidden="true">HOLLI</span>
           <span class="w-bot" aria-hidden="true">bot</span>
         </h1>
         ${notice && html`<p class="hello-note" role="status">${notice}</p>`}
@@ -172,7 +172,7 @@ function AuthScreen({ screen, notice, back, go }) {
       </header>
       <div class="auth-form">
         <p class="auth-lead">${signUp
-          ? tr("Holly Bot uses your Apple or Google account, so there's no new password to remember.")
+          ? tr("Holli Bot uses your Apple or Google account, so there's no new password to remember.")
           : tr('Welcome back. Use the Apple or Google account you signed up with.')}</p>
         <${ProviderButtons} signUp=${signUp} from=${screen} notice=${notice} />
         <button class="auth-switch" onClick=${() => go(signUp ? 'sign-in' : 'create-account', { replace: true })}>
@@ -222,7 +222,7 @@ function signedInAs() {
 
 /**
  * Right after signing in on a device that kept bots and chats from before
- * Holly Bot had accounts (`found`: { bots, chats, computer }). They go into
+ * Holli Bot had accounts (`found`: { bots, chats, computer }). They go into
  * the account that just signed in or are deleted; either way they leave the
  * device, so they're never offered to another account. Deleting asks twice.
  * Signing out first lets someone pick a different account for them.
@@ -235,7 +235,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
     found.bots && trn(found.bots, '{n} bot', '{n} bots'),
     found.chats && trn(found.chats, '{n} chat', '{n} chats'),
     !found.bots && !found.chats && found.settings && tr('your settings and keys'),
-    found.computer && tr('a link to your Holly Bot Computer'),
+    found.computer && tr('a link to your Holli Bot Computer'),
   ].filter(Boolean);
   const what = parts.length > 1 ? listText(parts) : parts[0] || tr('settings');
   const run = (name, fn) => async () => {
@@ -261,8 +261,8 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
           <${Avatar} shape="cloud" color="blue" size=${72} />
           <h1 class="device-title">${tr('Found on this device')}</h1>
           <p class="device-text">${who
-            ? trx("This device has {what} from before Holly Bot had accounts. Add them to your account (**{who}**) to keep them, or delete them. Either way they're removed from this device.", { what, who })
-            : tr("This device has {what} from before Holly Bot had accounts. Add them to your account to keep them, or delete them. Either way they're removed from this device.", { what })}</p>
+            ? trx("This device has {what} from before Holli Bot had accounts. Add them to your account (**{who}**) to keep them, or delete them. Either way they're removed from this device.", { what, who })
+            : tr("This device has {what} from before Holli Bot had accounts. Add them to your account to keep them, or delete them. Either way they're removed from this device.", { what })}</p>
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>
         <div class="hello-dock">
@@ -281,7 +281,7 @@ export function DeviceDataScreen({ found, onAdd, onDelete, onSignOut }) {
 }
 
 /**
- * A Holly Bot Computer that isn't linked to an account yet, opened while signed
+ * A Holli Bot Computer that isn't linked to an account yet, opened while signed
  * in. Linking keeps its bots in the account: what it has now moves in, and it
  * goes on running them (computer/src/home.mjs). `onLink` can take a while.
  */
@@ -313,7 +313,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto
           <p class="device-text">${who
             ? trx('Link **{name}** to your account (**{who}**). Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name, who })
             : trx('Link **{name}** to your account. Its bots, chats, memories and keys move into your account, and {name} keeps running your bots around the clock.', { name })}</p>
-          <p class="hello-warning" role="note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holly Bot Computer with {flag} and the old links stop working.", { name, flag: html`<code>--new-token</code>` })}</p>
+          <p class="hello-warning" role="note">${trx("**Keep {name}'s link private, like a password.** Anyone who has it can control {name} and see your bots, chats and files, and a Wi-Fi link opens it without signing in. If a link gets out, restart Holli Bot Computer with {flag} and the old links stop working.", { name, flag: html`<code>--new-token</code>` })}</p>
           ${busy && html`<p class="hello-note" role="status">${tr('Moving your bots into your account. This can take a minute.')}</p>`}
           ${error && html`<p class="auth-error" role="alert">${error}</p>`}
         </div>
@@ -328,7 +328,7 @@ export function LinkComputerScreen({ name, onLink, onSignOut, onDisconnect, auto
     </div>`;
 }
 
-/** A Holly Bot Computer linked to a different account than the one signed in. */
+/** A Holli Bot Computer linked to a different account than the one signed in. */
 export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
   return html`
     <div class="hello">
@@ -336,7 +336,7 @@ export function OtherAccountScreen({ name, onSignOut, onDisconnect }) {
         <div class="hello-hero device">
           <${Avatar} shape="cloud" color="blue" size=${72} expression="sleepy" />
           <h1 class="device-title">${tr('Linked to another account')}</h1>
-          <p class="device-text">${trx('**{name}** keeps its bots in a different Holly Bot account. Sign in with that account to use it here.', { name })}</p>
+          <p class="device-text">${trx('**{name}** keeps its bots in a different Holli Bot account. Sign in with that account to use it here.', { name })}</p>
         </div>
         <div class="hello-dock">
           <div class="hello-ctas">

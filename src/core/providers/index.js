@@ -4,7 +4,7 @@ import { responsesCall } from './openai-responses.js';
 import { ProviderError, explainFetchError } from './common.js';
 import { AI_URL } from '../../account/config.js';
 
-// The AI bots think with. It's Holly Bot's own: DeepSeek, which Holly Bot's
+// The AI bots think with. It's Holli Bot's own: DeepSeek, which Holli Bot's
 // server calls on its key, paid for with the account's monthly credits
 // (convex/ai.ts, convex/credits.ts). Requests go there with the account's
 // session instead of a key. Until the server says it can run it (credits:mine
@@ -77,7 +77,7 @@ export const PROVIDERS = {
     memoryModel: 'x-ai/grok-4-fast',
     suggested: ['x-ai/grok-4', 'x-ai/grok-4-fast', 'anthropic/claude-opus-5', 'openai/gpt-5', 'google/gemini-2.5-pro'],
     nativeTools: ['web_search'],
-    headers: () => ({ 'HTTP-Referer': typeof location !== 'undefined' ? location.origin : 'https://holly.bot', 'X-Title': 'Holly Bot' }),
+    headers: () => ({ 'HTTP-Referer': typeof location !== 'undefined' ? location.origin : 'https://holli.bot', 'X-Title': 'Holli Bot' }),
     reasoningEffort: false,
   },
   groq: {
@@ -154,7 +154,7 @@ export const PROVIDER_ORDER = ['deepseek', 'xai', 'anthropic', 'openai', 'google
 /** Everything defaults to DeepSeek V4.1 Flash. */
 export const DEFAULT_PROVIDER = 'deepseek';
 
-/** The models Holly Bot's AI runs (convex/lib/credits.ts): Flash, the default,
+/** The models Holli Bot's AI runs (convex/lib/credits.ts): Flash, the default,
  * and Pro, which uses credits about four times as fast. */
 export const AI_MODELS = ['deepseek-flash', 'deepseek-v4-pro'];
 
@@ -184,7 +184,7 @@ export class ProviderHub {
     this.app = app;
   }
 
-  /** Whether bots run on Holly Bot's AI and the account's credits: signed in,
+  /** Whether bots run on Holli Bot's AI and the account's credits: signed in,
    * with a server that can run it. */
   onCredits() {
     return !!this.app.credits?.ready && typeof this.app.db?.sessionToken === 'function';
@@ -194,9 +194,9 @@ export class ProviderHub {
   config(id) {
     const def = PROVIDERS[id];
     if (!def) throw new ProviderError(`Unknown provider "${id}"`);
-    // Holly Bot's AI: the key is the account's session, added as a request goes out (chat).
+    // Holli Bot's AI: the key is the account's session, added as a request goes out (chat).
     if (id === 'deepseek' && this.onCredits()) {
-      return { ...def, id, label: "Holly Bot's AI", apiKey: '', baseURL: AI_URL, headers: {}, models: [], credits: true };
+      return { ...def, id, label: "Holli Bot's AI", apiKey: '', baseURL: AI_URL, headers: {}, models: [], credits: true };
     }
     const user = this.app.settings.providers?.[id] || {};
     let baseURL = (user.baseURL || def.baseURL || '').trim().replace(/\/+$/, '');
@@ -223,14 +223,14 @@ export class ProviderHub {
     return PROVIDER_ORDER.filter((id) => this.isReady(id));
   }
 
-  /** The model a bot uses: its own choice of Holly Bot's AI models, else the
+  /** The model a bot uses: its own choice of Holli Bot's AI models, else the
    * app's, else Flash. A model from another provider (a bot set up before
    * bots ran on credits) counts as no choice. */
   resolve(agent, purpose = 'chat') {
     if (!this.isReady(DEFAULT_PROVIDER)) {
       const err = new ProviderError(this.app.db?.cloud
-        ? "Holly Bot's AI isn't ready yet. Try again in a minute."
-        : 'Link this computer to your Holly Bot account (the computer button at the top right) so your bots can use its AI.');
+        ? "Holli Bot's AI isn't ready yet. Try again in a minute."
+        : 'Link this computer to your Holli Bot account (the computer button at the top right) so your bots can use its AI.');
       err.kind = 'no_key';
       throw err;
     }
@@ -259,7 +259,7 @@ export class ProviderHub {
     return tools;
   }
 
-  /** Streamed chat with tools. Returns the neutral result. On Holly Bot's AI
+  /** Streamed chat with tools. Returns the neutral result. On Holli Bot's AI
    * the request carries the account's session, renewed once if it's turned down. */
   async chat(opts) {
     const { provider } = opts.cfg;
@@ -268,7 +268,7 @@ export class ProviderHub {
       try {
         return await this.app.db.sessionToken({ force });
       } catch {
-        const err = new ProviderError('Sign in to Holly Bot again so your bots can keep using its AI.', { status: 401, provider: provider.label });
+        const err = new ProviderError('Sign in to Holli Bot again so your bots can keep using its AI.', { status: 401, provider: provider.label });
         err.kind = 'no_key';
         throw err;
       }
@@ -322,7 +322,7 @@ export class ProviderHub {
       }
     } catch (err) {
       if (provider.credits && err instanceof TypeError) {
-        const e = new ProviderError("Couldn't reach Holly Bot's AI. Check your internet connection and try again.", { provider: provider.label, retryable: true });
+        const e = new ProviderError("Couldn't reach Holli Bot's AI. Check your internet connection and try again.", { provider: provider.label, retryable: true });
         e.cause = err;
         throw e;
       }
@@ -335,7 +335,7 @@ export class ProviderHub {
    * Not for requests that were themselves invalid (400/404/413/422) or cancelled.
    */
   backupFor(cfg, err) {
-    // Bots run on Holly Bot's AI only: there's no other to fall back on.
+    // Bots run on Holli Bot's AI only: there's no other to fall back on.
     if (this.onCredits() || !err || err.name === 'AbortError' || err.kind === 'no_key') return null;
     if ([400, 404, 413, 422].includes(err.status)) return null;
     const b = this.app.settings.backup;

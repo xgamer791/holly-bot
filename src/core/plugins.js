@@ -5,7 +5,7 @@ import { bannedInImagePrompt } from './safety.js';
 // Plugins = MCP servers. Remote servers are called straight from the browser
 // (they must allow CORS); local stdio servers run on the Bot Computer. And
 // Higgsfield, once connected in Settings → Plugins: its own MCP server, which
-// only takes calls from servers, so bots reach it through Holly Bot's, which
+// only takes calls from servers, so bots reach it through Holli Bot's, which
 // keeps the sign-in (convex/connectors.ts, convex/lib/higgsfield.ts).
 
 /** Connected services whose tools are their own MCP server's. */
@@ -86,7 +86,7 @@ export class PluginManager {
     return out;
   }
 
-  /** Runs one of a connected service's tools through Holly Bot's server. What
+  /** Runs one of a connected service's tools through Holli Bot's server. What
    * a bot asks Higgsfield to make is checked first, as generate_image's
    * prompt is (src/core/safety.js); Higgsfield's own moderation checks what
    * it makes. */

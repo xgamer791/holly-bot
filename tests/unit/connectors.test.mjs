@@ -137,7 +137,7 @@ test('oauth: trading a code, renewing, and turning down', async () => {
   const ms = await oauth.refreshTokens('outlook', { app, tokens: { accessToken: 'x', refreshToken: 'mrt1', scopes: [] }, fetch: microsoft });
   assert.equal(ms.refreshToken, 'mrt2');
   assert.deepEqual(oauth.missingScopes('outlook', ms.scopes), []);
-  // A connection made before Holly Bot asked for more renews with what it was granted, so it keeps working.
+  // A connection made before Holli Bot asked for more renews with what it was granted, so it keeps working.
   await oauth.refreshTokens('outlook', { app, tokens: { accessToken: 'x', refreshToken: 'mrt-old', scopes: ['Mail.Read', 'Mail.Send', 'User.Read'] }, fetch: microsoft });
 
   // GitHub answers a code with tokens that don't expire.
@@ -605,7 +605,7 @@ test('github: every call names itself, its API version and the token', async () 
   const { headers, url } = f.calls[0];
   assert.equal(url, `${API}/user`);
   assert.equal(headers.authorization, 'Bearer ghp_x');
-  assert.equal(headers['user-agent'], 'Holly-Bot');
+  assert.equal(headers['user-agent'], 'Holli-Bot');
   assert.equal(headers['x-github-api-version'], '2022-11-28');
   assert.equal(headers.accept, 'application/vnd.github+json');
 });
@@ -753,7 +753,7 @@ test('github: any other API call, safely', async () => {
   assert.match((await gh.request({ token: 't', fetch: long }, { path: '/x' })).body, /…\[cut: \d+ more characters\]$/);
 });
 
-// ----- GitHub for real (read-only, Holly Bot's own public repository) -------------------
+// ----- GitHub for real (read-only, Holli Bot's own public repository) -------------------
 
 test('github live: a public repository, its folders and files, read from api.github.com', { timeout: 30_000 }, async (t) => {
   const repo = 'xgamer791/holly-bot';
@@ -774,7 +774,7 @@ test('github live: a public repository, its folders and files, read from api.git
   assert.ok(inner.every((f) => f.path.startsWith('convex/lib/')));
   const manifest = await gh.readFile({}, { repo, path: 'manifest.webmanifest' });
   assert.equal(manifest.binary, false);
-  assert.match(JSON.parse(manifest.text).name, /Holly/);
+  assert.match(JSON.parse(manifest.text).name, /Holli/);
   const icon = await gh.readFile({}, { repo, path: 'icons/icon-192.png' }).catch((err) => err);
   if (!(icon instanceof Error)) assert.equal(icon.binary, true, 'a PNG is not read as text');
   await assert.rejects(gh.readFile({}, { repo, path: 'no/such/file.txt' }), (err) => err.status === 404);

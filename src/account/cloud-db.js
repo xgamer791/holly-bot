@@ -1,10 +1,10 @@
 import { SCHEMA, DB } from '../core/db.js';
 
-// The app's storage on Holly Bot's Convex backend (convex/data.ts), with the
-// same interface as the browser's IndexedDB wrapper (src/core/db.js) and Holly
-// Computer's NodeDB, so the app core runs on it unchanged. Everything belongs to
+// The app's storage on Holli Bot's Convex backend (convex/data.ts), with the
+// same interface as the browser's IndexedDB wrapper (src/core/db.js) and Holli
+// Bot Computer's NodeDB, so the app core runs on it unchanged. Everything belongs to
 // the signed-in account, and the server only ever hands out that account's rows.
-// It runs in the app (src/main.js) and in Holly Bot Computer once it is linked to
+// It runs in the app (src/main.js) and in Holli Bot Computer once it is linked to
 // the account (computer/src/account.mjs), each with its own session.
 //
 // Reads come from memory. The small stores (settings, bots, chats, routines,
@@ -12,7 +12,7 @@ import { SCHEMA, DB } from '../core/db.js';
 // chat or a bot at a time, the first time the app asks for one.
 //
 // Writes land in memory at once and in an outbox on this device (IndexedDB in
-// the browser, files on Holly Bot Computer; one per account), then go to the
+// the browser, files on Holli Bot Computer; one per account), then go to the
 // server in order and in batches, retried through
 // network drops. What the outbox still holds when the app closes is sent the next
 // time the same account opens it. A file's contents go to Convex file storage,
@@ -53,7 +53,7 @@ const isNetworkError = (err) => err?.name === 'TypeError' || /network|failed to 
 
 async function fetchOk(url, init) {
   const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`Holly Bot's storage answered ${res.status}`);
+  if (!res.ok) throw new Error(`Holli Bot's storage answered ${res.status}`);
   return res;
 }
 
@@ -181,7 +181,7 @@ function deleteDatabase(name) {
 
 /** Changes not on the server yet, kept on this device so closing the app
  * doesn't lose them. Falls back to memory where IndexedDB is unavailable.
- * Holly Bot Computer keeps its own in files, with the same methods
+ * Holli Bot Computer keeps its own in files, with the same methods
  * (computer/src/outbox.mjs). */
 class Outbox {
   static async open(name) {
@@ -272,7 +272,7 @@ export class CloudDB {
    *   it can't (signed out, or another account signed in meanwhile)
    * @param {object} [o.outbox]  where unsent changes wait (default: IndexedDB)
    * @param {(o?: { force?: boolean }) => Promise<string>} [o.token]  that
-   *   account's session token, for Holly Bot's AI (src/core/providers)
+   *   account's session token, for Holli Bot's AI (src/core/providers)
    */
   static async open({ userId, call, outbox = null, token = null }) {
     if (!userId) throw new Error('Not signed in');
@@ -562,7 +562,7 @@ export class CloudDB {
 
   /** Checks for other devices' changes when the app comes back to the front,
    * when the connection returns, and every minute while it's on screen (or,
-   * on Holly Bot Computer, every minute). */
+   * on Holli Bot Computer, every minute). */
   watch() {
     if (typeof document === 'undefined') {
       const timer = setInterval(() => this.checkFresh(), CHECK_EVERY);

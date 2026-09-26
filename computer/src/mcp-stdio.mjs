@@ -56,7 +56,7 @@ class StdioServer {
         else p.resolve(msg.result);
       } else if (msg.method && msg.id != null) {
         // Server → client requests we don't support (sampling, roots…): reply with an error.
-        this.write({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Not supported by Holly Bot Computer' } });
+        this.write({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Not supported by Holli Bot Computer' } });
       }
     }
   }
@@ -83,7 +83,7 @@ class StdioServer {
 
   async init() {
     try {
-      await this.rpc('initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'holly-computer', version: '1.0.0' } }, 45000);
+      await this.rpc('initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'holli-bot-computer', version: '1.0.0' } }, 45000);
       this.write({ jsonrpc: '2.0', method: 'notifications/initialized' });
       const tools = [];
       let cursor;
@@ -158,7 +158,7 @@ export class McpHost {
       const data = JSON.parse(readFileSync(this.configPath, 'utf8'));
       return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
     } catch (err) {
-      if (strict) throw problem(409, `Holly Bot Computer can't read ${this.configPath} (${err.message}). Fix or delete that file first.`);
+      if (strict) throw problem(409, `Holli Bot Computer can't read ${this.configPath} (${err.message}). Fix or delete that file first.`);
       this.log.warn?.(`Could not parse ${this.configPath}: ${err.message}`);
       return {};
     }

@@ -11,7 +11,7 @@ import { SERVERS, planById, planOfServer, rank } from "./lib/plans";
 import { hasAccess, isPaid, subscriberOf } from "./lib/subscription";
 import { connect, vultrSettings, type Instance, type Vultr } from "./lib/vultr";
 
-// Every subscriber's own dedicated server at Vultr, running Holly Bot Computer
+// Every subscriber's own dedicated server at Vultr, running Holli Bot Computer
 // linked to their account, so their bots run there around the clock. It's
 // made when they subscribe, resized when they upgrade, moved to a smaller one
 // when they downgrade, and deleted when the subscription ends, all from here:
@@ -79,7 +79,7 @@ const NO_NEXT = { nextServerId: undefined, nextServerIp: undefined, nextServerPl
 
 /** What the app shows about the server (billing:status). `step` says how far
  * a new server has got: creating, starting (made, waiting for its address)
- * or installing (setting up Holly). */
+ * or installing (setting up Holli Bot). */
 export function serverView(row: Doc<"subscribers">) {
   const step = row.serverStatus !== "provisioning" ? undefined : !row.serverId ? "creating" : !row.serverIp ? "starting" : "installing";
   return {
@@ -125,7 +125,7 @@ export async function planServer(ctx: MutationCtx, row: Doc<"subscribers">, { en
  * is being made, and refuses when the Vultr account has SERVERS.max of them.
  * The server's id is kept the moment Vultr answers; then Vultr is asked for
  * its address (`watch`) until it has one, and the server reports in over
- * /servers/ready once Holly is running (or `timeout` marks it failed).
+ * /servers/ready once Holli Bot is running (or `timeout` marks it failed).
  */
 export const provision = internalAction({
   args: { userId: v.id("users") },
@@ -155,7 +155,7 @@ export const claimNew = internalMutation({
     if (!row || row.serverId || !["none", "error"].includes(row.serverStatus) || !isPaid(row, now)) return null;
     const plan = planById(row.plan);
     if (!plan) {
-      console.error(`Servers: ${a.userId} pays for a plan Holly Bot doesn't know (${row.plan}); no server made.`);
+      console.error(`Servers: ${a.userId} pays for a plan Holli Bot doesn't know (${row.plan}); no server made.`);
       return null;
     }
     await ctx.db.insert("deviceLinks", { userId: a.userId, codeHash: a.linkHash, expiresAt: now + LINK_MS, serverKey: a.key });
@@ -191,7 +191,7 @@ async function build(
   const vultr = client();
   if (!vultr) {
     console.error("Servers: VULTR_API_KEY isn't set, so no server can be made.");
-    await fail("Servers aren't set up on Holly Bot's server yet.");
+    await fail("Servers aren't set up on Holli Bot's server yet.");
     return;
   }
   const label = labelOf(o.userId);
@@ -210,8 +210,8 @@ async function build(
         }
       }
       if (all.length >= SERVERS.max) {
-        console.warn(`Servers: the Vultr account has ${all.length} ${SERVERS.tag} servers, the most Holly Bot makes (Vultr allows 30 servers and $1,000 a month). Not making one for ${o.userId}. Ask Vultr to raise the account's limits.`);
-        await fail("Holly Bot can't set up another computer right now. It will as soon as there's room; you can also try again later.");
+        console.warn(`Servers: the Vultr account has ${all.length} ${SERVERS.tag} servers, the most Holli Bot makes (Vultr allows 30 servers and $1,000 a month). Not making one for ${o.userId}. Ask Vultr to raise the account's limits.`);
+        await fail("Holli Bot can't set up another computer right now. It will as soon as there's room; you can also try again later.");
         return;
       }
     }
@@ -223,7 +223,7 @@ async function build(
       osId: await vultr.osId(SERVERS.os),
       label,
       tag: SERVERS.tag,
-      hostname: "holly",
+      hostname: "holli",
       exclude: o.exclude ? [o.exclude] : [],
       userData: setupScript({
         userId: o.userId,
@@ -327,7 +327,7 @@ export const timeout = internalMutation({
         ? "Your computer wasn't created at Vultr within 15 minutes."
         : !row.serverIp
           ? "Vultr didn't give your computer an address within 15 minutes."
-          : "Holly didn't finish setting up on your computer within 15 minutes.";
+          : "Holli Bot didn't finish setting up on your computer within 15 minutes.";
       console.warn(`Servers: ${userId}: ${reason}`);
       await ctx.db.patch(row._id, { serverStatus: "error", serverError: reason, updatedAt: Date.now() });
     } else if (row?.nextServerKey === key) {
@@ -362,14 +362,14 @@ async function giveUpMove(ctx: MutationCtx, row: Doc<"subscribers">, reason: str
     serverStatus: row.serverStatus === "resizing" ? "ready" : row.serverStatus,
     serverReadyToken: undefined,
     serverWorkStartedAt: undefined,
-    serverError: "Moving to your new plan's smaller computer didn't work. Holly Bot will try again tonight.",
+    serverError: "Moving to your new plan's smaller computer didn't work. Holli Bot will try again tonight.",
     updatedAt: Date.now(),
   });
 }
 
 /**
  * Where a server reports in (convex/http.ts routes POST /servers/ready here),
- * once Holly is running on it: { userId, token, url, pairingToken }, or
+ * once Holli Bot is running on it: { userId, token, url, pairingToken }, or
  * { userId, token, error } when its setup failed. The token is the one-time
  * token it was made with.
  */
@@ -478,7 +478,7 @@ export const resize = internalAction({
       await ctx.scheduler.runAfter(vultr.dryRun ? 5_000 : WATCH_MS, internal.servers.watchResize, { userId, id: job.id, plan: job.plan, startedAt: Date.now() });
     } catch (err) {
       console.error(`Servers: resizing ${job.id} to ${job.plan} failed: ${message(err)}`);
-      await ctx.runMutation(internal.servers.resized, { userId, id: job.id, plan: job.plan, done: false, reason: "Upgrading your computer didn't work. Holly Bot will try again tonight." });
+      await ctx.runMutation(internal.servers.resized, { userId, id: job.id, plan: job.plan, done: false, reason: "Upgrading your computer didn't work. Holli Bot will try again tonight." });
     }
     return null;
   },
@@ -521,7 +521,7 @@ export const watchResize = internalAction({
         id: a.id,
         plan: a.plan,
         done: moved,
-        reason: moved ? undefined : "Upgrading your computer is taking longer than it should. Holly Bot will check on it tonight.",
+        reason: moved ? undefined : "Upgrading your computer is taking longer than it should. Holli Bot will check on it tonight.",
       });
     } else {
       await ctx.scheduler.runAfter(WATCH_MS, internal.servers.watchResize, a);
@@ -682,7 +682,7 @@ export const removeFailed = internalMutation({
 });
 
 /** Deletes one server at Vultr, whoever it belonged to (a replaced server, one
- * no account uses, a deleted account's), and ends its Holly Bot Computer session.
+ * no account uses, a deleted account's), and ends its Holli Bot Computer session.
  * Tried again a few times if Vultr can't be reached; the reconcile catches the rest. */
 export const destroy = internalAction({
   args: { id: v.string(), key: v.optional(v.string()), attempt: v.number() },
@@ -724,7 +724,7 @@ export const retry = mutation({
     const now = Date.now();
     if (!row || !isPaid(row, now)) throw new ConvexError("There's no subscription to set a computer up for.");
     if (!["error", "none"].includes(row.serverStatus)) return null; // already under way
-    if (row.retriedAt && now - row.retriedAt < RETRY_GAP_MS) throw new ConvexError("Holly Bot is already on it. Try again in a minute.");
+    if (row.retriedAt && now - row.retriedAt < RETRY_GAP_MS) throw new ConvexError("Holli Bot is already on it. Try again in a minute.");
     await ctx.db.patch(row._id, { retriedAt: now, serverError: undefined, updatedAt: now });
     if (row.serverId || row.nextServerId) await ctx.scheduler.runAfter(0, internal.servers.remove, { userId, replace: true });
     else await ctx.scheduler.runAfter(0, internal.servers.provision, { userId });

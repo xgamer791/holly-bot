@@ -1,7 +1,7 @@
-// Holly Bot Computer HTTP server.
+// Holli Bot Computer HTTP server.
 //   /v1/*   the Bot Computer API (shell, files, web, desktop, browser, plugins)
 //   /api/*  remote control of the bots that live here (state, live events, RPC, files, images)
-//   /       the Holly Bot web app itself (so a phone can open one link)
+//   /       the Holli Bot web app itself (so a phone can open one link)
 // Everything except the web app and /v1/health needs the pairing token, or,
 // while the computer is linked to an account, the access key it gave the
 // account's devices (computer/src/account.mjs).
@@ -73,7 +73,7 @@ function commonParent(a, b) {
 /**
  * GET /v1/export: the bots' files as a .tar.gz (the workspace, and the
  * browser profile and plugins in the data folder), with paths relative to the
- * folder both live in. When Holly Bot moves a subscriber to a smaller server,
+ * folder both live in. When Holli Bot moves a subscriber to a smaller server,
  * the new one copies them from the old one (convex/lib/cloudinit.ts). Caches
  * and the browser's lock files stay behind.
  */
@@ -262,14 +262,14 @@ class Jobs {
   }
 }
 
-/** The devices Holly Bot says it's on (src/remote/remote-app.js deviceKind),
+/** The devices Holli Bot says it's on (src/remote/remote-app.js deviceKind),
  * as this computer's own window says them. */
 const DEVICE_WORDS = {
   iphone: 'iPhone', ipad: 'iPad', 'android-phone': 'Android phone', 'android-tablet': 'Android tablet',
   mac: 'Mac', windows: 'Windows PC', linux: 'Linux computer', chromebook: 'Chromebook',
 };
 
-/** Linking this computer to a Holly Bot account (computer/src/home.mjs). */
+/** Linking this computer to a Holli Bot account (computer/src/home.mjs). */
 const ACCOUNT_RPC = {
   'account.link': (home, [code]) => home.link(code),
   'account.unlink': (home) => home.unlink(),
@@ -318,7 +318,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
         return json(res, 200, { ok: true, app: 'holly-computer', ...info });
       }
       if (!url.pathname.startsWith('/v1/') && !url.pathname.startsWith('/api/')) return serveAsset(url, res);
-      if (!tokenOk(req, url, [token, home?.account?.accessKey].filter(Boolean))) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holly Bot Computer.' });
+      if (!tokenOk(req, url, [token, home?.account?.accessKey].filter(Boolean))) return json(res, 401, { error: 'Missing or wrong pairing token. Use the link printed by Holli Bot Computer.' });
       if (url.pathname.startsWith('/v1/')) return await computerApi(req, res, url);
       return await remoteApi(req, res, url);
     } catch (err) {
@@ -451,7 +451,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
   }
 
   /**
-   * Holly Bot on a phone (or any device) has just connected to this computer,
+   * Holli Bot on a phone (or any device) has just connected to this computer,
    * with Connect the first time (`first`), or by itself after that: this
    * computer's own window says so, and so does its own page (src/ui/app.js),
    * through the live updates every device gets.
@@ -459,7 +459,7 @@ export function createHollyServer({ app: firstApp, home = null, computer, token,
   function hello(info, clientId) {
     const kind = DEVICE_WORDS[info?.kind] ? info.kind : 'other';
     const first = info?.first === true;
-    const what = `Holly Bot on your ${DEVICE_WORDS[kind] || 'phone'}`;
+    const what = `Holli Bot on your ${DEVICE_WORDS[kind] || 'phone'}`;
     log.log?.(first ? `\n  ${what} is connected to this computer. Your bots run here, and you control them from it.\n` : `  ${what} connected.`);
     hub.push('hello', { kind, first, clientId: String(clientId || '').slice(0, 80), at: Date.now() });
     return { ok: true };

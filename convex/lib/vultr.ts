@@ -215,7 +215,7 @@ export function connect(o: VultrOptions): Vultr | null {
         hostname: n.hostname,
         user_data: toBase64(n.userData),
         // Backups and snapshots cost extra, and a subscriber's bots are kept
-        // in their Holly Bot account anyway.
+        // in their Holli Bot account anyway.
         backups: "disabled",
         activation_email: false,
       };

@@ -12,7 +12,7 @@ export { LANGUAGES, mark };
 //
 // The language is Settings → Language (settings.language, kept in the
 // account): English, Spanish or Chinese, or 'system', the device's own when
-// Holly Bot speaks it. Before the account opens (welcome, sign-in, the
+// Holli Bot speaks it. Before the account opens (welcome, sign-in, the
 // subscription page) the app goes by the choice this device last used.
 //
 // New or changed text: write the English inside tr(), then add it to every

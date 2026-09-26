@@ -4,7 +4,7 @@ import { guessMime } from '../files.js';
 import { phrase, spoken } from '../i18n.js';
 
 // Tools that act on the Bot Computer (the user's own PC/Mac/Linux box running
-// Holly Bot Computer). With Auto-review on, actions that change things ask for
+// Holli Bot Computer). With Auto-review on, actions that change things ask for
 // approval first — once per task for screen/browser control, per command for shell.
 
 const connected = (app) => !!app.computer?.connected;
@@ -121,7 +121,7 @@ export const computerTools = [
       type: 'object',
       properties: {
         command: { type: 'string' },
-        cwd: { type: 'string', description: 'Working directory (defaults to the Holly workspace folder).' },
+        cwd: { type: 'string', description: 'Working directory (defaults to the workspace folder).' },
         timeout_seconds: { type: 'integer', minimum: 1, maximum: 3600 },
         background: { type: 'boolean' },
       },
@@ -170,7 +170,7 @@ export const computerTools = [
         default: return `${a.op} ${a.path}`;
       }
     },
-    description: 'Work with files on the computer. ops: list {path}; read {path}; write {path, content}; append {path, content}; delete {path}; send {path} — sends that file to the user\'s phone as an attachment. Paths may be absolute or relative to the Holly workspace folder; ~ is the home folder.',
+    description: 'Work with files on the computer. ops: list {path}; read {path}; write {path, content}; append {path, content}; delete {path}; send {path} — sends that file to the user\'s phone as an attachment. Paths may be absolute or relative to the workspace folder; ~ is the home folder.',
     parameters: {
       type: 'object',
       properties: {

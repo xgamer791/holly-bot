@@ -1,4 +1,4 @@
-// Drives a real Chromium through Holly Bot Computer's DevTools-protocol browser
+// Drives a real Chromium through Holli Bot Computer's DevTools-protocol browser
 // against a local test site. Skipped when no Chrome/Chromium is installed.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -159,7 +159,7 @@ test('screenshots and clicking by picture coordinates', { skip }, async () => {
   assert.ok(r.url.startsWith(base));
 });
 
-test('a restarted Holly Bot Computer reuses the running browser', { skip }, async () => {
+test('a restarted Holli Bot Computer reuses the running browser', { skip }, async () => {
   const again = new CdpBrowser({ executablePath: chrome, userDataDir: join(dir, 'profile'), headless: true });
   await again.start();
   assert.equal(again.proc, null, 'no second browser process');

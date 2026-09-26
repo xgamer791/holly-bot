@@ -10,7 +10,7 @@ import { StripeError, call, subscriptionState, verifySignature, type Subscriptio
 import { ENDED, hasAccess, isExempt, liveMode, needsCheck, subscriberOf } from "./lib/subscription";
 import { planServer, serverView } from "./servers";
 
-// Subscriptions. Holly Bot opens only for an account whose subscription is
+// Subscriptions. Holli Bot opens only for an account whose subscription is
 // active (or past due, while Stripe tries the card again), or that's exempt
 // (the owner's, while testing): the app sends everyone else to its
 // subscription page (src/main.js), and the server keeps and uses an account's
@@ -29,7 +29,7 @@ import { planServer, serverView } from "./servers";
 // Variables (CONVEX.md): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and each
 // plan's price ids, STRIPE_PRICE_<PLAN>_MONTHLY and _YEARLY (convex/lib/plans.ts).
 
-const NOT_SET_UP = "Subscriptions aren't set up on Holly Bot's server yet.";
+const NOT_SET_UP = "Subscriptions aren't set up on Holli Bot's server yet.";
 /** Deleting a customer is retried this long after an account is deleted. */
 const RETRY_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 3_600_000, 12 * 3_600_000];
 /** Handled events are remembered this long (Stripe retries for three days). */
@@ -69,7 +69,7 @@ const planInfo = v.object({
 
 /**
  * What the app knows about the account's subscription and server. `active`:
- * it may use Holly Bot (paid up, or `pastDue` while Stripe tries the card
+ * it may use Holli Bot (paid up, or `pastDue` while Stripe tries the card
  * again, or `exempt`: it needs no subscription, and has no server). `ready`:
  * Stripe is set up. `check`: a paid period should have ended by now without
  * word from Stripe, so ask it (`sync`).
@@ -245,7 +245,7 @@ async function subscriberFor(ctx: MutationCtx, sub: SubscriptionState, hint: str
   const known = await ctx.db.query("subscribers").withIndex("by_customer", (q) => q.eq("stripeCustomerId", sub.customerId)).first();
   if (known) return known;
   const userId = ctx.db.normalizeId("users", hint ?? sub.userId ?? "");
-  if (!userId || !(await ctx.db.get(userId))) return null; // an account deleted since, or not Holly Bot's
+  if (!userId || !(await ctx.db.get(userId))) return null; // an account deleted since, or not Holli Bot's
   const row = await subscriberOf(ctx, userId);
   if (row) {
     await ctx.db.patch(row._id, { stripeCustomerId: sub.customerId, livemode: sub.livemode });
@@ -380,7 +380,7 @@ async function checkPrice(key: string, plan: Plan, every: Interval, id: string) 
   if (price?.active && price.currency === "usd" && price.unit_amount === amount && recurring?.interval === every && (recurring?.interval_count ?? 1) === 1 && recurring?.usage_type !== "metered") return;
   const has = price ? `${price.active ? "" : "archived, "}${price.unit_amount ?? "?"} ${price.currency ?? "?"} every ${recurring?.interval_count ?? 1} ${recurring?.interval ?? "?"}` : "missing";
   console.error(`Checkout: ${priceVariable(plan.id, every)} (${id}) is ${has}, but convex/lib/plans.ts charges ${money(amount)} every ${every}. Make them match.`);
-  throw new ConvexError("That plan's price isn't set up right on Holly Bot's server yet.");
+  throw new ConvexError("That plan's price isn't set up right on Holli Bot's server yet.");
 }
 
 /**
@@ -401,9 +401,9 @@ export const checkout = action({
     const price = priceId(plan.id, every);
     if (!price) {
       console.error(`Checkout: ${priceVariable(plan.id, every)} isn't set.`);
-      throw new ConvexError("That plan isn't set up on Holly Bot's server yet.");
+      throw new ConvexError("That plan isn't set up on Holli Bot's server yet.");
     }
-    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holly Bot can't come back to that address.");
+    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holli Bot can't come back to that address.");
     if (me.access) throw new ConvexError("This account already has a subscription.");
     if (me.open) throw new ConvexError("Your subscription needs attention first. Update your payment method in billing.");
     const start = async (customer: string): Promise<string> => {
@@ -419,7 +419,7 @@ export const checkout = action({
         metadata: { userId: me.userId, plan: plan.id },
         subscription_data: { metadata: { userId: me.userId, plan: plan.id } },
         custom_text: {
-          submit: { message: `Renews automatically every ${every} until you cancel. Cancel anytime in Holly Bot: Settings → Subscription.` },
+          submit: { message: `Renews automatically every ${every} until you cancel. Cancel anytime in Holli Bot: Settings → Subscription.` },
         },
       });
       if (!session?.url) throw new Error("Stripe didn't return a checkout page");
@@ -467,7 +467,7 @@ export const portal = action({
     const key = secretKey();
     if (!key) throw new ConvexError(NOT_SET_UP);
     if (!me.customerId) throw new ConvexError("There's no subscription to manage yet.");
-    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holly Bot can't come back to that address.");
+    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holli Bot can't come back to that address.");
     try {
       const session = await call(key, "POST", "/billing_portal/sessions", { customer: me.customerId, return_url: backTo(returnTo, { billing: "done" }) });
       return session.url;

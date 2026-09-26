@@ -12,7 +12,7 @@ let n = 0;
  */
 async function makeApp(script) {
   const app = await App.create({ dbName: `rt-${process.pid}-${n++}` });
-  // Bots run on Holly Bot's AI: DeepSeek, here on a saved key (src/core/providers).
+  // Bots run on Holli Bot's AI: DeepSeek, here on a saved key (src/core/providers).
   await app.saveSettings({ providers: { deepseek: { apiKey: 'sk-test' } }, defaults: { provider: 'deepseek', model: 'deepseek-flash', memoryModel: 'same' }, memory: { auto: true, embeddings: 'off', contextBudget: 24000 } });
   const calls = [];
   app.providers.chat = async (req) => {
@@ -177,7 +177,7 @@ test('group chat routes to picked speakers and hides [PASS]', async () => {
   assert.ok(msgs.some((m) => m.hidden && m.authorId === bo.id));
 });
 
-test('provider errors mark the message, and a bot without Holly Bot\'s AI is told why', async () => {
+test('provider errors mark the message, and a bot without Holli Bot\'s AI is told why', async () => {
   const { app } = await makeApp(async () => {
     throw Object.assign(new Error('DeepSeek error 500: boom'), { status: 500 });
   });
@@ -186,7 +186,7 @@ test('provider errors mark the message, and a bot without Holly Bot\'s AI is tol
   assert.equal(r.status, 'error');
   assert.match(r.error, /boom/);
   await app.saveSettings({ providers: {} });
-  await assert.rejects(async () => app.providers.resolve(holly), /Holly Bot account/);
+  await assert.rejects(async () => app.providers.resolve(holly), /Holli Bot account/);
 });
 
 test('delegate_task runs in the background and reports back', async () => {
@@ -223,10 +223,10 @@ test('no backup AI: an outage shows on the reply, never goes to another AI, and 
   let outage = true;
   const { app, calls } = await makeApp(async (req, ctx) => {
     if (ctx.isMemoryJob) return { text: '{"operations":[]}' };
-    if (outage) throw new ProviderError('DeepSeek had a problem answering. Try again in a moment.', { status: 502, provider: "Holly Bot's AI" });
+    if (outage) throw new ProviderError('DeepSeek had a problem answering. Try again in a moment.', { status: 502, provider: "Holli Bot's AI" });
     return { text: 'back again', model: req.cfg.model };
   });
-  // A backup chosen before bots ran on Holly Bot's AI is left alone.
+  // A backup chosen before bots ran on Holli Bot's AI is left alone.
   await app.saveSettings({ providers: { ...app.settings.providers, openai: { apiKey: 'sk-o' } }, backup: { provider: 'openai', model: 'gpt-5' } });
   const bot = await app.createAgent({ name: 'Holly', greet: false });
   const threadId = `dm_${bot.id}`;
@@ -235,7 +235,7 @@ test('no backup AI: an outage shows on the reply, never goes to another AI, and 
   let reply = (await app.loadMessages(threadId)).at(-1);
   assert.equal(reply.status, 'error');
   assert.match(reply.error, /DeepSeek had a problem/);
-  assert.ok(calls.every((c) => c.req.cfg.provider.id === 'deepseek'), 'only Holly Bot\'s AI is asked');
+  assert.ok(calls.every((c) => c.req.cfg.provider.id === 'deepseek'), 'only Holli Bot\'s AI is asked');
 
   outage = false;
   await app.runtime.send(threadId, { text: 'hello again' });

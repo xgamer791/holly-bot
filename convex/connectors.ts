@@ -57,7 +57,7 @@ const label = (s: string) => SERVICES[s as Service]?.label ?? s;
 const reconnect = (s: string, why = "") => new ConvexError(`${label(s)} needs connecting again: Settings → Plugins.${why ? ` (${why.slice(0, 120)})` : ""}`);
 
 /** The OAuth app a connection goes through: the deployment's (CONVEX.md), or,
- * for a service Holly Bot registers with as each connection starts
+ * for a service Holli Bot registers with as each connection starts
  * (Higgsfield), the client registered for that connection. */
 function appFor(s: Service, tokens?: { clientId?: string }): OAuthApp | null {
   if (registersClient(s)) return tokens?.clientId ? { clientId: tokens.clientId, clientSecret: "" } : null;
@@ -75,7 +75,7 @@ export const available = query({
       outlook: ready && !!oauthApp("outlook", env()),
       github: ready && !!oauthApp("github", env()),
       githubToken: ready,
-      // Nothing to set up: Holly Bot registers with Higgsfield as a connection starts.
+      // Nothing to set up: Holli Bot registers with Higgsfield as a connection starts.
       higgsfield: ready,
     };
   },
@@ -115,9 +115,9 @@ export const start = action({
     await ctx.runQuery(internal.connectors.whoami, {});
     const registers = registersClient(s);
     const app = registers ? null : oauthApp(s, env());
-    if ((!registers && !app) || !key()) throw new ConvexError(`${label(s)} isn't set up on Holly Bot's server yet.`);
-    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holly Bot can't come back to that address.");
-    // Higgsfield has no app to set up: Holly Bot registers a client for this connection.
+    if ((!registers && !app) || !key()) throw new ConvexError(`${label(s)} isn't set up on Holli Bot's server yet.`);
+    if (!isAllowedRedirect(returnTo, process.env.SITE_URL)) throw new ConvexError("Holli Bot can't come back to that address.");
+    // Higgsfield has no app to set up: Holli Bot registers a client for this connection.
     let clientId = app?.clientId ?? "";
     if (registers) {
       try {
@@ -184,7 +184,7 @@ export const callback = httpAction(async (ctx, request) => {
   const state = url.searchParams.get("state") ?? "";
   const started = state && SERVICE_NAMES.includes(s) ? await ctx.runMutation(internal.connectors.takeState, { state }) : null;
   if (!started || started.service !== s) {
-    return new Response("This link has expired. Go back to Holly Bot and connect again.", { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new Response("This link has expired. Go back to Holli Bot and connect again.", { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
   const back = (params: Record<string, string>) => {
     const to = new URL(started.returnTo);
@@ -239,7 +239,7 @@ export const claim = mutation({
     const row = await ctx.db.query("connectorClaims").withIndex("by_claim", (q) => q.eq("claim", claim)).unique();
     if (!row) return { error: "That connection has expired. Connect it again." };
     await ctx.db.delete(row._id);
-    if (row.userId !== userId) return { error: "That connection was started from another Holly Bot account, so it wasn't added to this one." };
+    if (row.userId !== userId) return { error: "That connection was started from another Holli Bot account, so it wasn't added to this one." };
     if (row.expiresAt < Date.now()) return { error: "That connection has expired. Connect it again." };
     await upsert(ctx, userId, row.service, { account: row.account, scopes: row.scopes, via: "oauth", sealed: row.sealed });
     return { service: row.service, account: row.account };
@@ -266,7 +266,7 @@ export const connectToken = action({
   returns: v.object({ service: v.string(), account: v.string() }),
   handler: async (ctx, { token }) => {
     const userId = await ctx.runQuery(internal.connectors.whoami, {});
-    if (!key()) throw new ConvexError("Connections aren't set up on Holly Bot's server yet.");
+    if (!key()) throw new ConvexError("Connections aren't set up on Holli Bot's server yet.");
     const t = token.trim();
     if (!/^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/.test(t)) {
       throw new ConvexError("That doesn't look like a GitHub token. They start with github_pat_ or ghp_.");

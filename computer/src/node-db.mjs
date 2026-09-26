@@ -1,4 +1,4 @@
-// File-backed database for Holly Bot Computer with the same interface as the
+// File-backed database for Holli Bot Computer with the same interface as the
 // browser's IndexedDB wrapper (src/core/db.js), so the shared app core runs
 // unchanged in Node. Each store lives in memory and is persisted as an
 // append-only JSONL log (compacted on startup and when it grows); Blobs are

@@ -16,10 +16,10 @@ export class ProviderError extends Error {
       const text = await res.text();
       try {
         const j = JSON.parse(text);
-        // Holly Bot's AI (convex/ai.ts) says what happened in words to show as they are:
+        // Holli Bot's AI (convex/ai.ts) says what happened in words to show as they are:
         // credits used up (code no_credits), not signed in, DeepSeek busy…
         if (j.error?.type === 'holly_bot') {
-          return new ProviderError(String(j.error.message || "Holly Bot's AI couldn't answer."), { status: res.status, provider, code: j.error.code });
+          return new ProviderError(String(j.error.message || "Holli Bot's AI couldn't answer."), { status: res.status, provider, code: j.error.code });
         }
         detail = j.error?.message || j.error?.msg || j.message || j.detail || (typeof j.error === 'string' ? j.error : '') || text;
       } catch {
