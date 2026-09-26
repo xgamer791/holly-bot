@@ -342,6 +342,67 @@ function useZoom(onSettle) {
   };
 }
 
+/**
+ * Handlers for a box under the screen picture. Tapped, iOS would scroll the
+ * sheet to put the box in the middle of what the keyboard leaves, and the
+ * picture would go out of sight. Instead a tap focuses the box where it is,
+ * and once the keyboard is up the sheet scrolls just far enough to show the
+ * box right above it (showAboveKeyboard), so the picture stays in view. A long
+ * press or a drag is left to the phone.
+ */
+function useBoxAboveKeyboard() {
+  const touch = useRef(null);
+  return {
+    onTouchStart: (e) => {
+      const t = e.touches[0];
+      touch.current = t ? { x: t.clientX, y: t.clientY, at: e.timeStamp } : null;
+    },
+    onTouchEnd: (e) => {
+      const box = e.currentTarget;
+      const start = touch.current;
+      const t = e.changedTouches[0];
+      touch.current = null;
+      if (!start || !t || document.activeElement === box) return;
+      if (e.timeStamp - start.at > 400 || Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) return;
+      e.preventDefault();
+      box.focus({ preventScroll: true });
+      box.setSelectionRange?.(box.value.length, box.value.length);
+    },
+    onFocus: (e) => showAboveKeyboard(e.currentTarget),
+  };
+}
+
+/** While `box` has focus: its sheet makes room at the bottom for the keyboard
+ * (--keyboard) and scrolls so the box sits just above the keyboard, and any
+ * scroll of the whole page the phone made is undone. */
+function showAboveKeyboard(box) {
+  const vv = window.visualViewport;
+  const body = box.closest('.sheet-body');
+  if (!vv || !body) return;
+  const fit = () => {
+    if (document.activeElement !== box) return;
+    const keyboard = Math.max(0, document.documentElement.clientHeight - vv.height);
+    body.style.setProperty('--keyboard', `${keyboard}px`);
+    if (window.scrollY) window.scrollTo(0, 0);
+    // Down to just above the keyboard when it's hidden; up to there only while
+    // a keyboard is up (nothing moves at a computer's own keyboard).
+    const by = box.getBoundingClientRect().bottom + 12 - (vv.offsetTop + vv.height);
+    if (by > 1 || (keyboard > 80 && by < -1)) body.scrollBy({ top: by, behavior: 'smooth' });
+  };
+  // The keyboard coming up resizes the visual viewport; in case it doesn't say so, once more after a moment.
+  const later = setTimeout(fit, 450);
+  vv.addEventListener('resize', fit);
+  box.addEventListener('blur', () => {
+    clearTimeout(later);
+    vv.removeEventListener('resize', fit);
+    body.style.removeProperty('--keyboard');
+  }, { once: true });
+}
+
+/** What's in each screen's typing box (by bot), kept while the app is open:
+ * switching tabs or closing the sheet doesn't lose it. */
+const typingDrafts = new Map();
+
 /** The computer's screen, or with `agentId`, that bot's: on a server each bot
  * has a screen of its own, with its own window of the shared Chrome
  * (computer/src/screens.mjs); elsewhere they share the one. */
@@ -355,8 +416,17 @@ function Screen({ agentId }) {
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState(true);
   const [url, setUrl] = useState('');
-  const [typing, setTyping] = useState('');
+  const [typing, setTyping] = useState(() => typingDrafts.get(agentId || '') || '');
   const [keys, setKeys] = useState('');
+  useEffect(() => {
+    typingDrafts.set(agentId || '', typing);
+  }, [typing, agentId]);
+  // What the box last typed into the field on the computer, while typing
+  // still goes to that field; null once a tap on the screen, or a key that
+  // can move to another field, may have sent it somewhere else.
+  const typed = useRef(null);
+  const sending = useRef(false);
+  const aboveKeyboard = useBoxAboveKeyboard();
   const inflight = useRef(false);
   const asked = useRef(0); // how wide a picture the last request asked for
   const sharper = useRef(false); // a sharper picture is wanted once the one on its way is in
@@ -426,6 +496,7 @@ function Screen({ agentId }) {
     zoom.reset();
     sharper.current = false;
     allOfIt.current = false;
+    typed.current = null;
     refresh();
   }, [mode]);
 
@@ -435,6 +506,7 @@ function Screen({ agentId }) {
     return () => clearInterval(t);
   }, [live, mode]);
 
+  /** Does `action` on the screen showing; true once it's done. */
   const act = async (action, args = {}) => {
     setBusy(true);
     // x and y are in the picture showing; the one that comes back is as sharp as the view needs.
@@ -447,8 +519,10 @@ function Screen({ agentId }) {
         const tab = action === 'goto' && closed ? undefined : shot?.tab;
         show(await app.computer.browser(action, { ...args, ...d, imageWidth: shot?.width, tab, quick: true, withScreenshot: true, agentId }), false, d);
       }
+      return true;
     } catch (err) {
       ui.toast(err.message, { error: true });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -461,17 +535,58 @@ function Screen({ agentId }) {
     if (!rect?.width) return;
     const x = Math.round(((e.clientX - rect.left) / rect.width) * shot.width);
     const y = Math.round(((e.clientY - rect.top) / rect.height) * shot.height);
+    typed.current = null;
     if (mode === 'desktop') act('click', { x, y });
     else act('click_xy', { x, y });
   };
 
-  const typeNow = () => {
-    if (!typing) return;
-    if (mode === 'desktop') act('type', { text: typing });
-    else act('type_text', { text: typing });
-    setTyping('');
-  };
   const press = (k) => (mode === 'desktop' ? act('key', { keys: k }) : act('press', { key: k }));
+  /**
+   * Types what's in the box into the field on the computer, and the box keeps
+   * it: the two hold the same text. Pressed again, only what changed goes:
+   * Backspaces for what was taken off the end, then what's new. After a tap on
+   * the screen, or Enter, Tab, Esc or a shortcut, all of it goes again.
+   */
+  const typeNow = async () => {
+    if (sending.current) return;
+    const text = typing;
+    const was = typed.current;
+    let same = 0;
+    if (was != null) while (same < was.length && same < text.length && was[same] === text[same]) same += 1;
+    const erase = was == null ? 0 : was.length - same;
+    const add = text.slice(same);
+    if (!erase && !add) return;
+    sending.current = true;
+    try {
+      if (erase) {
+        if (!(await press(Array(erase).fill('Backspace').join(' ')))) return;
+        typed.current = text.slice(0, same);
+      }
+      if (add && (await act(mode === 'desktop' ? 'type' : 'type_text', { text: add }))) typed.current = text;
+    } finally {
+      sending.current = false;
+    }
+  };
+  /** Enter, Tab, Esc and ⌫. ⌫ takes the last character off the field, and off
+   * the box too while the two hold the same text. */
+  const pressButton = async (k) => {
+    if (!(await press(k))) return;
+    if (k !== 'Backspace') {
+      typed.current = null;
+      return;
+    }
+    const was = typed.current;
+    if (!was) return;
+    const now = was.slice(0, -1);
+    typed.current = now;
+    setTyping((t) => (t === was ? now : t));
+  };
+  const pressShortcut = () => {
+    if (!keys) return;
+    typed.current = null;
+    press(keys);
+    setKeys('');
+  };
   const scroll = (direction) => (mode === 'desktop'
     ? act('scroll', { x: Math.round((shot?.width || 1280) / 2), y: Math.round((shot?.height || 800) / 2), direction, amount: 5 })
     : act('scroll', { direction }));
@@ -494,18 +609,21 @@ function Screen({ agentId }) {
       ? (mode === 'browser' ? tr('Sign in to sites here and every bot is signed in: the browser\'s logins are shared.') : tr('This bot\'s own screen: each bot has one, and they share the computer\'s files, apps and logins.'))
       : (mode === 'browser' ? tr('Sign in to sites here for your bots — logins stay in the bot browser.') : tr('This is the live screen of your computer.'))}</div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <input class="input" placeholder=${tr('Type text…')} value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" />
+      <div class="type-box">
+        <input class="input" placeholder=${tr('Type text…')} value=${typing} onInput=${(e) => setTyping(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && typeNow()} autocapitalize="off" autocorrect="off" ...${aboveKeyboard} />
+        ${typing && html`<button class="type-clear" aria-label=${tr('Clear')} onClick=${() => setTyping('')}><${Icon.x} size="16" /></button>`}
+      </div>
       <button class="btn" onClick=${typeNow}>${tr('Type')}</button>
     </div>
     <div class="btn-row" style="margin-top:8px">
-      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => press(k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
+      ${['Enter', 'Tab', 'Escape', 'Backspace'].map((k) => html`<button key=${k} class="btn small" onClick=${() => pressButton(k)}>${k === 'Backspace' ? '⌫' : k === 'Escape' ? 'Esc' : k}</button>`)}
       <button class="btn small" onClick=${() => scroll('up')}>↑ ${tr('Scroll')}</button>
       <button class="btn small" onClick=${() => scroll('down')}>↓ ${tr('Scroll')}</button>
-      ${mode === 'browser' && html`<button class="btn small" onClick=${() => act('back')}>${tr('Back')}</button>`}
+      ${mode === 'browser' && html`<button class="btn small" onClick=${() => { typed.current = null; act('back'); }}>${tr('Back')}</button>`}
     </div>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <input class="input mono" placeholder=${tr('Shortcut, e.g. {keys}', { keys: app.computer.info?.platform === 'darwin' ? 'cmd+space' : 'ctrl+l, win' })} value=${keys} onInput=${(e) => setKeys(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && keys && (press(keys), setKeys(''))} autocapitalize="off" />
-      <button class="btn" disabled=${!keys} onClick=${() => { press(keys); setKeys(''); }}>${tr('Press')}</button>
+      <input class="input mono" placeholder=${tr('Shortcut, e.g. {keys}', { keys: app.computer.info?.platform === 'darwin' ? 'cmd+space' : 'ctrl+l, win' })} value=${keys} onInput=${(e) => setKeys(e.currentTarget.value)} onKeyDown=${(e) => e.key === 'Enter' && pressShortcut()} autocapitalize="off" ...${aboveKeyboard} />
+      <button class="btn" disabled=${!keys} onClick=${pressShortcut}>${tr('Press')}</button>
     </div>
     <div class="btn-row" style="margin-top:12px">
       <button class="btn small" onClick=${() => setLive(!live)}>${live ? `❚❚ ${tr('Pause live view')}` : `▶ ${tr('Live view')}`}</button>
