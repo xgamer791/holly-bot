@@ -1,5 +1,5 @@
 import { html, useState } from '../../vendor/preact.js';
-import { useApp, useUi, useTopics, useAsync, haptic } from './hooks.js';
+import { useApp, useUi, useTopics, useAsync } from './hooks.js';
 import { Sheet, Segmented } from './components.js';
 import { Icon } from './icons.js';
 import { account } from '../account/account.js';
@@ -28,7 +28,6 @@ export function WorkspaceSheet({ threadId, onClose }) {
   const bot = thread?.kind === 'dm' ? app.getAgent(thread.agentIds[0])?.name : null;
 
   const save = async (next) => {
-    haptic(app);
     try {
       await app.updateThread(threadId, { workspace: next });
     } catch (err) {

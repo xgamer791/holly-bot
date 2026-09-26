@@ -1,5 +1,5 @@
 import { html, useState, useRef, useEffect } from '../../vendor/preact.js';
-import { useApp, useUi, useTopics, haptic } from './hooks.js';
+import { useApp, useUi, useTopics } from './hooks.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
 import { Avatar } from './avatar.js';
@@ -70,7 +70,6 @@ export function Composer({ thread, agents, onVoice }) {
   const send = async () => {
     const body = text.trim();
     if (!body && !atts.length) return;
-    haptic(app);
     put('');
     setAtts([]);
     setMention(null);
@@ -85,7 +84,6 @@ export function Composer({ thread, agents, onVoice }) {
   // The chat is free at once (Runtime.stop); only a computer that can't be
   // reached keeps it busy, and says so.
   const stop = async () => {
-    haptic(app);
     try {
       await app.runtime.stop(thread.id);
     } catch (err) {
@@ -131,7 +129,6 @@ export function Composer({ thread, agents, onVoice }) {
       },
     });
     setDictating(rec);
-    haptic(app);
   };
 
   const onInput = (e) => {
@@ -162,7 +159,6 @@ export function Composer({ thread, agents, onVoice }) {
   const webOn = agents.length > 0 && agents.every((a) => a.tools?.web !== false);
   const toggleWeb = async () => {
     if (!agents.length) return;
-    haptic(app);
     const on = !webOn;
     try {
       await Promise.all(agents.map((a) => app.updateAgent(a.id, { tools: { ...(a.tools || {}), web: on } })));

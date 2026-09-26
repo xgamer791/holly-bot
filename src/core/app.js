@@ -51,7 +51,6 @@ export const DEFAULT_SETTINGS = {
   // the language the app was last shown in, which bots write in (src/main.js).
   language: 'system',
   uiLanguage: '',
-  haptics: true,
   usage: { since: 0, byModel: {} },
   onboarded: false,
 };

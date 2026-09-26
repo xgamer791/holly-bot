@@ -1,5 +1,5 @@
 import { html, useState, useRef } from '../../vendor/preact.js';
-import { useApp, useUi, useTopics, haptic } from './hooks.js';
+import { useApp, useUi, useTopics } from './hooks.js';
 import { Avatar, AvatarStack, botActivity, thinkingOf } from './avatar.js';
 import { Icon } from './icons.js';
 import { Popover } from './components.js';
@@ -159,7 +159,6 @@ function ThreadRow({ thread, active, swiped, onSwipe }) {
     moved.current = true;
     setDrag(null);
     const opening = e.type === 'pointerup' && g.at < -SWIPE_OPEN / 2;
-    if (opening && !open) haptic(app);
     onSwipe(opening ? thread.id : null);
   };
   const tap = () => {
