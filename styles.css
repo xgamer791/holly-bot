@@ -217,12 +217,10 @@ svg { display: block; }
 .circle-btn.ghost { background: transparent; }
 .circle-btn svg { width: 22px; height: 22px; }
 /* The buttons at the top (the menu, the computer, search, new): a round
-   bubble like .circle-btn's, 44 px, with a 24 px icon (not .icon-btn, the
-   smaller gray buttons further down). Charcoal gray, and on the dark themes
-   a soft gray (charcoal wouldn't show on black); the computer button keeps
-   its connection's colour (below). */
-.top-btn { width: var(--tap); height: var(--tap); border-radius: 50%; background: var(--surface); border: 1px solid var(--border); padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: #b4b4b9; transition: background .15s, transform .1s; }
-:root[data-theme="light"] .top-btn:not(.computer-btn) { color: #333336; }
+   bubble like .circle-btn's, 44 px, with a 24 px Lucide icon in the text's
+   colour (not .icon-btn, the smaller gray buttons further down); the
+   computer button's is its connection's (below). */
+.top-btn { width: var(--tap); height: var(--tap); border-radius: 50%; background: var(--surface); border: 1px solid var(--border); padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--text); transition: background .15s, transform .1s; }
 .top-btn:active { transform: scale(.94); background: var(--surface-2); }
 .top-btn svg { width: 24px; height: 24px; }
 /* The computer button at the top right (src/ui/computer-button.js): grayed out
